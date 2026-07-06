@@ -1,0 +1,7 @@
+stories/*
+!stories/.gitkeep
+__pycache__/
+*.pyc
+.env
+.venv/
+.pytest_cache/

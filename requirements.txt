@@ -1,0 +1,9 @@
+flask
+python-frontmatter
+markdown
+pymdown-extensions
+waitress
+pillow
+
+# dev
+pytest
