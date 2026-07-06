@@ -110,6 +110,12 @@ def test_story_page_404_for_missing_story(auth_client):
     assert resp.status_code == 404
 
 
+def test_404_page_renders_custom_template(auth_client):
+    resp = auth_client.get("/this-route-does-not-exist")
+    assert resp.status_code == 404
+    assert b"doesn't exist" in resp.data
+
+
 def test_story_media_serves_image_and_rejects_bad_path(auth_client, stories_dir):
     from datetime import date
     from io import BytesIO

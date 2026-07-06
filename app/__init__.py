@@ -3,7 +3,7 @@ import secrets
 from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, render_template
 
 
 def create_app(test_config=None):
@@ -32,5 +32,9 @@ def create_app(test_config=None):
     app.register_blueprint(auth.bp)
     app.register_blueprint(routes_pages.bp)
     app.register_blueprint(routes_api.bp)
+
+    @app.errorhandler(404)
+    def not_found(error):
+        return render_template("404.html"), 404
 
     return app
