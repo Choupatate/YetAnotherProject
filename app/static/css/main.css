@@ -251,3 +251,286 @@ mark {
 .login__submit {
   margin-top: 0.5rem;
 }
+
+/* ---------------------------------------------------------------------- */
+/* Timeline page                                                           */
+/* ---------------------------------------------------------------------- */
+
+.empty-state {
+  max-width: 28rem;
+  margin: 4rem auto;
+  padding: 0 1.25rem;
+  text-align: center;
+}
+
+.empty-state p {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  color: var(--color-text-dim);
+  margin-bottom: 1.5rem;
+}
+
+.timeline {
+  position: relative;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 5rem 3.25rem;
+}
+
+.timeline__spine {
+  position: absolute;
+  left: 1.5rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.timeline__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline__year-marker {
+  position: relative;
+  padding: 2rem 0 0.5rem;
+}
+
+.timeline__year-marker::before {
+  content: "";
+  position: absolute;
+  left: -1.75rem;
+  top: 2.5rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transform: translateX(-5px);
+}
+
+.timeline__year-label {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  color: var(--color-accent);
+}
+
+.timeline__entry {
+  position: relative;
+}
+
+.js .timeline__entry {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .timeline__entry {
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+}
+
+.timeline__entry.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.timeline__link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 44px;
+  padding: 0.6rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.timeline__dot {
+  position: absolute;
+  left: -1.75rem;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transform: translate(-4px, -50%);
+}
+
+.timeline__date {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+.timeline__title {
+  flex: 1;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  color: var(--color-text);
+}
+
+.timeline__thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.minimap {
+  position: fixed;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 10;
+}
+
+.minimap__tick {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--color-text-dim);
+  text-decoration: none;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.minimap__tick.is-active {
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Story page — the book page                                              */
+/* ---------------------------------------------------------------------- */
+
+.page-story .site-nav {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+
+.page-story .site-nav:hover,
+.page-story .site-nav:focus-within {
+  opacity: 1;
+}
+
+.story {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.story__header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.story__date {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin: 0 0 0.5rem;
+}
+
+.story__title {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+
+.story__flourish {
+  width: 4rem;
+  height: 0;
+  border: none;
+  border-top: 2px solid var(--color-accent);
+  margin: 0 auto;
+}
+
+.story__cover {
+  display: block;
+  width: 100%;
+  border-radius: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.story__body {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  line-height: 1.7;
+}
+
+@media (min-width: 48rem) {
+  .story__body {
+    font-size: 1.1875rem;
+  }
+}
+
+.story__body p {
+  margin: 0 0 1.25rem;
+  text-wrap: pretty;
+}
+
+.story__body p:first-of-type::first-letter {
+  font-size: 3.2em;
+  line-height: 0.85;
+  font-weight: 600;
+  float: left;
+  margin: 0.05em 0.1em 0 0;
+  color: var(--color-accent);
+}
+
+.story__body figure {
+  margin: 2rem 0;
+}
+
+.story__body figure img {
+  display: block;
+  width: 100%;
+  border-radius: 0.75rem;
+}
+
+.story__body figcaption {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.story__body blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--color-accent);
+  color: var(--color-text-dim);
+}
+
+.story__body mark {
+  padding: 0.05em 0.2em;
+}
+
+.story__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.story__back,
+.story__edit {
+  color: var(--color-text-dim);
+  text-decoration: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}

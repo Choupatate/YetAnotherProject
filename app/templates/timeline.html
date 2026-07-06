@@ -2,5 +2,41 @@
 {% block title %}Storybook{% endblock %}
 {% block body_class %}page-timeline{% endblock %}
 {% block content %}
-<p>{{ stories|length }} stories.</p>
+{% if not stories %}
+<div class="empty-state">
+  <p>No stories yet — this is where your family's memories will live.</p>
+  <a class="btn btn--primary" href="{{ url_for('pages.new_story') }}">+ New story</a>
+</div>
+{% else %}
+<div class="timeline">
+  <div class="timeline__spine" aria-hidden="true"></div>
+  <ol class="timeline__list">
+    {% for year, year_stories in years %}
+    <li class="timeline__year-marker" id="year-{{ year }}" data-year="{{ year }}">
+      <span class="timeline__year-label">{{ year }}</span>
+    </li>
+    {% for story in year_stories %}
+    <li class="timeline__entry">
+      <a class="timeline__link" href="{{ url_for('pages.story', story_id=story.id) }}">
+        <span class="timeline__dot" aria-hidden="true"></span>
+        <span class="timeline__date">{{ story.date.strftime('%b %-d') }}</span>
+        <span class="timeline__title">{{ story.title }}</span>
+        {% if story.cover %}
+        <img class="timeline__thumb" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="" loading="lazy">
+        {% endif %}
+      </a>
+    </li>
+    {% endfor %}
+    {% endfor %}
+  </ol>
+</div>
+<nav class="minimap" aria-label="Jump to year">
+  {% for year, _ in years %}
+  <a class="minimap__tick" href="#year-{{ year }}" data-year="{{ year }}">{{ year }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/timeline.js') }}"></script>
 {% endblock %}

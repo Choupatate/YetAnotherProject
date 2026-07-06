@@ -6,6 +6,7 @@
 <title>{% block title %}Storybook{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 <script>
+document.documentElement.classList.add("js");
 (function () {
   var stored = localStorage.getItem("storybook-theme");
   if (stored === "light" || stored === "dark") {
