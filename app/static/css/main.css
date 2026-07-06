@@ -534,3 +534,111 @@ mark {
   display: inline-flex;
   align-items: center;
 }
+
+/* ---------------------------------------------------------------------- */
+/* Editor page                                                             */
+/* ---------------------------------------------------------------------- */
+
+.editor {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.editor__title {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.editor__title::placeholder {
+  color: var(--color-text-dim);
+}
+
+.editor__date {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+.editor__root {
+  margin-top: 0.5rem;
+}
+
+.editor__source {
+  width: 100%;
+  min-height: 40vh;
+  display: none;
+  padding: 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.editor__source--visible {
+  display: block;
+}
+
+.editor__fallback-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.editor__fallback-btn {
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.editor__fallback-file-input {
+  display: none;
+}
+
+.editor__save-bar {
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 0;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+.editor__save {
+  width: 100%;
+}
+
+@media (min-width: 40rem) {
+  .editor__save-bar {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .editor__save {
+    width: auto;
+    padding: 0 2rem;
+  }
+}

@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import Blueprint, abort, current_app, render_template, send_from_directory
 
 from . import storage
@@ -41,7 +43,7 @@ def story_media(story_id, filename):
 @bp.route("/new")
 @login_required
 def new_story():
-    return render_template("editor.html", story=None)
+    return render_template("editor.html", story=None, today=date.today())
 
 
 @bp.route("/edit/<story_id>")
@@ -50,4 +52,4 @@ def edit_story(story_id):
     s = storage.get_story(current_app.config["STORIES_DIR"], story_id)
     if s is None:
         abort(404)
-    return render_template("editor.html", story=s)
+    return render_template("editor.html", story=s, today=date.today())
