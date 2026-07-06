@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Storybook{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+<script>
+(function () {
+  var stored = localStorage.getItem("storybook-theme");
+  if (stored === "light" || stored === "dark") {
+    document.documentElement.setAttribute("data-theme", stored);
+  }
+})();
+</script>
+{% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<a class="skip-link" href="#content">Skip to content</a>
+<nav class="site-nav">
+  <a class="site-nav__brand" href="{{ url_for('pages.timeline') }}">Storybook</a>
+  <div class="site-nav__actions">
+    {% if session.get('authed') %}
+    <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>
+    {% endif %}
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+      <span aria-hidden="true">&#9680;</span>
+    </button>
+  </div>
+</nav>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-container">
+    {% for category, message in messages %}
+    <p class="flash flash--{{ category }}" role="status">{{ message }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+<main id="content">
+{% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,253 @@
+/* Storybook — hand-written CSS, no framework. Dark theme is the default. */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Theme: dark is the default palette, applied at :root.                  */
+/* ---------------------------------------------------------------------- */
+
+:root {
+  --color-bg: #141210;
+  --color-bg-raised: #1c1916;
+  --color-text: #e8e2d9;
+  --color-text-dim: #b7ac9c;
+  --color-accent: #d9a441;
+  --color-accent-text: #14120e;
+  --color-highlight-bg: rgba(217, 164, 65, 0.22);
+  --color-border: #2c2822;
+  --color-error: #e0796a;
+
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg: #faf6ef;
+    --color-bg-raised: #f2ecdf;
+    --color-text: #2a2520;
+    --color-text-dim: #6b6255;
+    --color-accent: #a9701c;
+    --color-accent-text: #fff8ec;
+    --color-highlight-bg: rgba(169, 112, 28, 0.18);
+    --color-border: #e2d9c8;
+    --color-error: #a3372a;
+
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"] {
+  --color-bg: #faf6ef;
+  --color-bg-raised: #f2ecdf;
+  --color-text: #2a2520;
+  --color-text-dim: #6b6255;
+  --color-accent: #a9701c;
+  --color-accent-text: #fff8ec;
+  --color-highlight-bg: rgba(169, 112, 28, 0.18);
+  --color-border: #e2d9c8;
+  --color-error: #a3372a;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #141210;
+  --color-bg-raised: #1c1916;
+  --color-text: #e8e2d9;
+  --color-text-dim: #b7ac9c;
+  --color-accent: #d9a441;
+  --color-accent-text: #14120e;
+  --color-highlight-bg: rgba(217, 164, 65, 0.22);
+  --color-border: #2c2822;
+  --color-error: #e0796a;
+
+  color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Base                                                                    */
+/* ---------------------------------------------------------------------- */
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+mark {
+  background: var(--color-highlight-bg);
+  color: var(--color-text);
+  border-radius: 0.15em;
+  padding: 0 0.15em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  padding: 0.75rem 1rem;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Nav                                                                     */
+/* ---------------------------------------------------------------------- */
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  gap: 1rem;
+}
+
+.site-nav__brand {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.site-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn--new {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.theme-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 1.125rem;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Flash messages                                                          */
+/* ---------------------------------------------------------------------- */
+
+.flash-container {
+  padding: 0 1rem;
+}
+
+.flash {
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+}
+
+.flash--error {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Login page                                                              */
+/* ---------------------------------------------------------------------- */
+
+.login {
+  max-width: 24rem;
+  margin: 3rem auto;
+  padding: 0 1.25rem;
+  text-align: center;
+}
+
+.login__title {
+  font-family: var(--font-serif);
+  font-size: 2.25rem;
+  margin: 0 0 0.25rem;
+}
+
+.login__subtitle {
+  color: var(--color-text-dim);
+  margin: 0 0 2rem;
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.login__label {
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+}
+
+.login__input {
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.login__submit {
+  margin-top: 0.5rem;
+}

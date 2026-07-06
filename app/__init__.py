@@ -1,5 +1,6 @@
 import os
 import secrets
+from datetime import timedelta
 from pathlib import Path
 
 from flask import Flask
@@ -17,6 +18,7 @@ def create_app(test_config=None):
         PASSWORD=password or "dev",
         SECRET_KEY=secret_key or secrets.token_hex(32),
         DEV_MODE=password is None,
+        PERMANENT_SESSION_LIFETIME=timedelta(days=90),
     )
 
     if test_config:

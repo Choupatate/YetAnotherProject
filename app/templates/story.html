@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ story.title }} — Storybook{% endblock %}
+{% block body_class %}page-story{% endblock %}
+{% block content %}
+<h1>{{ story.title }}</h1>
+{{ body_html|safe }}
+{% endblock %}
