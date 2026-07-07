@@ -64,6 +64,7 @@
       previewStyle: "vertical",
       initialValue: sourceTextarea.value,
       theme: isDarkTheme() ? "dark" : undefined,
+      usageStatistics: false,
       toolbarItems: [
         ["heading", "bold", "italic", "strike"],
         ["quote"],
