@@ -50,13 +50,13 @@ python scripts/seed_demo.py ./stories
 STORYBOOK_PASSWORD=... STORYBOOK_SECRET_KEY=... python serve.py
 ```
 
-Serves on `http://0.0.0.0:8000` by default (set `PORT` to change it).
+Serves on `http://0.0.0.0:5011` by default (set `PORT` to change it).
 
 ### Docker
 
 ```bash
 docker build -t storybook .
-docker run -p 8000:8000 \
+docker run -p 5011:5011 \
   -e STORYBOOK_PASSWORD=... \
   -e STORYBOOK_SECRET_KEY=... \
   -v storybook-data:/data/stories \
