@@ -11,4 +11,4 @@ services:
       STORYBOOK_SECRET_KEY: ${STORYBOOK_SECRET_KEY}
       STORYBOOK_COOKIE_SECURE: ${STORYBOOK_COOKIE_SECURE:-0}
     volumes:
-      - /volume2/Media/StoryBook:/data/stories
+      - /volume2/Media/StoryBook/stories:/data/stories
