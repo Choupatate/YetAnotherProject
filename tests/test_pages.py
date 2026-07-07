@@ -28,6 +28,28 @@ def test_login_redirect_preserves_next_param(client):
     assert "next=" in resp.headers["Location"]
 
 
+def test_login_rejects_external_redirect(client):
+    resp = client.post(
+        "/login?next=https://evil.example.com", data={"password": "test-password"}
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/"
+
+
+def test_login_rejects_protocol_relative_redirect(client):
+    resp = client.post("/login?next=//evil.example.com", data={"password": "test-password"})
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/"
+
+
+def test_login_allows_legitimate_local_next(client):
+    resp = client.post(
+        "/login?next=/edit/2026-01-01-some-id", data={"password": "test-password"}
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/edit/2026-01-01-some-id"
+
+
 def test_logout_clears_session(auth_client):
     resp = auth_client.get("/")
     assert resp.status_code == 200

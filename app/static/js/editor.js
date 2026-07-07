@@ -19,6 +19,20 @@
     dirty = true;
   }
 
+  function handleJsonResponse(response) {
+    return response
+      .json()
+      .catch(function () {
+        return {};
+      })
+      .then(function (data) {
+        if (!response.ok) {
+          throw new Error(data.error || "Something went wrong. Please try again.");
+        }
+        return data;
+      });
+  }
+
   function ensureStoryId() {
     if (storyId) return Promise.resolve(storyId);
     var title = titleInput.value.trim() || "Untitled";
@@ -28,9 +42,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: title, date: storyDate, markdown: "" }),
     })
-      .then(function (response) {
-        return response.json();
-      })
+      .then(handleJsonResponse)
       .then(function (data) {
         storyId = data.id;
         form.dataset.storyId = storyId;
@@ -47,9 +59,7 @@
         method: "POST",
         body: formData,
       })
-        .then(function (response) {
-          return response.json();
-        })
+        .then(handleJsonResponse)
         .then(function (data) {
           return data.filename;
         });
@@ -64,6 +74,7 @@
       previewStyle: "vertical",
       initialValue: sourceTextarea.value,
       theme: isDarkTheme() ? "dark" : undefined,
+      usageStatistics: false,
       toolbarItems: [
         ["heading", "bold", "italic", "strike"],
         ["quote"],
@@ -72,9 +83,13 @@
       ],
       hooks: {
         addImageBlobHook: function (blob, callback) {
-          uploadImage(blob).then(function (filename) {
-            callback(filename, "");
-          });
+          uploadImage(blob)
+            .then(function (filename) {
+              callback(filename, "");
+            })
+            .catch(function (error) {
+              window.alert(error.message);
+            });
         },
       },
     });
@@ -180,15 +195,20 @@
     imageInput.addEventListener("change", function () {
       var file = imageInput.files[0];
       if (!file) return;
-      uploadImage(file).then(function (filename) {
-        var start = sourceTextarea.selectionStart;
-        var value = sourceTextarea.value;
-        var insertion = "![](" + filename + ")\n";
-        sourceTextarea.value = value.slice(0, start) + insertion + value.slice(start);
-        sourceTextarea.focus();
-        imageInput.value = "";
-        markDirty();
-      });
+      uploadImage(file)
+        .then(function (filename) {
+          var start = sourceTextarea.selectionStart;
+          var value = sourceTextarea.value;
+          var insertion = "![](" + filename + ")\n";
+          sourceTextarea.value = value.slice(0, start) + insertion + value.slice(start);
+          sourceTextarea.focus();
+          imageInput.value = "";
+          markDirty();
+        })
+        .catch(function (error) {
+          window.alert(error.message);
+          imageInput.value = "";
+        });
     });
 
     sourceTextarea.addEventListener("input", markDirty);
@@ -224,16 +244,16 @@
           body: JSON.stringify({ title: title, date: storyDate, markdown: markdown }),
         });
       })
-      .then(function (response) {
-        if (!response.ok) throw new Error("save failed");
-        return response.json();
-      })
+      .then(handleJsonResponse)
       .then(function (data) {
         dirty = false;
         window.location.href = "/story/" + data.id;
       })
-      .catch(function () {
-        window.alert("Could not save your story. Please check your connection and try again.");
+      .catch(function (error) {
+        window.alert(
+          (error && error.message) ||
+            "Could not save your story. Please check your connection and try again."
+        );
       });
   });
 

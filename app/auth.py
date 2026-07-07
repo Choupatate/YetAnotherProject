@@ -21,6 +21,13 @@ from flask import (
 bp = Blueprint("auth", __name__)
 
 
+def _safe_next_url(next_url):
+    """Only ever redirect to a local path, never an external URL."""
+    if not next_url or not next_url.startswith("/") or next_url.startswith("//") or "\\" in next_url:
+        return url_for("pages.timeline")
+    return next_url
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -40,7 +47,7 @@ def login():
             session.clear()
             session["authed"] = True
             session.permanent = True
-            next_url = request.args.get("next") or url_for("pages.timeline")
+            next_url = _safe_next_url(request.args.get("next", ""))
             return redirect(next_url)
         time.sleep(1)
         flash("Incorrect password.", "error")

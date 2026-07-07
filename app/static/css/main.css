@@ -74,6 +74,23 @@ html, body {
   color-scheme: dark;
 }
 
+/* Manuscript: a warm, aged-paper theme with a subtle fibrous grain — chosen
+   by cycling the theme toggle, never auto-selected from system preference. */
+:root[data-theme="manuscript"] {
+  --color-bg: #ece1c8;
+  --color-bg-raised: #e2d4b2;
+  --color-text: #3a2c1c;
+  --color-text-dim: #5c4a30;
+  --color-accent: #8a4a2a;
+  --color-accent-text: #fbf1de;
+  --color-highlight-bg: rgba(138, 74, 42, 0.2);
+  --color-border: #cdba90;
+  --color-error: #96382a;
+  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.35 0 0 0 0 0.28 0 0 0 0 0.18 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Base                                                                    */
 /* ---------------------------------------------------------------------- */
@@ -84,6 +101,15 @@ body {
   font-family: var(--font-sans);
   line-height: 1.5;
   min-height: 100vh;
+}
+
+:root[data-theme="manuscript"] body {
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse at center, rgba(58, 44, 28, 0) 45%, rgba(58, 44, 28, 0.08) 100%),
+    var(--paper-texture);
+  background-repeat: no-repeat, repeat;
+  background-size: cover, 240px 240px;
 }
 
 a {
@@ -641,4 +667,32 @@ mark {
     width: auto;
     padding: 0 2rem;
   }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Manuscript theme: content sits on a raised, grained "page" over the     */
+/* textured desk background set on <body> above.                          */
+/* ---------------------------------------------------------------------- */
+
+:root[data-theme="manuscript"] .story,
+:root[data-theme="manuscript"] .timeline,
+:root[data-theme="manuscript"] .editor,
+:root[data-theme="manuscript"] .login {
+  background-color: var(--color-bg-raised);
+  background-image: var(--paper-texture);
+  background-size: 240px 240px;
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 2px rgba(58, 44, 28, 0.12), 0 12px 28px rgba(58, 44, 28, 0.14);
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+:root[data-theme="manuscript"] .story__flourish {
+  border-top-style: double;
+  border-top-width: 3px;
+  width: 6rem;
+}
+
+:root[data-theme="manuscript"] .editor__save-bar {
+  background: transparent;
 }

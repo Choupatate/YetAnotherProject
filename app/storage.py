@@ -6,6 +6,7 @@ tmp directory.
 """
 
 import logging
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -148,7 +149,9 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
     if cover:
         post["cover"] = cover
     index_path = Path(stories_dir) / story_id / "index.md"
-    index_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+    tmp_path = index_path.with_suffix(".md.tmp")
+    tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+    os.replace(tmp_path, index_path)
 
 
 def create_story(stories_dir, title: str, story_date: date_cls, body: str = "") -> str:

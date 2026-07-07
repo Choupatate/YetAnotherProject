@@ -67,6 +67,21 @@ def test_get_story_rejects_invalid_id(stories_dir):
     assert storage.get_story(stories_dir, "Has Spaces") is None
 
 
+def test_create_story_writes_atomically_leaving_no_tmp_file(stories_dir):
+    story_id = storage.create_story(stories_dir, "Atomic write", date(2026, 1, 1), "body")
+    story_dir = stories_dir / story_id
+    assert (story_dir / "index.md").is_file()
+    assert not list(story_dir.glob("*.tmp"))
+
+
+def test_list_stories_ignores_stray_tmp_file(stories_dir):
+    good_id = storage.create_story(stories_dir, "Good story", date(2026, 1, 1), "")
+    (stories_dir / good_id / "index.md.tmp").write_text("garbage", encoding="utf-8")
+
+    stories = storage.list_stories(stories_dir)
+    assert [s.id for s in stories] == [good_id]
+
+
 def test_save_story_updates_content_and_keeps_id(stories_dir):
     story_id = storage.create_story(stories_dir, "Original title", date(2026, 1, 1), "original body")
     storage.save_story(stories_dir, story_id, "New title", date(2026, 2, 2), "new body")
