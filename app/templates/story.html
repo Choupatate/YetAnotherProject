@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ story.title }} — Storybook{% endblock %}
+{% block body_class %}page-story{% endblock %}
+{% block content %}
+<article class="story">
+  <header class="story__header">
+    <p class="story__date">{{ story.date.strftime('%B %-d, %Y') }}</p>
+    <h1 class="story__title">{{ story.title }}</h1>
+    <hr class="story__flourish" aria-hidden="true">
+  </header>
+  {% if story.cover %}
+  <img class="story__cover" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="">
+  {% endif %}
+  <div class="story__body">
+    {{ body_html|safe }}
+  </div>
+  <footer class="story__footer">
+    <a class="story__back" href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a>
+    {% if session.get('authed') %}
+    <a class="story__edit" href="{{ url_for('pages.edit_story', story_id=story.id) }}">Edit</a>
+    {% endif %}
+  </footer>
+</article>
+{% endblock %}

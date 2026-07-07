@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Not found — Storybook{% endblock %}
+{% block body_class %}page-not-found{% endblock %}
+{% block content %}
+<div class="empty-state">
+  <p>That page doesn't exist, or it never did.</p>
+  <a class="btn btn--primary" href="{{ url_for('pages.timeline') }}">&lsaquo; Back to the timeline</a>
+</div>
+{% endblock %}

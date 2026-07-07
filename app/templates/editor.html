@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{% if story %}Edit story{% else %}New story{% endif %} — Storybook{% endblock %}
+{% block body_class %}page-editor{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/toastui-editor.min.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/theme/toastui-editor-dark.css') }}">
+{% endblock %}
+{% block content %}
+<form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}">
+  <input class="editor__title" id="story-title" name="title" type="text"
+         placeholder="Untitled" value="{{ story.title if story else '' }}" required>
+  <input class="editor__date" id="story-date" name="date" type="date"
+         value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
+  <div id="editor-root" class="editor__root">
+    <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
+  </div>
+  <div class="editor__save-bar">
+    <button id="save-story" type="submit" class="btn btn--primary editor__save">Save</button>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+{% endblock %}
