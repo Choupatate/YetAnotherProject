@@ -27,6 +27,10 @@ python run.py
 The dev server runs at `http://127.0.0.1:5000` with debug mode on. If
 `STORYBOOK_PASSWORD` is unset, the dev password is `dev`.
 
+**Serve this app over HTTPS, or only on a trusted LAN.** The single shared
+password is sent as a plain form field on every login; without HTTPS (or a
+network you already trust) it travels in cleartext.
+
 To try it out with sample content:
 
 ```bash
@@ -63,7 +67,8 @@ All configuration is via environment variables — see `.env.example`:
 |---|---|
 | `STORYBOOK_STORIES_DIR` | Where story folders live (default `./stories`) |
 | `STORYBOOK_PASSWORD` | The one shared password. Required in production. |
-| `STORYBOOK_SECRET_KEY` | Flask session-signing secret. Required in production. |
+| `STORYBOOK_SECRET_KEY` | Flask session-signing secret. Required whenever `STORYBOOK_PASSWORD` is set — the app refuses to start otherwise. |
+| `STORYBOOK_COOKIE_SECURE` | Set to `1` when serving over HTTPS to mark the session cookie `Secure`. Default off, for local/LAN HTTP use. |
 
 ## Backing up
 
@@ -91,22 +96,20 @@ pytest
 
 ## A note on the editor
 
-The plan for this app calls for vendoring the real
-[Toast UI Editor](https://github.com/nhn/tui.editor) as a rich WYSIWYG markdown
-editor. In the environment this app was built in, outbound access to the Toast UI
-CDN was blocked by network policy, and the `@toast-ui/editor` npm package's own
-bundle isn't a standalone browser build (it expects several peer libraries to be
-loaded separately). `app/static/vendor/toastui/` currently contains clearly-marked
-placeholder files instead of the real bundle, and the editor page automatically
-falls back to a plain `<textarea>` with a minimal formatting toolbar (heading,
-bold, italic, strikethrough, quote, lists, link, highlight, and image upload) that
-covers the same functionality without the dependency.
+The real [Toast UI Editor](https://github.com/nhn/tui.editor) (3.2.2) is vendored
+at `app/static/vendor/toastui/` — a standalone browser bundle built from the
+official npm package with `esbuild`, since the upstream CDN's `-all` bundle isn't
+published on npm. Rebuild instructions and provenance are in the banner comment
+at the top of `toastui-editor-all.min.js`. Its usage-analytics ping (a request to
+`google-analytics.com` on every load) is disabled via `usageStatistics: false` in
+`editor.js` — do not remove that option, it would violate the no-external-requests
+principle (see `PLAN.md` §2.3 and the acceptance checklist in §10).
 
-To enable the full rich editor, download the real `toastui-editor-all.min.js`,
-`toastui-editor.min.css`, and `theme/toastui-editor-dark.css` (Toast UI Editor 3.x)
-and replace the placeholder files at the same paths under
-`app/static/vendor/toastui/`. `editor.js` detects the real library automatically —
-no code changes needed.
+If `window.toastui` isn't available for any reason (e.g. the vendored files are
+replaced with placeholders again), `editor.js` automatically falls back to a
+plain `<textarea>` with a minimal formatting toolbar (heading, bold, italic,
+strikethrough, quote, lists, link, highlight, and image upload) covering the same
+functionality.
 
 ## Ideas for later
 
