@@ -8,7 +8,14 @@ Everything is stored as plain **markdown files and images on disk** — no datab
 If you delete the app entirely and keep the `stories/` folder, every story is still
 fully readable with nothing more than a file browser and a text editor.
 
-See `PLAN.md` for the full design specification this app was built from.
+Three themes are available from the toggle in the top-right corner: dark (the
+default), light, and manuscript — a warm, aged-paper look with a subtly grained
+texture (a self-contained inline SVG filter, no image assets or network requests)
+where the timeline, story, and editor each render as a page resting on a desk.
+
+See `PLAN.md` for the full design specification this app was built from, and
+`REVIEW.md` for the production-readiness review it was subsequently audited
+against.
 
 ## Running it
 

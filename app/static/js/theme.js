@@ -1,5 +1,6 @@
 (function () {
   var STORAGE_KEY = "storybook-theme";
+  var THEMES = ["dark", "light", "manuscript"];
   var toggle = document.getElementById("theme-toggle");
   if (!toggle) return;
 
@@ -10,7 +11,8 @@
   }
 
   toggle.addEventListener("click", function () {
-    var next = currentTheme() === "dark" ? "light" : "dark";
+    var index = THEMES.indexOf(currentTheme());
+    var next = THEMES[(index + 1) % THEMES.length];
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem(STORAGE_KEY, next);
   });
