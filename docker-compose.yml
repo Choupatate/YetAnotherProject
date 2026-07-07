@@ -1,0 +1,14 @@
+services:
+  storybook:
+    build: .
+    container_name: storybook
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      STORYBOOK_STORIES_DIR: /data/stories
+      STORYBOOK_PASSWORD: ${STORYBOOK_PASSWORD}
+      STORYBOOK_SECRET_KEY: ${STORYBOOK_SECRET_KEY}
+      STORYBOOK_COOKIE_SECURE: ${STORYBOOK_COOKIE_SECURE:-0}
+    volumes:
+      - /volume2/Media/StoryBook:/data/stories
