@@ -66,6 +66,26 @@ docker run -p 8000:8000 \
 The container stores stories under `/data/stories`; mount a volume there so content
 survives container recreation.
 
+### Docker Compose (e.g. Synology)
+
+Clone this repo directly into the folder where you want everything to live,
+e.g. `/volume2/Media/StoryBook`, then:
+
+```bash
+cp .env.example .env   # then edit STORYBOOK_PASSWORD and STORYBOOK_SECRET_KEY
+docker compose up -d --build
+```
+
+`docker-compose.yml` reads `STORYBOOK_PASSWORD`, `STORYBOOK_SECRET_KEY`, and
+`STORYBOOK_COOKIE_SECURE` from `.env` in the same directory (Compose loads it
+automatically — no `env_file:` needed) and bind-mounts the `stories/` subfolder
+of that same clone to `/data/stories` in the container — keeping code and data
+under one folder without mixing story files into the git working tree. On
+Synology, either run this from an SSH session with Docker installed, or point
+Container Manager's project at this repo folder. Adjust the host path in
+`docker-compose.yml` if you cloned somewhere other than
+`/volume2/Media/StoryBook`.
+
 ### Configuration
 
 All configuration is via environment variables — see `.env.example`:
