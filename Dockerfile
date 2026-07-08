@@ -7,8 +7,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN useradd --create-home --shell /usr/sbin/nologin storybook \
+    && mkdir -p /data/stories \
+    && chown -R storybook:storybook /app /data/stories
+
 ENV STORYBOOK_STORIES_DIR=/data/stories
+ENV PORT=5011
 VOLUME ["/data/stories"]
-EXPOSE 8000
+EXPOSE 5011
+
+USER storybook
 
 CMD ["python", "serve.py"]

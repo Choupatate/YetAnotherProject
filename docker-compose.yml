@@ -1,0 +1,15 @@
+services:
+  storybook:
+    build: .
+    container_name: storybook
+    restart: unless-stopped
+    ports:
+      - "5011:5011"
+    environment:
+      STORYBOOK_STORIES_DIR: /data/stories
+      PORT: 5011
+      STORYBOOK_PASSWORD: ${STORYBOOK_PASSWORD}
+      STORYBOOK_SECRET_KEY: ${STORYBOOK_SECRET_KEY}
+      STORYBOOK_COOKIE_SECURE: ${STORYBOOK_COOKIE_SECURE:-0}
+    volumes:
+      - /volume2/Media/StoryBook/stories:/data/stories
