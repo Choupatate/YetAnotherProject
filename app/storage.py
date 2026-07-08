@@ -43,6 +43,7 @@ class Story:
     created: datetime
     updated: datetime
     cover: Optional[str] = None
+    author: Optional[str] = None
     body: Optional[str] = None
 
 
@@ -89,6 +90,7 @@ def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> St
         created=created,
         updated=updated,
         cover=metadata.get("cover"),
+        author=metadata.get("author"),
         body=post.content if include_body else None,
     )
 
@@ -140,7 +142,8 @@ def get_story(stories_dir, story_id: str) -> Optional[Story]:
 
 
 def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
-                  created: datetime, updated: datetime, cover: Optional[str], body: str) -> None:
+                  created: datetime, updated: datetime, cover: Optional[str], body: str,
+                  author: Optional[str] = None) -> None:
     post = frontmatter.Post(body)
     post["title"] = title
     post["date"] = story_date.isoformat()
@@ -148,13 +151,16 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
     post["updated"] = updated.isoformat()
     if cover:
         post["cover"] = cover
+    if author:
+        post["author"] = author
     index_path = Path(stories_dir) / story_id / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
     os.replace(tmp_path, index_path)
 
 
-def create_story(stories_dir, title: str, story_date: date_cls, body: str = "") -> str:
+def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
+                  author: Optional[str] = None) -> str:
     """Create a new story folder, returning its story_id (the folder name).
 
     On slug collision, append -2, -3, ... to the slug.
@@ -171,13 +177,17 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "") 
     story_path = stories_dir / story_id
     story_path.mkdir(parents=True)
     now = datetime.now()
-    _write_index(stories_dir, story_id, title, story_date, now, now, None, body)
+    _write_index(stories_dir, story_id, title, story_date, now, now, None, body, author=author)
     return story_id
 
 
 def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
-               body: str, cover: Optional[str] = None) -> None:
-    """Update an existing story's content in place. The story_id never changes."""
+               body: str, cover: Optional[str] = None, author: Optional[str] = None) -> None:
+    """Update an existing story's content in place. The story_id never changes.
+
+    `cover`/`author` of None means "leave unchanged"; an empty string clears
+    the field (frontmatter key is omitted for falsy values).
+    """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
     existing = get_story(stories_dir, story_id)
@@ -186,7 +196,10 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     created = existing.created or datetime.now()
     if cover is None:
         cover = existing.cover
-    _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body)
+    if author is None:
+        author = existing.author
+    _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
+                 author=author)
 
 
 def _next_photo_number(story_path: Path) -> int:

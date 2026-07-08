@@ -2,9 +2,14 @@
 {% block title %}{{ story.title }} — Storybook{% endblock %}
 {% block body_class %}page-story{% endblock %}
 {% block content %}
-<article class="story">
+<article class="story"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
   <header class="story__header">
-    <p class="story__date">{{ story.date.strftime('%B %-d, %Y') }}</p>
+    <p class="story__date">
+      {{ story.date.strftime('%B %-d, %Y') }}
+      {% if authors and story.author %}
+      &middot; <span class="story__author"><span class="story__author-dot" aria-hidden="true"></span>{{ story.author }}</span>
+      {% endif %}
+    </p>
     <h1 class="story__title">{{ story.title }}</h1>
     <hr class="story__flourish" aria-hidden="true">
   </header>
