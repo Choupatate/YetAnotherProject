@@ -8,6 +8,15 @@
   <a class="btn btn--primary" href="{{ url_for('pages.new_story') }}">+ New story</a>
 </div>
 {% else %}
+{% if authors %}
+<div class="timeline__legend">
+  {% for a in authors %}
+  <span class="timeline__legend-chip">
+    <span class="timeline__legend-dot" style="--author-color: {{ a.color }}" aria-hidden="true"></span>{{ a.name }}
+  </span>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="timeline">
   <div class="timeline__spine" aria-hidden="true"></div>
   <ol class="timeline__list">
@@ -16,10 +25,12 @@
       <span class="timeline__year-label">{{ year }}</span>
     </li>
     {% for story in year_stories %}
-    <li class="timeline__entry">
+    {% set has_author = authors and story.author %}
+    {% set author_color = author_colors.get(story.author) if has_author else None %}
+    <li class="timeline__entry"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
       <a class="timeline__link" href="{{ url_for('pages.story', story_id=story.id) }}">
-        <span class="timeline__dot" aria-hidden="true"></span>
-        <span class="timeline__date">{{ story.date.strftime('%b %-d') }}</span>
+        <span class="timeline__dot{% if has_author %} timeline__dot--author{% endif %}" aria-hidden="true"></span>
+        <span class="timeline__date">{{ story.date.strftime('%b %-d') }}{% if has_author %} &middot; <span class="timeline__author">{{ story.author }}</span>{% endif %}</span>
         <span class="timeline__title">{{ story.title }}</span>
         {% if story.cover %}
         <img class="timeline__thumb" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="" loading="lazy">

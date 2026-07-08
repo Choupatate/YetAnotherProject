@@ -34,6 +34,7 @@ def seed(stories_dir: Path) -> None:
         "You wobbled, you laughed, and then suddenly you were just... riding.\n\n"
         "![The big moment](photo-001.jpg)\n\n"
         "We ==finally== took the training wheels off today, after weeks of *almost*.",
+        author="Papa",
     )
     _add_cover(stories_dir, bike_id, (217, 164, 65))
 
@@ -66,6 +67,7 @@ def seed(stories_dir: Path) -> None:
         "anyone get dressed so fast.\n\n"
         "We built a lopsided snowman with a carrot nose that kept falling out, and you "
         "insisted on giving him a name (Gerald) and a job (\"guarding the yard\").",
+        author="Maman",
     )
     _add_cover(stories_dir, snow_id, (120, 150, 190))
 

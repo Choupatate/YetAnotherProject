@@ -16,7 +16,15 @@ def timeline():
     years = {}
     for story in stories:
         years.setdefault(story.date.year, []).append(story)
-    return render_template("timeline.html", years=sorted(years.items()), stories=stories)
+    authors = current_app.config.get("AUTHORS") or []
+    author_colors = {a["name"]: a["color"] for a in authors}
+    return render_template(
+        "timeline.html",
+        years=sorted(years.items()),
+        stories=stories,
+        authors=authors,
+        author_colors=author_colors,
+    )
 
 
 @bp.route("/story/<story_id>")
@@ -26,7 +34,12 @@ def story(story_id):
     if s is None:
         abort(404)
     body_html = render_markdown(s.body, story_id)
-    return render_template("story.html", story=s, body_html=body_html)
+    authors = current_app.config.get("AUTHORS") or []
+    author_colors = {a["name"]: a["color"] for a in authors}
+    author_color = author_colors.get(s.author) if (authors and s.author) else None
+    return render_template(
+        "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color
+    )
 
 
 @bp.route("/story/<story_id>/media/<filename>")
@@ -43,7 +56,8 @@ def story_media(story_id, filename):
 @bp.route("/new")
 @login_required
 def new_story():
-    return render_template("editor.html", story=None, today=date.today())
+    authors = current_app.config.get("AUTHORS") or []
+    return render_template("editor.html", story=None, today=date.today(), authors=authors)
 
 
 @bp.route("/edit/<story_id>")
@@ -52,4 +66,5 @@ def edit_story(story_id):
     s = storage.get_story(current_app.config["STORIES_DIR"], story_id)
     if s is None:
         abort(404)
-    return render_template("editor.html", story=s, today=date.today())
+    authors = current_app.config.get("AUTHORS") or []
+    return render_template("editor.html", story=s, today=date.today(), authors=authors)

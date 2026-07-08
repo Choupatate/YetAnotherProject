@@ -9,6 +9,62 @@
   var storyId = form.dataset.storyId || null;
   var dirty = false;
 
+  var AUTHOR_STORAGE_KEY = "storybook-author";
+  var authorsRoot = document.getElementById("editor-authors");
+  var authorChips = authorsRoot
+    ? Array.prototype.slice.call(authorsRoot.querySelectorAll(".editor__author-chip"))
+    : [];
+  var selectedAuthor = null;
+
+  function findChipByName(name) {
+    for (var i = 0; i < authorChips.length; i++) {
+      if (authorChips[i].dataset.authorName === name) return authorChips[i];
+    }
+    return null;
+  }
+
+  if (authorChips.length) {
+    var preselected = null;
+    for (var i = 0; i < authorChips.length; i++) {
+      if (authorChips[i].getAttribute("aria-pressed") === "true") {
+        preselected = authorChips[i];
+        break;
+      }
+    }
+    if (preselected) {
+      selectedAuthor = preselected.dataset.authorName;
+    } else {
+      var stored = null;
+      try {
+        stored = localStorage.getItem(AUTHOR_STORAGE_KEY);
+      } catch (e) {}
+      var storedChip = stored ? findChipByName(stored) : null;
+      if (storedChip) {
+        storedChip.setAttribute("aria-pressed", "true");
+        selectedAuthor = stored;
+      }
+    }
+
+    authorChips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var wasSelected = chip.getAttribute("aria-pressed") === "true";
+        authorChips.forEach(function (c) {
+          c.setAttribute("aria-pressed", "false");
+        });
+        if (wasSelected) {
+          selectedAuthor = null;
+        } else {
+          chip.setAttribute("aria-pressed", "true");
+          selectedAuthor = chip.dataset.authorName;
+          try {
+            localStorage.setItem(AUTHOR_STORAGE_KEY, selectedAuthor);
+          } catch (e) {}
+        }
+        markDirty();
+      });
+    });
+  }
+
   function isDarkTheme() {
     var attr = document.documentElement.getAttribute("data-theme");
     if (attr) return attr === "dark";
@@ -40,7 +96,7 @@
     return fetch("/api/stories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title, date: storyDate, markdown: "" }),
+      body: JSON.stringify({ title: title, date: storyDate, markdown: "", author: selectedAuthor || "" }),
     })
       .then(handleJsonResponse)
       .then(function (data) {
@@ -241,7 +297,12 @@
         return fetch("/api/stories/" + id, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title, date: storyDate, markdown: markdown }),
+          body: JSON.stringify({
+            title: title,
+            date: storyDate,
+            markdown: markdown,
+            author: selectedAuthor || "",
+          }),
         });
       })
       .then(handleJsonResponse)

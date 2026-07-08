@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 from datetime import timedelta
 from pathlib import Path
@@ -6,6 +7,33 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 MAX_CONTENT_LENGTH = 32 * 1024 * 1024
+
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _parse_authors(value):
+    """Parse STORYBOOK_AUTHORS ("Name:#hex,Name:#hex") into an ordered list
+    of {"name": ..., "color": ...} dicts. Raises RuntimeError on malformed
+    input so misconfiguration fails at startup, not at first page render."""
+    authors = []
+    seen = set()
+    for entry in (value or "").split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        name, _, color = entry.partition(":")
+        name = name.strip()
+        color = color.strip()
+        if not name or "," in name or ":" in name or not _HEX_COLOR_RE.match(color):
+            raise RuntimeError(
+                f"Invalid STORYBOOK_AUTHORS entry {entry!r}. Expected comma-separated "
+                'Name:#hexcolor pairs, e.g. STORYBOOK_AUTHORS="Papa:#d9a441,Maman:#7ba7d9"'
+            )
+        if name in seen:
+            raise RuntimeError(f"Duplicate author name in STORYBOOK_AUTHORS: {name!r}")
+        seen.add(name)
+        authors.append({"name": name, "color": color})
+    return authors
 
 
 def create_app(test_config=None):
@@ -15,6 +43,7 @@ def create_app(test_config=None):
     password = os.environ.get("STORYBOOK_PASSWORD")
     secret_key = os.environ.get("STORYBOOK_SECRET_KEY")
     cookie_secure = os.environ.get("STORYBOOK_COOKIE_SECURE") == "1"
+    authors = _parse_authors(os.environ.get("STORYBOOK_AUTHORS"))
 
     if password and not secret_key and not test_config:
         raise RuntimeError(
@@ -27,6 +56,7 @@ def create_app(test_config=None):
         PASSWORD=password or "dev",
         SECRET_KEY=secret_key or secrets.token_hex(32),
         DEV_MODE=password is None,
+        AUTHORS=authors,
         PERMANENT_SESSION_LIFETIME=timedelta(days=90),
         MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
         SESSION_COOKIE_HTTPONLY=True,

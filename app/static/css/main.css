@@ -296,6 +296,32 @@ mark {
   margin-bottom: 1.5rem;
 }
 
+.timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 0;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text-dim);
+}
+
+.timeline__legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.timeline__legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--author-color, var(--color-accent));
+}
+
 .timeline {
   position: relative;
   max-width: 40rem;
@@ -378,8 +404,13 @@ mark {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-accent);
+  background: var(--author-color, var(--color-accent));
   transform: translate(-4px, -50%);
+}
+
+.timeline__dot--author {
+  width: 10px;
+  height: 10px;
 }
 
 .timeline__date {
@@ -387,6 +418,10 @@ mark {
   font-size: 0.8125rem;
   color: var(--color-accent);
   white-space: nowrap;
+}
+
+.timeline__author {
+  color: var(--author-color, var(--color-accent));
 }
 
 .timeline__title {
@@ -463,6 +498,19 @@ mark {
   margin: 0 0 0.5rem;
 }
 
+.story__author {
+  color: var(--author-color, var(--color-accent));
+}
+
+.story__author-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--author-color, var(--color-accent));
+  margin-right: 0.35em;
+}
+
 .story__title {
   font-family: var(--font-serif);
   font-size: clamp(2rem, 5vw, 3rem);
@@ -474,7 +522,7 @@ mark {
   width: 4rem;
   height: 0;
   border: none;
-  border-top: 2px solid var(--color-accent);
+  border-top: 2px solid var(--author-color, var(--color-accent));
   margin: 0 auto;
 }
 
@@ -597,6 +645,40 @@ mark {
   background: var(--color-bg-raised);
   color: var(--color-text);
   font-family: var(--font-sans);
+}
+
+.editor__authors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.editor__author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.editor__author-chip[aria-pressed="true"] {
+  border-color: var(--author-color, var(--color-accent));
+  color: var(--author-color, var(--color-accent));
+}
+
+.editor__author-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--author-color, var(--color-accent));
 }
 
 .editor__root {

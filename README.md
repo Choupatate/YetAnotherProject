@@ -96,6 +96,24 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_PASSWORD` | The one shared password. Required in production. |
 | `STORYBOOK_SECRET_KEY` | Flask session-signing secret. Required whenever `STORYBOOK_PASSWORD` is set — the app refuses to start otherwise. |
 | `STORYBOOK_COOKIE_SECURE` | Set to `1` when serving over HTTPS to mark the session cookie `Secure`. Default off, for local/LAN HTTP use. |
+| `STORYBOOK_AUTHORS` | Optional. Comma-separated `Name:#hexcolor` pairs for several narrators (see below). Unset by default. |
+
+### Several narrators
+
+Set `STORYBOOK_AUTHORS` (e.g. `"Papa:#d9a441,Maman:#7ba7d9"`) to let more than
+one family member write in the same shared timeline. Each story picks up an
+author from a row of chips in the editor — remembered per device after the
+first pick, so it's zero-tap after that — and the two voices are then clearly
+split by color on the timeline (colored dot, name, and a small legend) and on
+the story page (a colored byline and title flourish). Pick mid-brightness
+colors that read well on both the dark and light themes.
+
+There are still no accounts or per-author passwords — one shared login, same
+as always. The author is just a label on the story. Leaving `STORYBOOK_AUTHORS`
+unset disables the whole feature: no picker, no bylines, no legend, identical
+to running without it. Renaming an author in this variable does not rewrite
+already-saved stories; a story whose `author` no longer matches a configured
+name still shows its byline, just in the neutral default color.
 
 ## Backing up
 
