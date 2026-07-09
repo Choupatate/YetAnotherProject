@@ -869,6 +869,80 @@ mark {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Book view (F10)                                                         */
+/* ---------------------------------------------------------------------- */
+
+.book-cover {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 2rem 1.25rem;
+}
+
+.book-cover__title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  margin: 0;
+}
+
+.book-cover__range {
+  color: var(--color-text-dim);
+  margin: 0;
+}
+
+.book-cover__authors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 1rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+}
+
+.book-cover__author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.book-cover__author-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--author-color, var(--color-accent));
+}
+
+.book__ornament {
+  text-align: center;
+  color: var(--color-text-dim);
+  letter-spacing: 0.5em;
+  margin: 0.5rem 0;
+}
+
+.book__print-btn {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------------------------------------------------------------------- */
 /* Editor page                                                             */
 /* ---------------------------------------------------------------------- */
 
@@ -1087,4 +1161,87 @@ mark {
 
 :root[data-theme="manuscript"] .editor__save-bar {
   background: transparent;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Print (F10) — applies on every page, matters most for /book             */
+/* ---------------------------------------------------------------------- */
+
+@media print {
+  :root {
+    --color-bg: #ffffff !important;
+    --color-bg-raised: #ffffff !important;
+    --color-text: #111111 !important;
+    --color-text-dim: #333333 !important;
+    --color-accent: #111111 !important;
+    --color-accent-text: #ffffff !important;
+    --color-highlight-bg: #f5dfa6 !important;
+    --color-border: #cccccc !important;
+    --color-error: #a3372a !important;
+  }
+
+  body {
+    background: #fff;
+    color: #111;
+  }
+
+  .story,
+  .timeline,
+  .editor,
+  .login,
+  .book-cover,
+  .book__story {
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  .site-nav,
+  .minimap,
+  .timeline__legend,
+  .timeline__drafts-link,
+  .timeline__onthisday,
+  .timeline__footer-links,
+  .story__footer,
+  .flash-container,
+  .skip-link,
+  .theme-toggle,
+  .book__print-btn,
+  button,
+  .btn {
+    display: none !important;
+  }
+
+  .book__story {
+    break-before: page;
+  }
+
+  .book__story:first-of-type {
+    break-before: avoid;
+  }
+
+  .book-cover {
+    break-after: page;
+  }
+
+  .story__body {
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  .story__body img,
+  .story__cover {
+    max-width: 100%;
+    max-height: 22cm;
+    break-inside: avoid;
+  }
+
+  mark {
+    background: #f5dfa6 !important;
+    color: #000 !important;
+  }
+
+  @page {
+    margin: 20mm;
+  }
 }

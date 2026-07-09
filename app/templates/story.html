@@ -7,26 +7,7 @@
 {% endblock %}
 {% block content %}
 <article class="story"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
-  <header class="story__header">
-    <p class="story__date">
-      {% if story.draft %}<span class="story__draft-pill">DRAFT</span>{% endif %}
-      {{ story.date.strftime('%B %-d, %Y') }}
-      {% if birthdate %}
-      &middot; <span class="story__age">{{ age_label(birthdate, story.date) }}</span>
-      {% endif %}
-      {% if authors and story.author %}
-      &middot; <span class="story__author"><span class="story__author-dot" aria-hidden="true"></span>{{ story.author }}</span>
-      {% endif %}
-    </p>
-    <h1 class="story__title">{{ story.title }}</h1>
-    <hr class="story__flourish" aria-hidden="true">
-  </header>
-  {% if story.cover %}
-  <img class="story__cover" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="">
-  {% endif %}
-  <div class="story__body">
-    {{ body_html|safe }}
-  </div>
+  {% include "_story_article.html" %}
   <footer class="story__footer">
     {% if prev_story or next_story %}
     <nav class="story__pagenav" aria-label="Story navigation">

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ app_title }}{% endblock %}
+{% block body_class %}page-book{% endblock %}
+{% block content %}
+<section class="book-cover">
+  <h1 class="book-cover__title">{{ app_title }}</h1>
+  {% if min_year and max_year %}
+  <p class="book-cover__range">
+    {% if min_year == max_year %}Stories from {{ min_year }}{% else %}Stories from {{ min_year }} to {{ max_year }}{% endif %}
+  </p>
+  {% endif %}
+  {% if authors %}
+  <div class="book-cover__authors">
+    {% for a in authors %}
+    <span class="book-cover__author">
+      <span class="book-cover__author-dot" style="--author-color: {{ a.color }}" aria-hidden="true"></span>{{ a.name }}
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% for entry in entries %}
+{% set story = entry.story %}
+{% set body_html = entry.body_html %}
+<article class="story book__story"{% if entry.author_color %} style="--author-color: {{ entry.author_color }}"{% endif %}>
+  {% include "_story_article.html" %}
+</article>
+{% if not loop.last %}
+<p class="book__ornament" aria-hidden="true">&middot; &middot; &middot;</p>
+{% endif %}
+{% endfor %}
+<button type="button" class="book__print-btn" id="book-print-btn">Print / save as PDF</button>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/book.js') }}"></script>
+{% endblock %}

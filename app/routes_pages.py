@@ -75,6 +75,30 @@ def manifest():
     return response
 
 
+@bp.route("/book")
+@login_required
+def book():
+    """The whole book on one page, for reading and printing (FEATURES.md F10)."""
+    stories_dir = current_app.config["STORIES_DIR"]
+    readable = storage.readable_stories(storage.list_stories(stories_dir))
+    authors = current_app.config.get("AUTHORS") or []
+    author_colors = {a["name"]: a["color"] for a in authors}
+    entries = []
+    for s in readable:
+        full = storage.get_story(stories_dir, s.id)
+        body_html = render_markdown(full.body, full.id)
+        author_color = author_colors.get(full.author) if (authors and full.author) else None
+        entries.append({"story": full, "body_html": body_html, "author_color": author_color})
+    return render_template(
+        "book.html",
+        entries=entries,
+        authors=authors,
+        birthdate=current_app.config.get("BIRTHDATE"),
+        min_year=readable[0].date.year if readable else None,
+        max_year=readable[-1].date.year if readable else None,
+    )
+
+
 @bp.route("/export")
 @login_required
 def export():

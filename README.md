@@ -150,12 +150,25 @@ directly, which keeps working on a sealed story — only the reading view is
 blocked. Once the unlock date passes, the entry becomes a normal story
 automatically, with no action needed.
 
+### Reading it as a book
+
+`/book` (linked from the bottom of the timeline as "Read as a book") renders
+every readable story on one page, oldest first, with a title cover and a
+small ornament between entries — drafts and sealed letters are excluded, same
+as the timeline. It doubles as a print layout: the floating "Print / save as
+PDF" button calls the browser's native print dialog, which (via a dedicated
+print stylesheet) forces the light palette, hides all navigation and buttons,
+and starts each story on its own page — "save as PDF" in the print dialog
+gives a clean, book-like PDF of the whole thing.
+
 ## Backing up
 
 **Back up the `stories/` folder. That is everything.** There is no database, no
 other state to preserve. Copying that one directory (e.g. with `rsync`, a nightly
 `tar`, or syncing it to cloud storage) is a complete backup. Restoring is just
-putting the folder back.
+putting the folder back. For a one-tap copy from the app itself, the timeline's
+"Download everything (.zip)" link (`/export`) streams the same directory as a
+zip file.
 
 ## Running the tests
 
@@ -194,6 +207,10 @@ functionality.
 ## Ideas for later
 
 Out of scope for v1, deliberately: multi-user accounts, comments/reactions,
-search, tags, RSS, email, PDF/print export, image galleries/lightboxes, video,
-encryption at rest, i18n, PWA/offline support, and story deletion. If any of
-these become worth doing, they belong here first, not as a surprise addition.
+search, tags, RSS, email, video, encryption at rest, i18n, offline support
+(no service worker — see "Home-screen install" above), and story deletion.
+If any of these become worth doing, they belong here first, not as a
+surprise addition.
+
+(PDF/print export, a photo lightbox, and home-screen install were originally
+listed here too; they shipped as the book view, F7, and F9 — see above.)
