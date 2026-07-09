@@ -74,6 +74,9 @@
   <a class="minimap__tick" href="#year-{{ year }}" data-year="{{ year }}">{{ year }}</a>
   {% endfor %}
 </nav>
+<p class="timeline__footer-links">
+  <a href="{{ url_for('pages.export') }}">Download everything (.zip)</a>
+</p>
 {% endif %}
 {% endblock %}
 {% block scripts %}

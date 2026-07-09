@@ -521,6 +521,19 @@ mark {
   background: var(--color-accent);
 }
 
+.timeline__footer-links {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0 1.25rem 2rem;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.timeline__footer-links a {
+  color: var(--color-text-dim);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Drafts page                                                             */
 /* ---------------------------------------------------------------------- */

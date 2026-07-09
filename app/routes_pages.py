@@ -1,6 +1,8 @@
+import tempfile
+import zipfile
 from datetime import date, datetime
 
-from flask import Blueprint, abort, current_app, render_template, send_from_directory
+from flask import Blueprint, abort, current_app, render_template, send_file, send_from_directory
 
 from . import storage
 from .auth import login_required
@@ -32,6 +34,22 @@ def timeline():
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
     )
+
+
+@bp.route("/export")
+@login_required
+def export():
+    """Stream a zip of the entire stories directory (FEATURES.md F8)."""
+    stories_dir = current_app.config["STORIES_DIR"]
+    tmp = tempfile.TemporaryFile()
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as zf:
+        for path in sorted(stories_dir.rglob("*")):
+            if path.is_dir() or path.name.endswith(".tmp"):
+                continue
+            zf.write(path, path.relative_to(stories_dir))
+    tmp.seek(0)
+    filename = f"storybook-backup-{date.today().isoformat()}.zip"
+    return send_file(tmp, mimetype="application/zip", as_attachment=True, download_name=filename)
 
 
 @bp.route("/drafts")
