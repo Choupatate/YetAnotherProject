@@ -5,6 +5,7 @@
 <article class="story"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
   <header class="story__header">
     <p class="story__date">
+      {% if story.draft %}<span class="story__draft-pill">DRAFT</span>{% endif %}
       {{ story.date.strftime('%B %-d, %Y') }}
       {% if authors and story.author %}
       &middot; <span class="story__author"><span class="story__author-dot" aria-hidden="true"></span>{{ story.author }}</span>

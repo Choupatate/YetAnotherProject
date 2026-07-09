@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from flask import Blueprint, abort, current_app, render_template, send_from_directory
 
@@ -12,7 +12,9 @@ bp = Blueprint("pages", __name__)
 @bp.route("/")
 @login_required
 def timeline():
-    stories = storage.list_stories(current_app.config["STORIES_DIR"])
+    all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
+    stories = [s for s in all_stories if not s.draft]
+    draft_count = sum(1 for s in all_stories if s.draft)
     years = {}
     for story in stories:
         years.setdefault(story.date.year, []).append(story)
@@ -24,6 +26,20 @@ def timeline():
         stories=stories,
         authors=authors,
         author_colors=author_colors,
+        draft_count=draft_count,
+    )
+
+
+@bp.route("/drafts")
+@login_required
+def drafts():
+    all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
+    draft_stories = [s for s in all_stories if s.draft]
+    draft_stories.sort(key=lambda s: s.updated or datetime.min, reverse=True)
+    authors = current_app.config.get("AUTHORS") or []
+    author_colors = {a["name"]: a["color"] for a in authors}
+    return render_template(
+        "drafts.html", stories=draft_stories, authors=authors, author_colors=author_colors
     )
 
 

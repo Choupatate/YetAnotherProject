@@ -322,6 +322,18 @@ mark {
   background: var(--author-color, var(--color-accent));
 }
 
+.timeline__drafts-link {
+  max-width: 40rem;
+  margin: 0.35rem auto 0;
+  padding: 0 1.25rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.timeline__drafts-link a {
+  color: var(--color-text-dim);
+}
+
 .timeline {
   position: relative;
   max-width: 40rem;
@@ -465,6 +477,72 @@ mark {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Drafts page                                                             */
+/* ---------------------------------------------------------------------- */
+
+.drafts {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.drafts__back a {
+  color: var(--color-text-dim);
+  text-decoration: none;
+}
+
+.drafts__title {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.drafts__empty {
+  color: var(--color-text-dim);
+}
+
+.drafts__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.drafts__item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.drafts__link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.6rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.drafts__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--author-color, var(--color-accent));
+  flex-shrink: 0;
+}
+
+.drafts__item-title {
+  flex: 1;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+}
+
+.drafts__item-date {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------- */
 /* Story page — the book page                                              */
 /* ---------------------------------------------------------------------- */
 
@@ -500,6 +578,19 @@ mark {
 
 .story__author {
   color: var(--author-color, var(--color-accent));
+}
+
+.story__draft-pill {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  border: 1px solid var(--color-text-dim);
+  color: var(--color-text-dim);
+  margin-right: 0.5em;
+  vertical-align: middle;
 }
 
 .story__author-dot {

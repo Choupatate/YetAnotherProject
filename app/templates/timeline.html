@@ -17,6 +17,11 @@
   {% endfor %}
 </div>
 {% endif %}
+{% if draft_count %}
+<p class="timeline__drafts-link">
+  <a href="{{ url_for('pages.drafts') }}">Drafts ({{ draft_count }})</a>
+</p>
+{% endif %}
 <div class="timeline">
   <div class="timeline__spine" aria-hidden="true"></div>
   <ol class="timeline__list">
