@@ -56,9 +56,25 @@ def story(story_id):
     if storage.is_sealed(s):
         return render_template("sealed.html", story=s, author_color=author_color)
     body_html = render_markdown(s.body, story_id)
+    prev_story, next_story = _reading_order_neighbors(current_app.config["STORIES_DIR"], s)
     return render_template(
-        "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color
+        "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color,
+        prev_story=prev_story, next_story=next_story,
     )
+
+
+def _reading_order_neighbors(stories_dir, current):
+    """Previous/next readable story either side of `current` (F2). None/None
+    when `current` isn't itself readable (e.g. a draft) or at either end."""
+    if current.draft:
+        return None, None
+    readable = storage.readable_stories(storage.list_stories(stories_dir))
+    for i, r in enumerate(readable):
+        if r.id == current.id:
+            prev_story = readable[i - 1] if i > 0 else None
+            next_story = readable[i + 1] if i < len(readable) - 1 else None
+            return prev_story, next_story
+    return None, None
 
 
 @bp.route("/story/<story_id>/media/<filename>")
