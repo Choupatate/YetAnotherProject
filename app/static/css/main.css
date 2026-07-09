@@ -296,6 +296,30 @@ mark {
   margin-bottom: 1.5rem;
 }
 
+.timeline__onthisday {
+  max-width: 40rem;
+  margin: 1.25rem auto 0;
+  padding: 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.timeline__onthisday-item {
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--author-color, var(--color-accent));
+  background: var(--color-bg-raised);
+  border-radius: 0 0.4rem 0.4rem 0;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+}
+
+.timeline__onthisday-item a {
+  color: var(--color-text);
+}
+
 .timeline__legend {
   display: flex;
   flex-wrap: wrap;

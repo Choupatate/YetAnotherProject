@@ -15,6 +15,7 @@ def timeline():
     all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
     stories = [s for s in all_stories if not s.draft]
     draft_count = sum(1 for s in all_stories if s.draft)
+    today = date.today()
     years = {}
     for story in stories:
         years.setdefault(story.date.year, []).append(story)
@@ -27,8 +28,9 @@ def timeline():
         authors=authors,
         author_colors=author_colors,
         draft_count=draft_count,
-        today=date.today(),
+        today=today,
         birthdate=current_app.config.get("BIRTHDATE"),
+        on_this_day=storage.on_this_day(all_stories, today),
     )
 
 

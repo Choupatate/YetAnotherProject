@@ -163,6 +163,32 @@ def readable_stories(stories: list[Story], today: Optional[date_cls] = None) -> 
     return result
 
 
+def _is_leap_year(year: int) -> bool:
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+
+def on_this_day(stories: list[Story], today: Optional[date_cls] = None) -> list[Story]:
+    """Readable stories from a previous year whose month/day matches `today`
+    (FEATURES.md F5), newest first, capped at 3. A Feb 29 story surfaces on
+    Mar 1 in non-leap years, since Feb 29 doesn't occur that year."""
+    if today is None:
+        today = date_cls.today()
+    matches = []
+    for s in readable_stories(stories, today):
+        if s.date.year >= today.year:
+            continue
+        same_day = s.date.month == today.month and s.date.day == today.day
+        feb29_makeup = (
+            s.date.month == 2 and s.date.day == 29
+            and today.month == 3 and today.day == 1
+            and not _is_leap_year(today.year)
+        )
+        if same_day or feb29_makeup:
+            matches.append(s)
+    matches.sort(key=lambda s: s.date.year, reverse=True)
+    return matches[:3]
+
+
 def get_story(stories_dir, story_id: str) -> Optional[Story]:
     """Full story including raw markdown body. None if missing/invalid/malformed."""
     if not is_valid_story_id(story_id):

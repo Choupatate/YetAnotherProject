@@ -8,6 +8,18 @@
   <a class="btn btn--primary" href="{{ url_for('pages.new_story') }}">+ New story</a>
 </div>
 {% else %}
+{% if on_this_day %}
+<div class="timeline__onthisday">
+  {% for m in on_this_day %}
+  {% set years_ago = today.year - m.date.year %}
+  {% set color = author_colors.get(m.author) if (authors and m.author) else None %}
+  <p class="timeline__onthisday-item"{% if color %} style="--author-color: {{ color }}"{% endif %}>
+    {{ years_ago }} year{{ 's' if years_ago != 1 else '' }} ago today &mdash;
+    <a href="{{ url_for('pages.story', story_id=m.id) }}">{{ m.title }}</a>
+  </p>
+  {% endfor %}
+</div>
+{% endif %}
 {% if authors %}
 <div class="timeline__legend">
   {% for a in authors %}
