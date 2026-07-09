@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}A sealed letter — Storybook{% endblock %}
+{% block body_class %}page-sealed{% endblock %}
+{% block content %}
+<div class="sealed"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
+  <span class="sealed__envelope" aria-hidden="true">
+    <svg width="64" height="46" viewBox="0 0 64 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="2" width="60" height="42" rx="3" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M4 5l28 22 28-22" stroke="currentColor" stroke-width="2.5" fill="none"/>
+    </svg>
+  </span>
+  <p class="sealed__label">A sealed letter{% if story.author %} from {{ story.author }}{% endif %}</p>
+  <p class="sealed__opens">It opens on {{ story.unlock.strftime('%B %-d, %Y') }}.</p>
+  <p class="sealed__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+</div>
+{% endblock %}

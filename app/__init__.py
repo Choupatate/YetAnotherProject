@@ -70,11 +70,13 @@ def create_app(test_config=None):
     app.config["STORIES_DIR"] = Path(app.config["STORIES_DIR"])
     app.config["STORIES_DIR"].mkdir(parents=True, exist_ok=True)
 
-    from . import auth, routes_api, routes_pages
+    from . import auth, routes_api, routes_pages, storage
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(routes_pages.bp)
     app.register_blueprint(routes_api.bp)
+
+    app.jinja_env.globals["is_sealed"] = storage.is_sealed
 
     @app.errorhandler(404)
     def not_found(error):

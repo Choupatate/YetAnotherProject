@@ -27,6 +27,7 @@ def timeline():
         authors=authors,
         author_colors=author_colors,
         draft_count=draft_count,
+        today=date.today(),
     )
 
 
@@ -49,10 +50,12 @@ def story(story_id):
     s = storage.get_story(current_app.config["STORIES_DIR"], story_id)
     if s is None:
         abort(404)
-    body_html = render_markdown(s.body, story_id)
     authors = current_app.config.get("AUTHORS") or []
     author_colors = {a["name"]: a["color"] for a in authors}
     author_color = author_colors.get(s.author) if (authors and s.author) else None
+    if storage.is_sealed(s):
+        return render_template("sealed.html", story=s, author_color=author_color)
+    body_html = render_markdown(s.body, story_id)
     return render_template(
         "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color
     )

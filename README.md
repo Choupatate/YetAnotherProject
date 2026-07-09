@@ -115,6 +115,19 @@ to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.
 
+### Sealed letters
+
+Setting a "Seal until" date on a story in the editor turns it into a sealed
+envelope until that date: the timeline shows only an envelope glyph and an
+"opens on" date (no title, no photo), and the story page itself shows the
+same envelope instead of the text. **The seal is ceremonial, not
+cryptographic** — anyone with the shared password (or direct access to the
+disk) can still open and read the file; the point is the ritual of an
+unopened letter, not access control. Authors reach editing via `/edit/<id>`
+directly, which keeps working on a sealed story — only the reading view is
+blocked. Once the unlock date passes, the entry becomes a normal story
+automatically, with no action needed.
+
 ## Backing up
 
 **Back up the `stories/` folder. That is everything.** There is no database, no

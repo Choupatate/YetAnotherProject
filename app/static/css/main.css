@@ -443,6 +443,22 @@ mark {
   color: var(--color-text);
 }
 
+.timeline__envelope {
+  position: absolute;
+  left: -1.85rem;
+  top: 50%;
+  transform: translate(-4px, -50%);
+  color: var(--author-color, var(--color-accent));
+  display: inline-flex;
+}
+
+.timeline__title--sealed {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--color-text-dim);
+}
+
 .timeline__thumb {
   width: 72px;
   height: 72px;
@@ -698,6 +714,39 @@ mark {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Sealed letter page                                                      */
+/* ---------------------------------------------------------------------- */
+
+.sealed {
+  max-width: 26rem;
+  margin: 5rem auto;
+  padding: 0 1.25rem;
+  text-align: center;
+}
+
+.sealed__envelope {
+  display: inline-flex;
+  color: var(--author-color, var(--color-accent));
+  margin-bottom: 1.5rem;
+}
+
+.sealed__label {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.sealed__opens {
+  color: var(--color-text-dim);
+  margin: 0 0 2rem;
+}
+
+.sealed__back a {
+  color: var(--color-text-dim);
+  text-decoration: none;
 }
 
 /* ---------------------------------------------------------------------- */
