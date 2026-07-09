@@ -41,6 +41,20 @@ def _validate_author(data):
     return author, None
 
 
+def _validate_unlock(data):
+    """Resolve and validate the optional 'unlock' field (FEATURES.md F0).
+
+    Missing or empty means "no seal"; anything else must be an ISO date.
+    """
+    value = data.get("unlock")
+    if not value:
+        return None, None
+    unlock = _parse_date(value)
+    if unlock is None:
+        return None, _error("Seal date must be an ISO date (YYYY-MM-DD).", 400)
+    return unlock, None
+
+
 @bp.route("/stories", methods=["POST"])
 @login_required
 def create_story():
@@ -48,6 +62,7 @@ def create_story():
     title = (data.get("title") or "").strip()
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
+    draft = bool(data.get("draft"))
 
     if not title:
         return _error("Title is required.", 400)
@@ -57,9 +72,13 @@ def create_story():
     author, error = _validate_author(data)
     if error:
         return error
+    unlock, error = _validate_unlock(data)
+    if error:
+        return error
 
     story_id = storage.create_story(
-        current_app.config["STORIES_DIR"], title, story_date, markdown, author=author
+        current_app.config["STORIES_DIR"], title, story_date, markdown, author=author,
+        draft=draft, unlock=unlock,
     )
     return jsonify({"id": story_id})
 
@@ -75,6 +94,7 @@ def update_story(story_id):
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
     cover = data.get("cover")
+    draft = bool(data.get("draft"))
 
     if not title:
         return _error("Title is required.", 400)
@@ -84,11 +104,14 @@ def update_story(story_id):
     author, error = _validate_author(data)
     if error:
         return error
+    unlock, error = _validate_unlock(data)
+    if error:
+        return error
 
     try:
         storage.save_story(
             current_app.config["STORIES_DIR"], story_id, title, story_date, markdown,
-            cover=cover, author=author,
+            cover=cover, author=author, draft=draft, unlock=unlock,
         )
     except FileNotFoundError:
         return _error("Story not found.", 404)

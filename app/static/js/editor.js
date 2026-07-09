@@ -2,12 +2,34 @@
   var form = document.getElementById("editor-form");
   var titleInput = document.getElementById("story-title");
   var dateInput = document.getElementById("story-date");
+  var unlockInput = document.getElementById("story-unlock");
+  var draftToggle = document.getElementById("draft-toggle");
   var root = document.getElementById("editor-root");
   var sourceTextarea = document.getElementById("markdown-source");
   var saveButton = document.getElementById("save-story");
 
   var storyId = form.dataset.storyId || null;
   var dirty = false;
+
+  if (draftToggle) {
+    draftToggle.addEventListener("click", function () {
+      var pressed = draftToggle.getAttribute("aria-pressed") === "true";
+      draftToggle.setAttribute("aria-pressed", pressed ? "false" : "true");
+      markDirty();
+    });
+  }
+
+  if (unlockInput) {
+    unlockInput.addEventListener("input", markDirty);
+  }
+
+  function isDraft() {
+    return !!draftToggle && draftToggle.getAttribute("aria-pressed") === "true";
+  }
+
+  function unlockValue() {
+    return unlockInput ? unlockInput.value : "";
+  }
 
   var AUTHOR_STORAGE_KEY = "storybook-author";
   var authorsRoot = document.getElementById("editor-authors");
@@ -96,7 +118,14 @@
     return fetch("/api/stories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title, date: storyDate, markdown: "", author: selectedAuthor || "" }),
+      body: JSON.stringify({
+        title: title,
+        date: storyDate,
+        markdown: "",
+        author: selectedAuthor || "",
+        draft: isDraft(),
+        unlock: unlockValue(),
+      }),
     })
       .then(handleJsonResponse)
       .then(function (data) {
@@ -302,6 +331,8 @@
             date: storyDate,
             markdown: markdown,
             author: selectedAuthor || "",
+            draft: isDraft(),
+            unlock: unlockValue(),
           }),
         });
       })

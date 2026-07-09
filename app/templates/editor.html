@@ -9,19 +9,28 @@
 <form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}">
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Untitled" value="{{ story.title if story else '' }}" required>
-  <input class="editor__date" id="story-date" name="date" type="date"
-         value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
-  {% if authors %}
-  <div class="editor__authors" id="editor-authors">
-    {% for a in authors %}
-    <button type="button" class="editor__author-chip" data-author-name="{{ a.name }}"
-            style="--author-color: {{ a.color }}"
-            aria-pressed="{{ 'true' if story and story.author == a.name else 'false' }}">
-      <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
-    </button>
-    {% endfor %}
+  <div class="editor__date-row">
+    <input class="editor__date" id="story-date" name="date" type="date"
+           value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
+    <label class="editor__unlock-label" for="story-unlock">Seal until</label>
+    <input class="editor__unlock" id="story-unlock" name="unlock" type="date"
+           value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
   </div>
-  {% endif %}
+  <div class="editor__toolrow" id="editor-toolrow">
+    {% if authors %}
+    <div class="editor__authors" id="editor-authors">
+      {% for a in authors %}
+      <button type="button" class="editor__author-chip" data-author-name="{{ a.name }}"
+              style="--author-color: {{ a.color }}"
+              aria-pressed="{{ 'true' if story and story.author == a.name else 'false' }}">
+        <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <button type="button" id="draft-toggle" class="editor__draft-chip"
+            aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+  </div>
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
   </div>
