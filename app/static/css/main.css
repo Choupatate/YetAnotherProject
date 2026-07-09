@@ -436,6 +436,11 @@ mark {
   color: var(--author-color, var(--color-accent));
 }
 
+.timeline__age {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+}
+
 .timeline__title {
   flex: 1;
   font-family: var(--font-serif);

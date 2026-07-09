@@ -97,6 +97,7 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_SECRET_KEY` | Flask session-signing secret. Required whenever `STORYBOOK_PASSWORD` is set — the app refuses to start otherwise. |
 | `STORYBOOK_COOKIE_SECURE` | Set to `1` when serving over HTTPS to mark the session cookie `Secure`. Default off, for local/LAN HTTP use. |
 | `STORYBOOK_AUTHORS` | Optional. Comma-separated `Name:#hexcolor` pairs for several narrators (see below). Unset by default. |
+| `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
 
 ### Several narrators
 
@@ -114,6 +115,15 @@ unset disables the whole feature: no picker, no bylines, no legend, identical
 to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.
+
+### Age at each memory
+
+Set `STORYBOOK_BIRTHDATE` to the child's birth date and every story and
+timeline entry shows the age at that memory — `JUNE 18, 2023 · 2 YEARS OLD ·
+PAPA` on the story page, `Jun 18 · Papa · 2 years old` (smaller, dimmer) on
+the timeline. Ages before the birth date read "before you were born"; sealed
+letters never show an age, keeping the envelope minimal. Leave the variable
+unset to disable the feature entirely.
 
 ### Sealed letters
 

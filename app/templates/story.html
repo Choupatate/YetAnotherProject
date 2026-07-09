@@ -11,6 +11,9 @@
     <p class="story__date">
       {% if story.draft %}<span class="story__draft-pill">DRAFT</span>{% endif %}
       {{ story.date.strftime('%B %-d, %Y') }}
+      {% if birthdate %}
+      &middot; <span class="story__age">{{ age_label(birthdate, story.date) }}</span>
+      {% endif %}
       {% if authors and story.author %}
       &middot; <span class="story__author"><span class="story__author-dot" aria-hidden="true"></span>{{ story.author }}</span>
       {% endif %}

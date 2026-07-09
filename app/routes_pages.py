@@ -28,6 +28,7 @@ def timeline():
         author_colors=author_colors,
         draft_count=draft_count,
         today=date.today(),
+        birthdate=current_app.config.get("BIRTHDATE"),
     )
 
 
@@ -60,6 +61,7 @@ def story(story_id):
     return render_template(
         "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color,
         prev_story=prev_story, next_story=next_story,
+        birthdate=current_app.config.get("BIRTHDATE"),
     )
 
 
