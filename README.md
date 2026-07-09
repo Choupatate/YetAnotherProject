@@ -97,6 +97,8 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_SECRET_KEY` | Flask session-signing secret. Required whenever `STORYBOOK_PASSWORD` is set — the app refuses to start otherwise. |
 | `STORYBOOK_COOKIE_SECURE` | Set to `1` when serving over HTTPS to mark the session cookie `Secure`. Default off, for local/LAN HTTP use. |
 | `STORYBOOK_AUTHORS` | Optional. Comma-separated `Name:#hexcolor` pairs for several narrators (see below). Unset by default. |
+| `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
+| `STORYBOOK_TITLE` | Optional. The app's display name — nav, page titles, install manifest, book cover. Defaults to `Storybook`. |
 
 ### Several narrators
 
@@ -115,12 +117,58 @@ to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.
 
+### Age at each memory
+
+Set `STORYBOOK_BIRTHDATE` to the child's birth date and every story and
+timeline entry shows the age at that memory — `JUNE 18, 2023 · 2 YEARS OLD ·
+PAPA` on the story page, `Jun 18 · Papa · 2 years old` (smaller, dimmer) on
+the timeline. Ages before the birth date read "before you were born"; sealed
+letters never show an age, keeping the envelope minimal. Leave the variable
+unset to disable the feature entirely.
+
+### Home-screen install
+
+Storybook can be added to a phone's home screen like a native app (a
+`manifest.webmanifest`, sized icons, and standalone display mode) — set
+`STORYBOOK_TITLE` (e.g. `"Le livre de Milo"`) so it shows up under your own
+title rather than "Storybook". There is deliberately **no service worker and
+no offline caching** — every visit still talks to the server, it just looks
+like an app when launched. Regenerate the icons with
+`python scripts/make_icons.py` if you change the design; the outputs are
+committed under `app/static/icons/`.
+
+### Sealed letters
+
+Setting a "Seal until" date on a story in the editor turns it into a sealed
+envelope until that date: the timeline shows only an envelope glyph and an
+"opens on" date (no title, no photo), and the story page itself shows the
+same envelope instead of the text. **The seal is ceremonial, not
+cryptographic** — anyone with the shared password (or direct access to the
+disk) can still open and read the file; the point is the ritual of an
+unopened letter, not access control. Authors reach editing via `/edit/<id>`
+directly, which keeps working on a sealed story — only the reading view is
+blocked. Once the unlock date passes, the entry becomes a normal story
+automatically, with no action needed.
+
+### Reading it as a book
+
+`/book` (linked from the bottom of the timeline as "Read as a book") renders
+every readable story on one page, oldest first, with a title cover and a
+small ornament between entries — drafts and sealed letters are excluded, same
+as the timeline. It doubles as a print layout: the floating "Print / save as
+PDF" button calls the browser's native print dialog, which (via a dedicated
+print stylesheet) forces the light palette, hides all navigation and buttons,
+and starts each story on its own page — "save as PDF" in the print dialog
+gives a clean, book-like PDF of the whole thing.
+
 ## Backing up
 
 **Back up the `stories/` folder. That is everything.** There is no database, no
 other state to preserve. Copying that one directory (e.g. with `rsync`, a nightly
 `tar`, or syncing it to cloud storage) is a complete backup. Restoring is just
-putting the folder back.
+putting the folder back. For a one-tap copy from the app itself, the timeline's
+"Download everything (.zip)" link (`/export`) streams the same directory as a
+zip file.
 
 ## Running the tests
 
@@ -159,6 +207,10 @@ functionality.
 ## Ideas for later
 
 Out of scope for v1, deliberately: multi-user accounts, comments/reactions,
-search, tags, RSS, email, PDF/print export, image galleries/lightboxes, video,
-encryption at rest, i18n, PWA/offline support, and story deletion. If any of
-these become worth doing, they belong here first, not as a surprise addition.
+search, tags, RSS, email, video, encryption at rest, i18n, offline support
+(no service worker — see "Home-screen install" above), and story deletion.
+If any of these become worth doing, they belong here first, not as a
+surprise addition.
+
+(PDF/print export, a photo lightbox, and home-screen install were originally
+listed here too; they shipped as the book view, F7, and F9 — see above.)

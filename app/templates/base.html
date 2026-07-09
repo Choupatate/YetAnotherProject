@@ -3,8 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Storybook{% endblock %}</title>
+<title>{% block title %}{{ app_title }}{% endblock %}</title>
 <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="manifest" href="{{ url_for('pages.manifest') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+<meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 <script>
 document.documentElement.classList.add("js");
@@ -20,7 +24,7 @@ document.documentElement.classList.add("js");
 <body class="{% block body_class %}{% endblock %}">
 <a class="skip-link" href="#content">Skip to content</a>
 <nav class="site-nav">
-  <a class="site-nav__brand" href="{{ url_for('pages.timeline') }}">Storybook</a>
+  <a class="site-nav__brand" href="{{ url_for('pages.timeline') }}">{{ app_title }}</a>
   <div class="site-nav__actions">
     {% if session.get('authed') %}
     <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>

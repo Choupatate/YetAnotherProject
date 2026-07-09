@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Log in — Storybook{% endblock %}
+{% block title %}Log in — {{ app_title }}{% endblock %}
 {% block body_class %}page-login{% endblock %}
 {% block content %}
 <div class="login">
-  <h1 class="login__title">Storybook</h1>
+  <h1 class="login__title">{{ app_title }}</h1>
   <p class="login__subtitle">A private memory journal.</p>
   <form class="login__form" method="post" action="{{ url_for('auth.login') }}">
     <label class="login__label" for="password">Password</label>
