@@ -2,7 +2,16 @@ import tempfile
 import zipfile
 from datetime import date, datetime
 
-from flask import Blueprint, abort, current_app, render_template, send_file, send_from_directory
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    jsonify,
+    render_template,
+    send_file,
+    send_from_directory,
+    url_for,
+)
 
 from . import storage
 from .auth import login_required
@@ -34,6 +43,36 @@ def timeline():
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
     )
+
+
+@bp.route("/manifest.webmanifest")
+def manifest():
+    """Web app manifest for home-screen install (FEATURES.md F9). No login
+    required — the manifest and icons must be fetchable before install."""
+    title = current_app.config["TITLE"]
+    data = {
+        "name": title,
+        "short_name": title,
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#141210",
+        "theme_color": "#141210",
+        "icons": [
+            {
+                "src": url_for("static", filename="icons/icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+            },
+            {
+                "src": url_for("static", filename="icons/icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+            },
+        ],
+    }
+    response = jsonify(data)
+    response.mimetype = "application/manifest+json"
+    return response
 
 
 @bp.route("/export")

@@ -98,6 +98,7 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_COOKIE_SECURE` | Set to `1` when serving over HTTPS to mark the session cookie `Secure`. Default off, for local/LAN HTTP use. |
 | `STORYBOOK_AUTHORS` | Optional. Comma-separated `Name:#hexcolor` pairs for several narrators (see below). Unset by default. |
 | `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
+| `STORYBOOK_TITLE` | Optional. The app's display name — nav, page titles, install manifest, book cover. Defaults to `Storybook`. |
 
 ### Several narrators
 
@@ -124,6 +125,17 @@ PAPA` on the story page, `Jun 18 · Papa · 2 years old` (smaller, dimmer) on
 the timeline. Ages before the birth date read "before you were born"; sealed
 letters never show an age, keeping the envelope minimal. Leave the variable
 unset to disable the feature entirely.
+
+### Home-screen install
+
+Storybook can be added to a phone's home screen like a native app (a
+`manifest.webmanifest`, sized icons, and standalone display mode) — set
+`STORYBOOK_TITLE` (e.g. `"Le livre de Milo"`) so it shows up under your own
+title rather than "Storybook". There is deliberately **no service worker and
+no offline caching** — every visit still talks to the server, it just looks
+like an app when launched. Regenerate the icons with
+`python scripts/make_icons.py` if you change the design; the outputs are
+committed under `app/static/icons/`.
 
 ### Sealed letters
 

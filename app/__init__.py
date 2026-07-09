@@ -59,6 +59,7 @@ def create_app(test_config=None):
     cookie_secure = os.environ.get("STORYBOOK_COOKIE_SECURE") == "1"
     authors = _parse_authors(os.environ.get("STORYBOOK_AUTHORS"))
     birthdate = _parse_birthdate(os.environ.get("STORYBOOK_BIRTHDATE"))
+    title = os.environ.get("STORYBOOK_TITLE") or "Storybook"
 
     if password and not secret_key and not test_config:
         raise RuntimeError(
@@ -73,6 +74,7 @@ def create_app(test_config=None):
         DEV_MODE=password is None,
         AUTHORS=authors,
         BIRTHDATE=birthdate,
+        TITLE=title,
         PERMANENT_SESSION_LIFETIME=timedelta(days=90),
         MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
         SESSION_COOKIE_HTTPONLY=True,
@@ -94,6 +96,10 @@ def create_app(test_config=None):
 
     app.jinja_env.globals["is_sealed"] = storage.is_sealed
     app.jinja_env.globals["age_label"] = dates.age_label
+
+    @app.context_processor
+    def inject_title():
+        return {"app_title": app.config["TITLE"]}
 
     @app.errorhandler(404)
     def not_found(error):

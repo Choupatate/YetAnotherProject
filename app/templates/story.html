@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ story.title }} — Storybook{% endblock %}
+{% block title %}{{ story.title }} — {{ app_title }}{% endblock %}
 {% block body_class %}page-story{% endblock %}
 {% block head %}
 {% if prev_story %}<link rel="prev" href="{{ url_for('pages.story', story_id=prev_story.id) }}">{% endif %}
