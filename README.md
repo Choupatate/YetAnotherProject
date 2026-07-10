@@ -195,6 +195,14 @@ you never got to save at all) shows a small banner offering to restore it.
 This never touches the server or other devices — it's purely a per-browser
 safety net for the gap between typing and clicking Save.
 
+### Opening a page at random
+
+"Open a page at random" on the timeline, and "At random" on every story
+page's footer, jump to a uniformly random readable story — drafts, sealed
+letters, and instants are never picked (page-turning is for real stories).
+The story-page link excludes the page you're already on, so tapping it
+repeatedly always moves somewhere new.
+
 ### Finding a story
 
 A search box above the timeline filters entries by title (and author) as

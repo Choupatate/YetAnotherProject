@@ -1,3 +1,4 @@
+import random
 import tempfile
 import zipfile
 from datetime import date, datetime
@@ -7,7 +8,9 @@ from flask import (
     abort,
     current_app,
     jsonify,
+    redirect,
     render_template,
+    request,
     send_file,
     send_from_directory,
     url_for,
@@ -45,6 +48,26 @@ def timeline():
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
     )
+
+
+@bp.route("/random")
+@login_required
+def random_page():
+    """Open a random readable story (FEATURES.md F15). Drafts, sealed
+    letters, and instants (page-turning is for stories) are never chosen;
+    `?not=<id>` excludes one story id (e.g. the one you're already on)."""
+    stories_dir = current_app.config["STORIES_DIR"]
+    candidates = [
+        s for s in storage.readable_stories(storage.list_stories(stories_dir))
+        if s.kind == "story"
+    ]
+    exclude_id = request.args.get("not")
+    if exclude_id:
+        candidates = [s for s in candidates if s.id != exclude_id]
+    if not candidates:
+        return redirect(url_for("pages.timeline"))
+    choice = random.choice(candidates)
+    return redirect(url_for("pages.story", story_id=choice.id))
 
 
 @bp.route("/manifest.webmanifest")
