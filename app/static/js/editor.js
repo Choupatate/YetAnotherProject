@@ -4,6 +4,7 @@
   var dateInput = document.getElementById("story-date");
   var unlockInput = document.getElementById("story-unlock");
   var draftToggle = document.getElementById("draft-toggle");
+  var archiveToggle = document.getElementById("archive-toggle");
   var root = document.getElementById("editor-root");
   var sourceTextarea = document.getElementById("markdown-source");
   var saveButton = document.getElementById("save-story");
@@ -19,12 +20,24 @@
     });
   }
 
+  if (archiveToggle) {
+    archiveToggle.addEventListener("click", function () {
+      var pressed = archiveToggle.getAttribute("aria-pressed") === "true";
+      archiveToggle.setAttribute("aria-pressed", pressed ? "false" : "true");
+      markDirty();
+    });
+  }
+
   if (unlockInput) {
     unlockInput.addEventListener("input", markDirty);
   }
 
   function isDraft() {
     return !!draftToggle && draftToggle.getAttribute("aria-pressed") === "true";
+  }
+
+  function isArchived() {
+    return !!archiveToggle && archiveToggle.getAttribute("aria-pressed") === "true";
   }
 
   function unlockValue() {
@@ -125,6 +138,7 @@
         author: selectedAuthor || "",
         draft: isDraft(),
         unlock: unlockValue(),
+        archived: isArchived(),
       }),
     })
       .then(handleJsonResponse)
@@ -333,6 +347,7 @@
             author: selectedAuthor || "",
             draft: isDraft(),
             unlock: unlockValue(),
+            archived: isArchived(),
           }),
         });
       })

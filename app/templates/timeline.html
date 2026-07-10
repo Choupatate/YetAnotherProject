@@ -29,9 +29,11 @@
   {% endfor %}
 </div>
 {% endif %}
-{% if draft_count %}
+{% if draft_count or archived_count %}
 <p class="timeline__drafts-link">
-  <a href="{{ url_for('pages.drafts') }}">Drafts ({{ draft_count }})</a>
+  {% if draft_count %}<a href="{{ url_for('pages.drafts') }}">Drafts ({{ draft_count }})</a>{% endif %}
+  {% if draft_count and archived_count %}&middot;{% endif %}
+  {% if archived_count %}<a href="{{ url_for('pages.archived') }}">Archived ({{ archived_count }})</a>{% endif %}
 </p>
 {% endif %}
 <div class="timeline">

@@ -46,6 +46,7 @@ class Story:
     author: Optional[str] = None
     draft: bool = False
     unlock: Optional[date_cls] = None
+    archived: bool = False
     body: Optional[str] = None
 
 
@@ -95,6 +96,7 @@ def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> St
         author=metadata.get("author"),
         draft=metadata.get("draft") is True,
         unlock=_parse_unlock(metadata.get("unlock")),
+        archived=metadata.get("archived") is True,
         body=post.content if include_body else None,
     )
 
@@ -154,11 +156,12 @@ def is_sealed(story: Story, today: Optional[date_cls] = None) -> bool:
 
 
 def readable_stories(stories: list[Story], today: Optional[date_cls] = None) -> list[Story]:
-    """Published, unsealed stories, date-ascending — the canonical "pages of
-    the book" used by reading order, on-this-day, and the book view."""
+    """Published, unsealed, unarchived stories, date-ascending — the
+    canonical "pages of the book" used by reading order, on-this-day, and
+    the book view."""
     if today is None:
         today = date_cls.today()
-    result = [s for s in stories if not s.draft and not is_sealed(s, today)]
+    result = [s for s in stories if not s.draft and not s.archived and not is_sealed(s, today)]
     result.sort(key=lambda s: (s.date, s.created or datetime.min))
     return result
 
@@ -207,7 +210,7 @@ def get_story(stories_dir, story_id: str) -> Optional[Story]:
 def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
                   created: datetime, updated: datetime, cover: Optional[str], body: str,
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None) -> None:
+                  unlock: Optional[date_cls] = None, archived: bool = False) -> None:
     post = frontmatter.Post(body)
     post["title"] = title
     post["date"] = story_date.isoformat()
@@ -221,6 +224,8 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
         post["draft"] = True
     if unlock:
         post["unlock"] = unlock.isoformat()
+    if archived:
+        post["archived"] = True
     index_path = Path(stories_dir) / story_id / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -229,7 +234,7 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
 
 def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None) -> str:
+                  unlock: Optional[date_cls] = None, archived: bool = False) -> str:
     """Create a new story folder, returning its story_id (the folder name).
 
     On slug collision, append -2, -3, ... to the slug.
@@ -247,20 +252,21 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
     story_path.mkdir(parents=True)
     now = datetime.now()
     _write_index(stories_dir, story_id, title, story_date, now, now, None, body, author=author,
-                 draft=draft, unlock=unlock)
+                 draft=draft, unlock=unlock, archived=archived)
     return story_id
 
 
 def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
                body: str, cover: Optional[str] = None, author: Optional[str] = None,
-               draft: bool = False, unlock: Optional[date_cls] = None) -> None:
+               draft: bool = False, unlock: Optional[date_cls] = None,
+               archived: bool = False) -> None:
     """Update an existing story's content in place. The story_id never changes.
 
     `cover`/`author` of None means "leave unchanged"; an empty string clears
-    the field (frontmatter key is omitted for falsy values). `draft`/`unlock`
-    are always set wholesale from the given value (the editor's draft chip and
-    seal-date input are always present on the form, so there is nothing to
-    "leave unchanged").
+    the field (frontmatter key is omitted for falsy values). `draft`/`unlock`/
+    `archived` are always set wholesale from the given value (their editor
+    controls are always present on the form, so there is nothing to "leave
+    unchanged").
     """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
@@ -273,7 +279,7 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     if author is None:
         author = existing.author
     _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
-                 author=author, draft=draft, unlock=unlock)
+                 author=author, draft=draft, unlock=unlock, archived=archived)
 
 
 def _next_photo_number(story_path: Path) -> int:

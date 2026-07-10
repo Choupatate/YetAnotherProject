@@ -63,6 +63,7 @@ def create_story():
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
     draft = bool(data.get("draft"))
+    archived = bool(data.get("archived"))
 
     if not title:
         return _error("Title is required.", 400)
@@ -78,7 +79,7 @@ def create_story():
 
     story_id = storage.create_story(
         current_app.config["STORIES_DIR"], title, story_date, markdown, author=author,
-        draft=draft, unlock=unlock,
+        draft=draft, unlock=unlock, archived=archived,
     )
     return jsonify({"id": story_id})
 
@@ -95,6 +96,7 @@ def update_story(story_id):
     markdown = data.get("markdown") or ""
     cover = data.get("cover")
     draft = bool(data.get("draft"))
+    archived = bool(data.get("archived"))
 
     if not title:
         return _error("Title is required.", 400)
@@ -111,7 +113,7 @@ def update_story(story_id):
     try:
         storage.save_story(
             current_app.config["STORIES_DIR"], story_id, title, story_date, markdown,
-            cover=cover, author=author, draft=draft, unlock=unlock,
+            cover=cover, author=author, draft=draft, unlock=unlock, archived=archived,
         )
     except FileNotFoundError:
         return _error("Story not found.", 404)

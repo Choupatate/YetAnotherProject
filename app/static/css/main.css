@@ -535,41 +535,48 @@ mark {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Drafts page                                                             */
+/* Drafts / Archived pages (identical layout, separate templates)          */
 /* ---------------------------------------------------------------------- */
 
-.drafts {
+.drafts,
+.archived {
   max-width: 40rem;
   margin: 0 auto;
   padding: 1.5rem 1.25rem 4rem;
 }
 
-.drafts__back a {
+.drafts__back a,
+.archived__back a {
   color: var(--color-text-dim);
   text-decoration: none;
 }
 
-.drafts__title {
+.drafts__title,
+.archived__title {
   font-family: var(--font-serif);
   font-size: 1.75rem;
   margin: 0.5rem 0 1.5rem;
 }
 
-.drafts__empty {
+.drafts__empty,
+.archived__empty {
   color: var(--color-text-dim);
 }
 
-.drafts__list {
+.drafts__list,
+.archived__list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.drafts__item {
+.drafts__item,
+.archived__item {
   border-bottom: 1px solid var(--color-border);
 }
 
-.drafts__link {
+.drafts__link,
+.archived__link {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -579,7 +586,8 @@ mark {
   color: inherit;
 }
 
-.drafts__dot {
+.drafts__dot,
+.archived__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -587,13 +595,15 @@ mark {
   flex-shrink: 0;
 }
 
-.drafts__item-title {
+.drafts__item-title,
+.archived__item-title {
   flex: 1;
   font-family: var(--font-serif);
   font-size: 1.05rem;
 }
 
-.drafts__item-date {
+.drafts__item-date,
+.archived__item-date {
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   color: var(--color-text-dim);
@@ -638,7 +648,8 @@ mark {
   color: var(--author-color, var(--color-accent));
 }
 
-.story__draft-pill {
+.story__draft-pill,
+.story__archived-pill {
   display: inline-block;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1017,7 +1028,13 @@ mark {
   gap: 0.5rem;
 }
 
-.editor__draft-chip {
+.editor__toggles {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.editor__toggle-chip {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -1029,10 +1046,9 @@ mark {
   font-family: var(--font-sans);
   font-size: 0.875rem;
   cursor: pointer;
-  margin-left: auto;
 }
 
-.editor__draft-chip[aria-pressed="true"] {
+.editor__toggle-chip[aria-pressed="true"] {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }

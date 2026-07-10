@@ -150,6 +150,17 @@ directly, which keeps working on a sealed story — only the reading view is
 blocked. Once the unlock date passes, the entry becomes a normal story
 automatically, with no action needed.
 
+### Archiving a story
+
+The "Archive" chip in the editor (next to "Draft") is a softer alternative
+to deletion, which this app deliberately doesn't have. An archived story
+disappears from the timeline, drafts list, book, prev/next navigation, and
+"years ago today" banner — same as a draft — but the file is never touched:
+it's still fully readable at its direct URL (with a small "ARCHIVED" pill),
+still listed on a dedicated `/archived` page (linked from the timeline when
+at least one story is archived), and un-archiving is just toggling the chip
+back off.
+
 ### Reading it as a book
 
 `/book` (linked from the bottom of the timeline as "Read as a book") renders

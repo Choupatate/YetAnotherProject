@@ -28,8 +28,12 @@
       {% endfor %}
     </div>
     {% endif %}
-    <button type="button" id="draft-toggle" class="editor__draft-chip"
-            aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+    <div class="editor__toggles">
+      <button type="button" id="draft-toggle" class="editor__toggle-chip"
+              aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+      <button type="button" id="archive-toggle" class="editor__toggle-chip"
+              aria-pressed="{{ 'true' if story and story.archived else 'false' }}">Archive</button>
+    </div>
   </div>
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
