@@ -577,6 +577,16 @@ mark {
   background: var(--color-accent);
 }
 
+/* R2.2: the fixed right-edge minimap sat on top of .timeline__thumb images
+   at phone widths (geometrically confirmed overlap). Hiding it below ~480px
+   (rather than reserving a gutter for it) preserves more title width, and
+   jump-to-latest/search already cover narrow-viewport navigation. */
+@media (max-width: 30rem) {
+  .minimap {
+    display: none;
+  }
+}
+
 .timeline__footer-links {
   max-width: 40rem;
   margin: 0 auto;
