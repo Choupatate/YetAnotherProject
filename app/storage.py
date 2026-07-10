@@ -19,6 +19,9 @@ from typing import Optional
 
 import frontmatter
 from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
 
 logger = logging.getLogger(__name__)
 
