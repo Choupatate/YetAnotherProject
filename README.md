@@ -222,6 +222,17 @@ putting the folder back. For a one-tap copy from the app itself, the timeline's
 "Download everything (.zip)" link (`/export`) streams the same directory as a
 zip file.
 
+To restore one, "Import a backup" (`/import`, also linked from the timeline)
+uploads that same zip back in. It's deliberately strict: the import only
+succeeds if **none** of the zip's stories already exist in this app's
+stories folder — any collision aborts the whole import with nothing written,
+rather than risk silently overwriting newer edits. This makes it a good fit
+for disaster recovery (restoring into a fresh, empty install) or merging in
+stories from a different device that don't already exist here; it is not a
+sync tool. Very large backups may exceed the app's 32 MB upload limit — for
+those, copy the zip's contents directly onto the `stories/` folder (or the
+Docker volume) instead of going through the web UI.
+
 ## Running the tests
 
 ```bash

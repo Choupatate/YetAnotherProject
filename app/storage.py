@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import unicodedata
+import zipfile
 from dataclasses import dataclass
 from datetime import date as date_cls
 from datetime import datetime
@@ -41,6 +42,16 @@ class InvalidFilename(ValueError):
 
 class InvalidVersionId(ValueError):
     pass
+
+
+class ImportCollision(ValueError):
+    """Raised when a backup zip contains a story id that already exists on
+    disk. Nothing is written when this is raised — see import_backup()."""
+
+    def __init__(self, colliding_ids: list[str]):
+        self.colliding_ids = colliding_ids
+        noun = "story" if len(colliding_ids) == 1 else "stories"
+        super().__init__(f"{len(colliding_ids)} {noun} already exist: {', '.join(colliding_ids)}")
 
 
 @dataclass
@@ -403,3 +414,41 @@ def save_image(stories_dir, story_id: str, file_storage) -> str:
         image.save(story_path / filename, format="JPEG", quality=JPEG_QUALITY)
 
     return filename
+
+
+def import_backup(stories_dir, zip_file) -> int:
+    """Restore a backup zip produced by the /export download.
+
+    Only ever extracts entries shaped like `<valid-story-id>/...` (rejecting
+    anything else as an unsafe or unrecognized path). If ANY of those story
+    ids already exist on disk, raises ImportCollision and writes nothing —
+    an import either fully succeeds or has no effect at all. Returns the
+    number of story folders imported.
+    """
+    stories_dir = Path(stories_dir)
+    with zipfile.ZipFile(zip_file) as zf:
+        members = []
+        story_ids = set()
+        for info in zf.infolist():
+            name = info.filename
+            if name.endswith("/"):
+                continue
+            if name.startswith("/") or ".." in Path(name).parts:
+                raise ValueError(f"Unsafe path in backup: {name!r}")
+            top = Path(name).parts[0] if Path(name).parts else ""
+            if not is_valid_story_id(top):
+                raise ValueError(f"Unexpected path in backup: {name!r}")
+            story_ids.add(top)
+            members.append(info)
+
+        if not members:
+            raise ValueError("Backup contains no stories.")
+
+        colliding = sorted(sid for sid in story_ids if (stories_dir / sid).exists())
+        if colliding:
+            raise ImportCollision(colliding)
+
+        for info in members:
+            zf.extract(info, stories_dir)
+
+    return len(story_ids)

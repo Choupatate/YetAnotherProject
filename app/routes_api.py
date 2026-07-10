@@ -1,3 +1,4 @@
+import zipfile
 from datetime import date as date_cls
 
 from flask import Blueprint, current_app, jsonify, request
@@ -129,6 +130,31 @@ def restore_version(story_id, version_id):
     except (storage.InvalidStoryId, storage.InvalidVersionId, FileNotFoundError):
         return _error("Version not found.", 404)
     return jsonify({"id": story_id})
+
+
+@bp.route("/import", methods=["POST"])
+@login_required
+def import_backup():
+    file_storage = request.files.get("file")
+    if file_storage is None or not file_storage.filename:
+        return _error("No backup file provided.", 400)
+
+    try:
+        count = storage.import_backup(current_app.config["STORIES_DIR"], file_storage.stream)
+    except storage.ImportCollision as e:
+        shown = ", ".join(e.colliding_ids[:5])
+        more = f" and {len(e.colliding_ids) - 5} more" if len(e.colliding_ids) > 5 else ""
+        return _error(
+            f"Import aborted, nothing was changed: {len(e.colliding_ids)} "
+            f"already exist here ({shown}{more}).",
+            409,
+        )
+    except zipfile.BadZipFile:
+        return _error("That doesn't look like a valid zip file.", 400)
+    except ValueError as e:
+        return _error(str(e), 400)
+
+    return jsonify({"imported": count})
 
 
 @bp.route("/stories/<story_id>/images", methods=["POST"])

@@ -150,6 +150,12 @@ def export():
     return send_file(tmp, mimetype="application/zip", as_attachment=True, download_name=filename)
 
 
+@bp.route("/import")
+@login_required
+def import_page():
+    return render_template("import.html")
+
+
 @bp.route("/drafts")
 @login_required
 def drafts():
