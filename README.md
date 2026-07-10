@@ -204,6 +204,15 @@ print stylesheet) forces the light palette, hides all navigation and buttons,
 and starts each story on its own page — "save as PDF" in the print dialog
 gives a clean, book-like PDF of the whole thing.
 
+### Downloading as an EPUB
+
+"Download as EPUB" (next to "Read as a book" on the timeline) streams the
+same readable stories as a real `.epub` file — a minimal, hand-built EPUB3
+(stdlib `zipfile` and string templates, no new dependency) with a cover
+page, a chapter per story, embedded photos, and a table of contents, openable
+in Apple Books, Kindle (after conversion), calibre, or any other e-reader
+app. Unlike `/book`, this needs no browser and no print step.
+
 ## Backing up
 
 **Back up the `stories/` folder. That is everything.** There is no database, no

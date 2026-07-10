@@ -13,7 +13,7 @@ from flask import (
     url_for,
 )
 
-from . import storage
+from . import epub, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -99,6 +99,39 @@ def book():
         min_year=readable[0].date.year if readable else None,
         max_year=readable[-1].date.year if readable else None,
     )
+
+
+@bp.route("/book.epub")
+@login_required
+def book_epub():
+    """The whole book as a downloadable EPUB (readable in any e-reader app,
+    unlike the browser-print PDF flow at /book)."""
+    stories_dir = current_app.config["STORIES_DIR"]
+    readable = storage.readable_stories(storage.list_stories(stories_dir))
+    authors = current_app.config.get("AUTHORS") or []
+    entries = []
+    for s in readable:
+        full = storage.get_story(stories_dir, s.id)
+        body_html = render_markdown(full.body, full.id)
+        entries.append({"story": full, "body_html": body_html})
+
+    def image_loader(story_id, filename):
+        if not storage.is_valid_story_id(story_id) or not storage.is_valid_filename(filename):
+            return None
+        path = stories_dir / story_id / filename
+        return path.read_bytes() if path.is_file() else None
+
+    title = current_app.config["TITLE"]
+    buf = epub.build_epub(
+        title,
+        readable[0].date.year if readable else None,
+        readable[-1].date.year if readable else None,
+        authors,
+        entries,
+        image_loader,
+    )
+    filename = f"{storage.slugify(title)}.epub"
+    return send_file(buf, mimetype=epub.MIMETYPE, as_attachment=True, download_name=filename)
 
 
 @bp.route("/export")
