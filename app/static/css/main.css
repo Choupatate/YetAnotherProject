@@ -536,6 +536,22 @@ mark {
   flex-shrink: 0;
 }
 
+/* R2.1 (REVIEW.md live review round 2): below ~480px the meta line
+   (date · author · age) plus a thumbnail can crush the title into a
+   one-word-per-line column. Stack the entry — meta, then title at full
+   width, then the thumbnail — so the title always gets the reading width. */
+@media (max-width: 30rem) {
+  .timeline__link {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .timeline__title {
+    width: 100%;
+  }
+}
+
 .minimap {
   position: fixed;
   right: 0.35rem;
