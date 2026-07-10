@@ -383,3 +383,40 @@ the whole book start-to-finish on screen, and printing to PDF/paper.
 - No external requests from any page (re-check with browser devtools — this
   is checked after every batch, forever).
 - Bare `pytest` green from a clean checkout.
+
+---
+
+## F11. HEIC/HEIF photo uploads (Android & iPhone originals)
+
+The family's photo library is stored in compressed HEIF/HEIC (Android default
+in their case; also iPhone originals via Files/AirDrop). Pillow alone cannot
+decode these — uploads currently fail with `400 Could not process image`.
+This is an ingestion-only change: **stored output remains plain JPEG**, so
+the durability contract is untouched.
+
+- Add `pillow-heif` to `requirements.txt`, pinned like the other deps. This
+  is a deliberate exception to the minimal-dependencies rule, approved
+  because every one of the family's photos is HEIF; do not add any other
+  format plugin alongside it.
+- In `app/storage.py`, at module import:
+
+  ```python
+  from pillow_heif import register_heif_opener
+  register_heif_opener()
+  ```
+
+  That is the whole integration: `Image.open()` then handles `.heic`/`.heif`
+  and the existing pipeline (EXIF transpose → resize → `convert("RGB")` →
+  JPEG q85) applies unchanged. Verify `ImageOps.exif_transpose` still
+  corrects orientation for HEIF (pillow-heif exposes EXIF; add a test).
+- HEIF is not PNG, so the `is_png` branch stays false → output is
+  `photo-NNN.jpg`. Correct; do not add a HEIF-passthrough.
+- Tests (`tests/test_storage.py`): generate a real HEIC fixture in the test
+  itself with pillow-heif (`Image.new(...).save(tmp / "x.heic")` after
+  registering), including one with an EXIF orientation tag; upload through
+  `POST /api/stories/<id>/images` in `tests/test_api.py` and assert a valid
+  JPEG lands in the story folder with corrected orientation and long edge
+  ≤ 2000px.
+- README: add HEIC/HEIF to a short "supported photo formats" line (JPEG,
+  PNG, WebP, AVIF, GIF/TIFF/BMP, HEIC/HEIF — everything except PNG is stored
+  as JPEG).
