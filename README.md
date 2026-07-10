@@ -202,7 +202,14 @@ as the timeline. It doubles as a print layout: the floating "Print / save as
 PDF" button calls the browser's native print dialog, which (via a dedicated
 print stylesheet) forces the light palette, hides all navigation and buttons,
 and starts each story on its own page — "save as PDF" in the print dialog
-gives a clean, book-like PDF of the whole thing.
+gives a clean, book-like PDF of the whole thing. "Download as PDF" on the
+timeline is the same flow made one tap shorter: it opens `/book` and
+triggers that print dialog automatically, so you land straight on "save as
+PDF" without needing to notice the floating Print button. There's no
+server-generated PDF file — that would mean adding a real dependency (a PDF
+library, or shelling out to a headless browser), which this project
+deliberately avoids; the browser's own print-to-PDF is free, reliable, and
+already produces the same clean layout.
 
 ### Downloading as an EPUB
 
