@@ -6,6 +6,15 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/theme/toastui-editor-dark.css') }}">
 {% endblock %}
 {% block content %}
+<div class="editor__recovery" id="editor-recovery" hidden>
+  <p class="editor__recovery-text">
+    You have an unsaved draft from <span id="editor-recovery-time"></span>.
+  </p>
+  <div class="editor__recovery-actions">
+    <button type="button" class="btn" id="editor-recovery-restore">Restore it</button>
+    <button type="button" class="btn" id="editor-recovery-discard">Discard</button>
+  </div>
+</div>
 <form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}">
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Untitled" value="{{ story.title if story else '' }}" required>
@@ -28,8 +37,12 @@
       {% endfor %}
     </div>
     {% endif %}
-    <button type="button" id="draft-toggle" class="editor__draft-chip"
-            aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+    <div class="editor__toggles">
+      <button type="button" id="draft-toggle" class="editor__toggle-chip"
+              aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+      <button type="button" id="archive-toggle" class="editor__toggle-chip"
+              aria-pressed="{{ 'true' if story and story.archived else 'false' }}">Archive</button>
+    </div>
   </div>
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
@@ -38,6 +51,11 @@
     <button id="save-story" type="submit" class="btn btn--primary editor__save">Save</button>
   </div>
 </form>
+{% if story %}
+<p class="editor__history-link">
+  <a href="{{ url_for('pages.story_history', story_id=story.id) }}">View history</a>
+</p>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>

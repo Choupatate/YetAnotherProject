@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Import a backup — {{ app_title }}{% endblock %}
+{% block body_class %}page-import{% endblock %}
+{% block content %}
+<div class="import">
+  <p class="import__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <h1 class="import__title">Import a backup</h1>
+  <p class="import__intro">
+    Restore stories from a zip downloaded via "Download everything (.zip)".
+    This only works if none of the zip's stories already exist here — if
+    anything would collide, nothing is changed and you'll see an error below.
+  </p>
+  <form id="import-form" class="import__form">
+    <input type="file" id="import-file" name="file" accept=".zip,application/zip" required>
+    <button type="submit" class="btn btn--primary">Import</button>
+  </form>
+  <p class="import__result" id="import-result" hidden></p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/import.js') }}"></script>
+{% endblock %}

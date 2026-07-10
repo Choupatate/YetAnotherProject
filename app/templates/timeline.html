@@ -29,11 +29,21 @@
   {% endfor %}
 </div>
 {% endif %}
-{% if draft_count %}
+{% if draft_count or archived_count %}
 <p class="timeline__drafts-link">
-  <a href="{{ url_for('pages.drafts') }}">Drafts ({{ draft_count }})</a>
+  {% if draft_count %}<a href="{{ url_for('pages.drafts') }}">Drafts ({{ draft_count }})</a>{% endif %}
+  {% if draft_count and archived_count %}&middot;{% endif %}
+  {% if archived_count %}<a href="{{ url_for('pages.archived') }}">Archived ({{ archived_count }})</a>{% endif %}
 </p>
 {% endif %}
+<div class="timeline__toolbar">
+  <input type="search" id="timeline-search" class="timeline__search"
+         placeholder="Search titles&hellip;" aria-label="Search stories by title">
+  <a href="#" id="timeline-jump-latest" class="timeline__jump">Jump to the latest &darr;</a>
+</div>
+<p class="timeline__search-empty" id="timeline-search-empty" hidden>
+  No stories match &ldquo;<span id="timeline-search-empty-query"></span>&rdquo;.
+</p>
 <div class="timeline">
   <div class="timeline__spine" aria-hidden="true"></div>
   <ol class="timeline__list">
@@ -77,7 +87,13 @@
 <p class="timeline__footer-links">
   <a href="{{ url_for('pages.book') }}">Read as a book</a>
   &middot;
+  <a href="{{ url_for('pages.book') }}?print=1">Download as PDF</a>
+  &middot;
+  <a href="{{ url_for('pages.book_epub') }}">Download as EPUB</a>
+  &middot;
   <a href="{{ url_for('pages.export') }}">Download everything (.zip)</a>
+  &middot;
+  <a href="{{ url_for('pages.import_page') }}">Import a backup</a>
 </p>
 {% endif %}
 {% endblock %}

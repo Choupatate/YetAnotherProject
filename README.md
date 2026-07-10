@@ -150,6 +150,49 @@ directly, which keeps working on a sealed story — only the reading view is
 blocked. Once the unlock date passes, the entry becomes a normal story
 automatically, with no action needed.
 
+### Archiving a story
+
+The "Archive" chip in the editor (next to "Draft") is a softer alternative
+to deletion, which this app deliberately doesn't have. An archived story
+disappears from the timeline, drafts list, book, prev/next navigation, and
+"years ago today" banner — same as a draft — but the file is never touched:
+it's still fully readable at its direct URL (with a small "ARCHIVED" pill),
+still listed on a dedicated `/archived` page (linked from the timeline when
+at least one story is archived), and un-archiving is just toggling the chip
+back off.
+
+### Version history
+
+Every save keeps the version it's about to overwrite: before writing new
+content, the previous `index.md` is copied into a hidden `.versions/`
+subfolder inside that story's own directory (the last 20 are kept; older
+ones are pruned automatically). "View history" on the edit page lists them
+newest-first with a one-tap Restore — restoring goes through the same save
+path, so it snapshots the current version too, meaning you can never lose
+content by restoring, only add another point to the timeline. This is a
+local safety net for "I pasted over the wrong paragraph" or "I clicked save
+before finishing a rewrite," not a full undo/redo history — there's no diff
+view, just full-version snapshots.
+
+### Autosave and crash recovery
+
+Separately from server-side version history (which only records content
+you've actually saved), the editor also autosaves the current title, date,
+and body to the browser's `localStorage` a couple of seconds after you stop
+typing. If you close the tab, lose your connection, or the browser crashes
+before your first manual save, reopening that story (or `/new`, for a story
+you never got to save at all) shows a small banner offering to restore it.
+This never touches the server or other devices — it's purely a per-browser
+safety net for the gap between typing and clicking Save.
+
+### Finding a story
+
+A search box above the timeline filters entries by title (and author) as
+you type — purely client-side, filtering what's already rendered, no
+server round-trip. A "Jump to the latest" link next to it scrolls straight
+to the newest entry, useful once there are enough stories that reading
+chronologically from the top isn't how you want to start.
+
 ### Reading it as a book
 
 `/book` (linked from the bottom of the timeline as "Read as a book") renders
@@ -159,7 +202,23 @@ as the timeline. It doubles as a print layout: the floating "Print / save as
 PDF" button calls the browser's native print dialog, which (via a dedicated
 print stylesheet) forces the light palette, hides all navigation and buttons,
 and starts each story on its own page — "save as PDF" in the print dialog
-gives a clean, book-like PDF of the whole thing.
+gives a clean, book-like PDF of the whole thing. "Download as PDF" on the
+timeline is the same flow made one tap shorter: it opens `/book` and
+triggers that print dialog automatically, so you land straight on "save as
+PDF" without needing to notice the floating Print button. There's no
+server-generated PDF file — that would mean adding a real dependency (a PDF
+library, or shelling out to a headless browser), which this project
+deliberately avoids; the browser's own print-to-PDF is free, reliable, and
+already produces the same clean layout.
+
+### Downloading as an EPUB
+
+"Download as EPUB" (next to "Read as a book" on the timeline) streams the
+same readable stories as a real `.epub` file — a minimal, hand-built EPUB3
+(stdlib `zipfile` and string templates, no new dependency) with a cover
+page, a chapter per story, embedded photos, and a table of contents, openable
+in Apple Books, Kindle (after conversion), calibre, or any other e-reader
+app. Unlike `/book`, this needs no browser and no print step.
 
 ## Backing up
 
@@ -169,6 +228,17 @@ other state to preserve. Copying that one directory (e.g. with `rsync`, a nightl
 putting the folder back. For a one-tap copy from the app itself, the timeline's
 "Download everything (.zip)" link (`/export`) streams the same directory as a
 zip file.
+
+To restore one, "Import a backup" (`/import`, also linked from the timeline)
+uploads that same zip back in. It's deliberately strict: the import only
+succeeds if **none** of the zip's stories already exist in this app's
+stories folder — any collision aborts the whole import with nothing written,
+rather than risk silently overwriting newer edits. This makes it a good fit
+for disaster recovery (restoring into a fresh, empty install) or merging in
+stories from a different device that don't already exist here; it is not a
+sync tool. Very large backups may exceed the app's 32 MB upload limit — for
+those, copy the zip's contents directly onto the `stories/` folder (or the
+Docker volume) instead of going through the web UI.
 
 ## Running the tests
 

@@ -4,6 +4,7 @@
   var dateInput = document.getElementById("story-date");
   var unlockInput = document.getElementById("story-unlock");
   var draftToggle = document.getElementById("draft-toggle");
+  var archiveToggle = document.getElementById("archive-toggle");
   var root = document.getElementById("editor-root");
   var sourceTextarea = document.getElementById("markdown-source");
   var saveButton = document.getElementById("save-story");
@@ -19,12 +20,24 @@
     });
   }
 
+  if (archiveToggle) {
+    archiveToggle.addEventListener("click", function () {
+      var pressed = archiveToggle.getAttribute("aria-pressed") === "true";
+      archiveToggle.setAttribute("aria-pressed", pressed ? "false" : "true");
+      markDirty();
+    });
+  }
+
   if (unlockInput) {
     unlockInput.addEventListener("input", markDirty);
   }
 
   function isDraft() {
     return !!draftToggle && draftToggle.getAttribute("aria-pressed") === "true";
+  }
+
+  function isArchived() {
+    return !!archiveToggle && archiveToggle.getAttribute("aria-pressed") === "true";
   }
 
   function unlockValue() {
@@ -95,6 +108,7 @@
 
   function markDirty() {
     dirty = true;
+    scheduleAutosave();
   }
 
   function handleJsonResponse(response) {
@@ -125,6 +139,7 @@
         author: selectedAuthor || "",
         draft: isDraft(),
         unlock: unlockValue(),
+        archived: isArchived(),
       }),
     })
       .then(handleJsonResponse)
@@ -203,6 +218,9 @@
     return {
       getMarkdown: function () {
         return editor.getMarkdown();
+      },
+      setMarkdown: function (value) {
+        editor.setMarkdown(value);
       },
     };
   }
@@ -302,6 +320,9 @@
       getMarkdown: function () {
         return sourceTextarea.value;
       },
+      setMarkdown: function (value) {
+        sourceTextarea.value = value;
+      },
     };
   }
 
@@ -310,6 +331,118 @@
 
   titleInput.addEventListener("input", markDirty);
   dateInput.addEventListener("input", markDirty);
+
+  // --- Autosave to localStorage + crash/close recovery ---------------------
+  //
+  // Protects against losing an in-progress edit to a browser crash, a
+  // dropped connection, or an accidental tab close before the first manual
+  // save — separate from server-side version history, which only records
+  // content that was actually saved.
+
+  var AUTOSAVE_KEY = "storybook-autosave-" + (storyId || "new");
+  var recoveryBanner = document.getElementById("editor-recovery");
+  var recoveryTimeEl = document.getElementById("editor-recovery-time");
+  var recoveryRestoreBtn = document.getElementById("editor-recovery-restore");
+  var recoveryDiscardBtn = document.getElementById("editor-recovery-discard");
+  var autosaveTimer = null;
+  var initialTitle = titleInput.value;
+  var initialMarkdown = sourceTextarea.value;
+
+  function currentDraftPayload() {
+    return {
+      title: titleInput.value,
+      date: dateInput.value,
+      markdown: editor.getMarkdown(),
+      author: selectedAuthor || "",
+      draft: isDraft(),
+      unlock: unlockValue(),
+      archived: isArchived(),
+      savedAt: Date.now(),
+    };
+  }
+
+  function readAutosave() {
+    var raw;
+    try {
+      raw = localStorage.getItem(AUTOSAVE_KEY);
+    } catch (e) {
+      return null;
+    }
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearAutosave() {
+    try {
+      localStorage.removeItem(AUTOSAVE_KEY);
+    } catch (e) {}
+  }
+
+  function scheduleAutosave() {
+    if (autosaveTimer) return;
+    autosaveTimer = setTimeout(function () {
+      autosaveTimer = null;
+      try {
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(currentDraftPayload()));
+      } catch (e) {}
+    }, 2000);
+  }
+
+  function applyDraft(draftData) {
+    titleInput.value = draftData.title || "";
+    if (draftData.date) dateInput.value = draftData.date;
+    editor.setMarkdown(draftData.markdown || "");
+    if (unlockInput) unlockInput.value = draftData.unlock || "";
+    if (draftToggle) draftToggle.setAttribute("aria-pressed", draftData.draft ? "true" : "false");
+    if (archiveToggle) {
+      archiveToggle.setAttribute("aria-pressed", draftData.archived ? "true" : "false");
+    }
+    authorChips.forEach(function (chip) {
+      chip.setAttribute("aria-pressed", "false");
+    });
+    if (draftData.author) {
+      var chip = findChipByName(draftData.author);
+      if (chip) {
+        chip.setAttribute("aria-pressed", "true");
+        selectedAuthor = draftData.author;
+      }
+    } else {
+      selectedAuthor = null;
+    }
+    markDirty();
+  }
+
+  var pendingDraft = readAutosave();
+  if (pendingDraft) {
+    var hasRecoverableChanges =
+      (pendingDraft.title || "") !== initialTitle ||
+      (pendingDraft.markdown || "") !== initialMarkdown;
+    if (hasRecoverableChanges && recoveryBanner) {
+      recoveryTimeEl.textContent = new Date(pendingDraft.savedAt).toLocaleString();
+      recoveryBanner.hidden = false;
+    } else {
+      clearAutosave();
+      pendingDraft = null;
+    }
+  }
+
+  if (recoveryRestoreBtn) {
+    recoveryRestoreBtn.addEventListener("click", function () {
+      if (pendingDraft) applyDraft(pendingDraft);
+      recoveryBanner.hidden = true;
+    });
+  }
+
+  if (recoveryDiscardBtn) {
+    recoveryDiscardBtn.addEventListener("click", function () {
+      clearAutosave();
+      recoveryBanner.hidden = true;
+    });
+  }
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
@@ -320,25 +453,37 @@
       return;
     }
     var markdown = editor.getMarkdown();
+    var payload = {
+      title: title,
+      date: storyDate,
+      markdown: markdown,
+      author: selectedAuthor || "",
+      draft: isDraft(),
+      unlock: unlockValue(),
+      archived: isArchived(),
+    };
 
-    ensureStoryId()
-      .then(function (id) {
-        return fetch("/api/stories/" + id, {
+    // A brand-new story is created with its real content in one request
+    // rather than going through ensureStoryId()'s empty-body POST followed
+    // by an immediate PUT — avoids a redundant write (and, now that saves
+    // are versioned, a spurious near-empty entry in that story's history).
+    var request = storyId
+      ? fetch("/api/stories/" + storyId, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title,
-            date: storyDate,
-            markdown: markdown,
-            author: selectedAuthor || "",
-            draft: isDraft(),
-            unlock: unlockValue(),
-          }),
+          body: JSON.stringify(payload),
+        })
+      : fetch("/api/stories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-      })
+
+    request
       .then(handleJsonResponse)
       .then(function (data) {
         dirty = false;
+        clearAutosave();
         window.location.href = "/story/" + data.id;
       })
       .catch(function (error) {

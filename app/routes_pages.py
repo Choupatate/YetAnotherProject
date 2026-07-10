@@ -13,7 +13,7 @@ from flask import (
     url_for,
 )
 
-from . import storage
+from . import epub, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -24,8 +24,9 @@ bp = Blueprint("pages", __name__)
 @login_required
 def timeline():
     all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
-    stories = [s for s in all_stories if not s.draft]
-    draft_count = sum(1 for s in all_stories if s.draft)
+    stories = [s for s in all_stories if not s.draft and not s.archived]
+    draft_count = sum(1 for s in all_stories if s.draft and not s.archived)
+    archived_count = sum(1 for s in all_stories if s.archived)
     today = date.today()
     years = {}
     for story in stories:
@@ -39,6 +40,7 @@ def timeline():
         authors=authors,
         author_colors=author_colors,
         draft_count=draft_count,
+        archived_count=archived_count,
         today=today,
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
@@ -99,6 +101,39 @@ def book():
     )
 
 
+@bp.route("/book.epub")
+@login_required
+def book_epub():
+    """The whole book as a downloadable EPUB (readable in any e-reader app,
+    unlike the browser-print PDF flow at /book)."""
+    stories_dir = current_app.config["STORIES_DIR"]
+    readable = storage.readable_stories(storage.list_stories(stories_dir))
+    authors = current_app.config.get("AUTHORS") or []
+    entries = []
+    for s in readable:
+        full = storage.get_story(stories_dir, s.id)
+        body_html = render_markdown(full.body, full.id)
+        entries.append({"story": full, "body_html": body_html})
+
+    def image_loader(story_id, filename):
+        if not storage.is_valid_story_id(story_id) or not storage.is_valid_filename(filename):
+            return None
+        path = stories_dir / story_id / filename
+        return path.read_bytes() if path.is_file() else None
+
+    title = current_app.config["TITLE"]
+    buf = epub.build_epub(
+        title,
+        readable[0].date.year if readable else None,
+        readable[-1].date.year if readable else None,
+        authors,
+        entries,
+        image_loader,
+    )
+    filename = f"{storage.slugify(title)}.epub"
+    return send_file(buf, mimetype=epub.MIMETYPE, as_attachment=True, download_name=filename)
+
+
 @bp.route("/export")
 @login_required
 def export():
@@ -115,16 +150,35 @@ def export():
     return send_file(tmp, mimetype="application/zip", as_attachment=True, download_name=filename)
 
 
+@bp.route("/import")
+@login_required
+def import_page():
+    return render_template("import.html")
+
+
 @bp.route("/drafts")
 @login_required
 def drafts():
     all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
-    draft_stories = [s for s in all_stories if s.draft]
+    draft_stories = [s for s in all_stories if s.draft and not s.archived]
     draft_stories.sort(key=lambda s: s.updated or datetime.min, reverse=True)
     authors = current_app.config.get("AUTHORS") or []
     author_colors = {a["name"]: a["color"] for a in authors}
     return render_template(
         "drafts.html", stories=draft_stories, authors=authors, author_colors=author_colors
+    )
+
+
+@bp.route("/archived")
+@login_required
+def archived():
+    all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
+    archived_stories = [s for s in all_stories if s.archived]
+    archived_stories.sort(key=lambda s: s.updated or datetime.min, reverse=True)
+    authors = current_app.config.get("AUTHORS") or []
+    author_colors = {a["name"]: a["color"] for a in authors}
+    return render_template(
+        "archived.html", stories=archived_stories, authors=authors, author_colors=author_colors
     )
 
 
@@ -150,8 +204,9 @@ def story(story_id):
 
 def _reading_order_neighbors(stories_dir, current):
     """Previous/next readable story either side of `current` (F2). None/None
-    when `current` isn't itself readable (e.g. a draft) or at either end."""
-    if current.draft:
+    when `current` isn't itself readable (e.g. a draft or archived) or at
+    either end."""
+    if current.draft or current.archived:
         return None, None
     readable = storage.readable_stories(storage.list_stories(stories_dir))
     for i, r in enumerate(readable):
@@ -160,6 +215,16 @@ def _reading_order_neighbors(stories_dir, current):
             next_story = readable[i + 1] if i < len(readable) - 1 else None
             return prev_story, next_story
     return None, None
+
+
+@bp.route("/story/<story_id>/history")
+@login_required
+def story_history(story_id):
+    s = storage.get_story(current_app.config["STORIES_DIR"], story_id)
+    if s is None:
+        abort(404)
+    versions = storage.list_versions(current_app.config["STORIES_DIR"], story_id)
+    return render_template("history.html", story=s, versions=versions)
 
 
 @bp.route("/story/<story_id>/media/<filename>")

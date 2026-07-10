@@ -8,7 +8,9 @@ tmp directory.
 import logging
 import os
 import re
+import shutil
 import unicodedata
+import zipfile
 from dataclasses import dataclass
 from datetime import date as date_cls
 from datetime import datetime
@@ -22,9 +24,12 @@ logger = logging.getLogger(__name__)
 
 STORY_ID_RE = re.compile(r"^[a-z0-9-]+$")
 FILENAME_RE = re.compile(r"^[a-z0-9._-]+$")
+VERSION_ID_RE = re.compile(r"^\d{8}T\d{6}\d{6}$")
 
 MAX_IMAGE_EDGE = 2000
 JPEG_QUALITY = 85
+VERSIONS_DIRNAME = ".versions"
+MAX_VERSIONS = 20
 
 
 class InvalidStoryId(ValueError):
@@ -33,6 +38,20 @@ class InvalidStoryId(ValueError):
 
 class InvalidFilename(ValueError):
     pass
+
+
+class InvalidVersionId(ValueError):
+    pass
+
+
+class ImportCollision(ValueError):
+    """Raised when a backup zip contains a story id that already exists on
+    disk. Nothing is written when this is raised — see import_backup()."""
+
+    def __init__(self, colliding_ids: list[str]):
+        self.colliding_ids = colliding_ids
+        noun = "story" if len(colliding_ids) == 1 else "stories"
+        super().__init__(f"{len(colliding_ids)} {noun} already exist: {', '.join(colliding_ids)}")
 
 
 @dataclass
@@ -46,6 +65,7 @@ class Story:
     author: Optional[str] = None
     draft: bool = False
     unlock: Optional[date_cls] = None
+    archived: bool = False
     body: Optional[str] = None
 
 
@@ -55,6 +75,10 @@ def is_valid_story_id(story_id: str) -> bool:
 
 def is_valid_filename(filename: str) -> bool:
     return bool(filename) and ".." not in filename and bool(FILENAME_RE.match(filename))
+
+
+def is_valid_version_id(version_id: str) -> bool:
+    return bool(version_id) and bool(VERSION_ID_RE.match(version_id))
 
 
 def slugify(title: str, max_len: int = 60) -> str:
@@ -95,6 +119,7 @@ def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> St
         author=metadata.get("author"),
         draft=metadata.get("draft") is True,
         unlock=_parse_unlock(metadata.get("unlock")),
+        archived=metadata.get("archived") is True,
         body=post.content if include_body else None,
     )
 
@@ -154,11 +179,12 @@ def is_sealed(story: Story, today: Optional[date_cls] = None) -> bool:
 
 
 def readable_stories(stories: list[Story], today: Optional[date_cls] = None) -> list[Story]:
-    """Published, unsealed stories, date-ascending — the canonical "pages of
-    the book" used by reading order, on-this-day, and the book view."""
+    """Published, unsealed, unarchived stories, date-ascending — the
+    canonical "pages of the book" used by reading order, on-this-day, and
+    the book view."""
     if today is None:
         today = date_cls.today()
-    result = [s for s in stories if not s.draft and not is_sealed(s, today)]
+    result = [s for s in stories if not s.draft and not s.archived and not is_sealed(s, today)]
     result.sort(key=lambda s: (s.date, s.created or datetime.min))
     return result
 
@@ -207,7 +233,7 @@ def get_story(stories_dir, story_id: str) -> Optional[Story]:
 def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
                   created: datetime, updated: datetime, cover: Optional[str], body: str,
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None) -> None:
+                  unlock: Optional[date_cls] = None, archived: bool = False) -> None:
     post = frontmatter.Post(body)
     post["title"] = title
     post["date"] = story_date.isoformat()
@@ -221,6 +247,8 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
         post["draft"] = True
     if unlock:
         post["unlock"] = unlock.isoformat()
+    if archived:
+        post["archived"] = True
     index_path = Path(stories_dir) / story_id / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -229,7 +257,7 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
 
 def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None) -> str:
+                  unlock: Optional[date_cls] = None, archived: bool = False) -> str:
     """Create a new story folder, returning its story_id (the folder name).
 
     On slug collision, append -2, -3, ... to the slug.
@@ -247,33 +275,110 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
     story_path.mkdir(parents=True)
     now = datetime.now()
     _write_index(stories_dir, story_id, title, story_date, now, now, None, body, author=author,
-                 draft=draft, unlock=unlock)
+                 draft=draft, unlock=unlock, archived=archived)
     return story_id
 
 
 def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
                body: str, cover: Optional[str] = None, author: Optional[str] = None,
-               draft: bool = False, unlock: Optional[date_cls] = None) -> None:
+               draft: bool = False, unlock: Optional[date_cls] = None,
+               archived: bool = False) -> None:
     """Update an existing story's content in place. The story_id never changes.
 
     `cover`/`author` of None means "leave unchanged"; an empty string clears
-    the field (frontmatter key is omitted for falsy values). `draft`/`unlock`
-    are always set wholesale from the given value (the editor's draft chip and
-    seal-date input are always present on the form, so there is nothing to
-    "leave unchanged").
+    the field (frontmatter key is omitted for falsy values). `draft`/`unlock`/
+    `archived` are always set wholesale from the given value (their editor
+    controls are always present on the form, so there is nothing to "leave
+    unchanged"). The content about to be overwritten is snapshotted into
+    `.versions/` first (see `list_versions`/`restore_version`), so an
+    accidental bad edit or overwrite is never unrecoverable.
     """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
     existing = get_story(stories_dir, story_id)
     if existing is None:
         raise FileNotFoundError(story_id)
+    _snapshot_version(stories_dir, story_id)
     created = existing.created or datetime.now()
     if cover is None:
         cover = existing.cover
     if author is None:
         author = existing.author
     _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
-                 author=author, draft=draft, unlock=unlock)
+                 author=author, draft=draft, unlock=unlock, archived=archived)
+
+
+def _versions_dir(stories_dir, story_id: str) -> Path:
+    return _story_dir(stories_dir, story_id) / VERSIONS_DIRNAME
+
+
+def _snapshot_version(stories_dir, story_id: str) -> None:
+    """Copy the current index.md into `.versions/` before a save overwrites
+    it. Silently does nothing if there's no index.md yet (first save)."""
+    story_path = _story_dir(stories_dir, story_id)
+    index_path = story_path / "index.md"
+    if not index_path.is_file():
+        return
+    versions_dir = story_path / VERSIONS_DIRNAME
+    versions_dir.mkdir(exist_ok=True)
+    version_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+    dest = versions_dir / f"{version_id}.md"
+    if dest.exists():
+        return
+    shutil.copyfile(index_path, dest)
+    _prune_versions(versions_dir)
+
+
+def _prune_versions(versions_dir: Path, keep: Optional[int] = None) -> None:
+    if keep is None:
+        keep = MAX_VERSIONS
+    files = sorted(versions_dir.glob("*.md"))
+    for f in files[: max(0, len(files) - keep)]:
+        f.unlink()
+
+
+def list_versions(stories_dir, story_id: str) -> list[dict]:
+    """Metadata for a story's saved-over versions, newest first."""
+    versions_dir = _versions_dir(stories_dir, story_id)
+    if not versions_dir.is_dir():
+        return []
+    result = []
+    for f in versions_dir.glob("*.md"):
+        version_id = f.stem
+        if not is_valid_version_id(version_id):
+            continue
+        try:
+            post = frontmatter.load(f)
+            title = post.metadata.get("title") or "Untitled"
+        except Exception:
+            title = "Untitled"
+        result.append({
+            "id": version_id,
+            "title": title,
+            "saved_at": datetime.strptime(version_id, "%Y%m%dT%H%M%S%f"),
+        })
+    result.sort(key=lambda v: v["id"], reverse=True)
+    return result
+
+
+def restore_version(stories_dir, story_id: str, version_id: str) -> None:
+    """Overwrite the current story with an earlier saved-over version.
+
+    Goes through `save_story` so the current (about-to-be-replaced) content
+    is itself snapshotted first — restoring never discards anything.
+    """
+    if not is_valid_version_id(version_id):
+        raise InvalidVersionId(version_id)
+    version_path = _versions_dir(stories_dir, story_id) / f"{version_id}.md"
+    if not version_path.is_file():
+        raise FileNotFoundError(version_id)
+    post = frontmatter.load(version_path)
+    old = _parse_post(story_id, post, include_body=True)
+    save_story(
+        stories_dir, story_id, old.title, old.date, old.body or "",
+        cover=old.cover or "", author=old.author or "",
+        draft=old.draft, unlock=old.unlock, archived=old.archived,
+    )
 
 
 def _next_photo_number(story_path: Path) -> int:
@@ -309,3 +414,41 @@ def save_image(stories_dir, story_id: str, file_storage) -> str:
         image.save(story_path / filename, format="JPEG", quality=JPEG_QUALITY)
 
     return filename
+
+
+def import_backup(stories_dir, zip_file) -> int:
+    """Restore a backup zip produced by the /export download.
+
+    Only ever extracts entries shaped like `<valid-story-id>/...` (rejecting
+    anything else as an unsafe or unrecognized path). If ANY of those story
+    ids already exist on disk, raises ImportCollision and writes nothing —
+    an import either fully succeeds or has no effect at all. Returns the
+    number of story folders imported.
+    """
+    stories_dir = Path(stories_dir)
+    with zipfile.ZipFile(zip_file) as zf:
+        members = []
+        story_ids = set()
+        for info in zf.infolist():
+            name = info.filename
+            if name.endswith("/"):
+                continue
+            if name.startswith("/") or ".." in Path(name).parts:
+                raise ValueError(f"Unsafe path in backup: {name!r}")
+            top = Path(name).parts[0] if Path(name).parts else ""
+            if not is_valid_story_id(top):
+                raise ValueError(f"Unexpected path in backup: {name!r}")
+            story_ids.add(top)
+            members.append(info)
+
+        if not members:
+            raise ValueError("Backup contains no stories.")
+
+        colliding = sorted(sid for sid in story_ids if (stories_dir / sid).exists())
+        if colliding:
+            raise ImportCollision(colliding)
+
+        for info in members:
+            zf.extract(info, stories_dir)
+
+    return len(story_ids)
