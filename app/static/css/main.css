@@ -536,6 +536,22 @@ mark {
   flex-shrink: 0;
 }
 
+/* R2.1 (REVIEW.md live review round 2): below ~480px the meta line
+   (date · author · age) plus a thumbnail can crush the title into a
+   one-word-per-line column. Stack the entry — meta, then title at full
+   width, then the thumbnail — so the title always gets the reading width. */
+@media (max-width: 30rem) {
+  .timeline__link {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .timeline__title {
+    width: 100%;
+  }
+}
+
 .minimap {
   position: fixed;
   right: 0.35rem;
@@ -559,6 +575,16 @@ mark {
 .minimap__tick.is-active {
   color: var(--color-accent-text);
   background: var(--color-accent);
+}
+
+/* R2.2: the fixed right-edge minimap sat on top of .timeline__thumb images
+   at phone widths (geometrically confirmed overlap). Hiding it below ~480px
+   (rather than reserving a gutter for it) preserves more title width, and
+   jump-to-latest/search already cover narrow-viewport navigation. */
+@media (max-width: 30rem) {
+  .minimap {
+    display: none;
+  }
 }
 
 .timeline__footer-links {

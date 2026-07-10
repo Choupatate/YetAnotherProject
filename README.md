@@ -274,6 +274,11 @@ plain `<textarea>` with a minimal formatting toolbar (heading, bold, italic,
 strikethrough, quote, lists, link, highlight, and image upload) covering the same
 functionality.
 
+Supported photo formats: JPEG, PNG, WebP, AVIF, GIF, TIFF, BMP, and HEIC/HEIF
+(iPhone and Android originals, via `pillow-heif`) — everything except PNG is
+re-encoded to JPEG on upload; PNG is kept as PNG. The uploaded file is never
+kept, only the re-encoded copy.
+
 ## Ideas for later
 
 Out of scope for v1, deliberately: multi-user accounts, comments/reactions,

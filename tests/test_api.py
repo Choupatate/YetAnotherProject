@@ -13,6 +13,13 @@ def _jpeg_bytes():
     return buf
 
 
+def _heic_bytes():
+    buf = BytesIO()
+    Image.new("RGB", (100, 100), color="green").save(buf, format="HEIF", quality=80)
+    buf.seek(0)
+    return buf
+
+
 def test_create_story_via_api(auth_client, stories_dir):
     resp = auth_client.post(
         "/api/stories",
@@ -104,6 +111,24 @@ def test_upload_image_returns_filename(auth_client, stories_dir):
     data = resp.get_json()
     assert data["filename"] == "photo-001.jpg"
     assert (stories_dir / story_id / "photo-001.jpg").is_file()
+
+
+def test_upload_heic_image_converts_to_jpeg(auth_client, stories_dir):
+    from datetime import date
+
+    story_id = storage.create_story(stories_dir, "Heic photo story", date(2026, 1, 1), "")
+    resp = auth_client.post(
+        f"/api/stories/{story_id}/images",
+        data={"file": (_heic_bytes(), "photo.heic")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["filename"] == "photo-001.jpg"
+    saved = stories_dir / story_id / "photo-001.jpg"
+    assert saved.is_file()
+    with Image.open(saved) as img:
+        assert img.format == "JPEG"
 
 
 def test_upload_image_no_file_returns_400(auth_client, stories_dir):

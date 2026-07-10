@@ -174,3 +174,51 @@ def test_save_image_invalid_story_id_raises(stories_dir):
 
     with pytest.raises(storage.InvalidStoryId):
         storage.save_image(stories_dir, "../nope", FileStorage(stream=BytesIO(), filename="x.jpg"))
+
+
+# --- HEIC/HEIF uploads (FEATURES.md F11) --------------------------------------
+
+
+def test_save_image_heic_converts_to_jpeg(stories_dir):
+    from io import BytesIO
+
+    from PIL import Image
+    from werkzeug.datastructures import FileStorage
+
+    story_id = storage.create_story(stories_dir, "Heic story", date(2026, 1, 1), "")
+
+    buf = BytesIO()
+    Image.new("RGB", (3000, 1000), color=(120, 40, 200)).save(buf, format="HEIF", quality=80)
+    buf.seek(0)
+    upload = FileStorage(stream=buf, filename="upload.heic", content_type="image/heic")
+
+    name = storage.save_image(stories_dir, story_id, upload)
+    assert name == "photo-001.jpg"
+    with Image.open(stories_dir / story_id / name) as img:
+        assert img.format == "JPEG"
+        assert max(img.size) <= storage.MAX_IMAGE_EDGE
+
+
+def test_save_image_heic_with_exif_orientation_corrects_rotation(stories_dir):
+    from io import BytesIO
+
+    from PIL import Image
+    from werkzeug.datastructures import FileStorage
+
+    story_id = storage.create_story(stories_dir, "Rotated heic story", date(2026, 1, 1), "")
+
+    source = Image.new("RGB", (300, 200), color=(0, 0, 0))
+    exif = source.getexif()
+    exif[274] = 6  # Orientation: needs a 90-degree correction to display upright.
+
+    buf = BytesIO()
+    source.save(buf, format="HEIF", quality=80, exif=exif.tobytes())
+    buf.seek(0)
+    upload = FileStorage(stream=buf, filename="rotated.heic", content_type="image/heic")
+
+    name = storage.save_image(stories_dir, story_id, upload)
+    with Image.open(stories_dir / story_id / name) as img:
+        assert img.format == "JPEG"
+        # A 90-degree orientation correction swaps width/height: a landscape
+        # 300x200 source becomes portrait 200x300 once upright.
+        assert img.size == (200, 300)
