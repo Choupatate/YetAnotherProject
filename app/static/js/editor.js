@@ -334,23 +334,33 @@
       return;
     }
     var markdown = editor.getMarkdown();
+    var payload = {
+      title: title,
+      date: storyDate,
+      markdown: markdown,
+      author: selectedAuthor || "",
+      draft: isDraft(),
+      unlock: unlockValue(),
+      archived: isArchived(),
+    };
 
-    ensureStoryId()
-      .then(function (id) {
-        return fetch("/api/stories/" + id, {
+    // A brand-new story is created with its real content in one request
+    // rather than going through ensureStoryId()'s empty-body POST followed
+    // by an immediate PUT — avoids a redundant write (and, now that saves
+    // are versioned, a spurious near-empty entry in that story's history).
+    var request = storyId
+      ? fetch("/api/stories/" + storyId, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title,
-            date: storyDate,
-            markdown: markdown,
-            author: selectedAuthor || "",
-            draft: isDraft(),
-            unlock: unlockValue(),
-            archived: isArchived(),
-          }),
+          body: JSON.stringify(payload),
+        })
+      : fetch("/api/stories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-      })
+
+    request
       .then(handleJsonResponse)
       .then(function (data) {
         dirty = false;

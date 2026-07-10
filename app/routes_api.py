@@ -121,6 +121,16 @@ def update_story(story_id):
     return jsonify({"id": story_id})
 
 
+@bp.route("/stories/<story_id>/versions/<version_id>/restore", methods=["POST"])
+@login_required
+def restore_version(story_id, version_id):
+    try:
+        storage.restore_version(current_app.config["STORIES_DIR"], story_id, version_id)
+    except (storage.InvalidStoryId, storage.InvalidVersionId, FileNotFoundError):
+        return _error("Version not found.", 404)
+    return jsonify({"id": story_id})
+
+
 @bp.route("/stories/<story_id>/images", methods=["POST"])
 @login_required
 def upload_image(story_id):

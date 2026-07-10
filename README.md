@@ -161,6 +161,19 @@ still listed on a dedicated `/archived` page (linked from the timeline when
 at least one story is archived), and un-archiving is just toggling the chip
 back off.
 
+### Version history
+
+Every save keeps the version it's about to overwrite: before writing new
+content, the previous `index.md` is copied into a hidden `.versions/`
+subfolder inside that story's own directory (the last 20 are kept; older
+ones are pruned automatically). "View history" on the edit page lists them
+newest-first with a one-tap Restore — restoring goes through the same save
+path, so it snapshots the current version too, meaning you can never lose
+content by restoring, only add another point to the timeline. This is a
+local safety net for "I pasted over the wrong paragraph" or "I clicked save
+before finishing a rewrite," not a full undo/redo history — there's no diff
+view, just full-version snapshots.
+
 ### Reading it as a book
 
 `/book` (linked from the bottom of the timeline as "Read as a book") renders

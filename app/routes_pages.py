@@ -178,6 +178,16 @@ def _reading_order_neighbors(stories_dir, current):
     return None, None
 
 
+@bp.route("/story/<story_id>/history")
+@login_required
+def story_history(story_id):
+    s = storage.get_story(current_app.config["STORIES_DIR"], story_id)
+    if s is None:
+        abort(404)
+    versions = storage.list_versions(current_app.config["STORIES_DIR"], story_id)
+    return render_template("history.html", story=s, versions=versions)
+
+
 @bp.route("/story/<story_id>/media/<filename>")
 @login_required
 def story_media(story_id, filename):

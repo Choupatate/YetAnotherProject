@@ -42,6 +42,11 @@
     <button id="save-story" type="submit" class="btn btn--primary editor__save">Save</button>
   </div>
 </form>
+{% if story %}
+<p class="editor__history-link">
+  <a href="{{ url_for('pages.story_history', story_id=story.id) }}">View history</a>
+</p>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>

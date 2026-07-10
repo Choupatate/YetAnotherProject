@@ -8,6 +8,7 @@ tmp directory.
 import logging
 import os
 import re
+import shutil
 import unicodedata
 from dataclasses import dataclass
 from datetime import date as date_cls
@@ -22,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 STORY_ID_RE = re.compile(r"^[a-z0-9-]+$")
 FILENAME_RE = re.compile(r"^[a-z0-9._-]+$")
+VERSION_ID_RE = re.compile(r"^\d{8}T\d{6}\d{6}$")
 
 MAX_IMAGE_EDGE = 2000
 JPEG_QUALITY = 85
+VERSIONS_DIRNAME = ".versions"
+MAX_VERSIONS = 20
 
 
 class InvalidStoryId(ValueError):
@@ -32,6 +36,10 @@ class InvalidStoryId(ValueError):
 
 
 class InvalidFilename(ValueError):
+    pass
+
+
+class InvalidVersionId(ValueError):
     pass
 
 
@@ -56,6 +64,10 @@ def is_valid_story_id(story_id: str) -> bool:
 
 def is_valid_filename(filename: str) -> bool:
     return bool(filename) and ".." not in filename and bool(FILENAME_RE.match(filename))
+
+
+def is_valid_version_id(version_id: str) -> bool:
+    return bool(version_id) and bool(VERSION_ID_RE.match(version_id))
 
 
 def slugify(title: str, max_len: int = 60) -> str:
@@ -266,13 +278,16 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     the field (frontmatter key is omitted for falsy values). `draft`/`unlock`/
     `archived` are always set wholesale from the given value (their editor
     controls are always present on the form, so there is nothing to "leave
-    unchanged").
+    unchanged"). The content about to be overwritten is snapshotted into
+    `.versions/` first (see `list_versions`/`restore_version`), so an
+    accidental bad edit or overwrite is never unrecoverable.
     """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
     existing = get_story(stories_dir, story_id)
     if existing is None:
         raise FileNotFoundError(story_id)
+    _snapshot_version(stories_dir, story_id)
     created = existing.created or datetime.now()
     if cover is None:
         cover = existing.cover
@@ -280,6 +295,79 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
         author = existing.author
     _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
                  author=author, draft=draft, unlock=unlock, archived=archived)
+
+
+def _versions_dir(stories_dir, story_id: str) -> Path:
+    return _story_dir(stories_dir, story_id) / VERSIONS_DIRNAME
+
+
+def _snapshot_version(stories_dir, story_id: str) -> None:
+    """Copy the current index.md into `.versions/` before a save overwrites
+    it. Silently does nothing if there's no index.md yet (first save)."""
+    story_path = _story_dir(stories_dir, story_id)
+    index_path = story_path / "index.md"
+    if not index_path.is_file():
+        return
+    versions_dir = story_path / VERSIONS_DIRNAME
+    versions_dir.mkdir(exist_ok=True)
+    version_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+    dest = versions_dir / f"{version_id}.md"
+    if dest.exists():
+        return
+    shutil.copyfile(index_path, dest)
+    _prune_versions(versions_dir)
+
+
+def _prune_versions(versions_dir: Path, keep: Optional[int] = None) -> None:
+    if keep is None:
+        keep = MAX_VERSIONS
+    files = sorted(versions_dir.glob("*.md"))
+    for f in files[: max(0, len(files) - keep)]:
+        f.unlink()
+
+
+def list_versions(stories_dir, story_id: str) -> list[dict]:
+    """Metadata for a story's saved-over versions, newest first."""
+    versions_dir = _versions_dir(stories_dir, story_id)
+    if not versions_dir.is_dir():
+        return []
+    result = []
+    for f in versions_dir.glob("*.md"):
+        version_id = f.stem
+        if not is_valid_version_id(version_id):
+            continue
+        try:
+            post = frontmatter.load(f)
+            title = post.metadata.get("title") or "Untitled"
+        except Exception:
+            title = "Untitled"
+        result.append({
+            "id": version_id,
+            "title": title,
+            "saved_at": datetime.strptime(version_id, "%Y%m%dT%H%M%S%f"),
+        })
+    result.sort(key=lambda v: v["id"], reverse=True)
+    return result
+
+
+def restore_version(stories_dir, story_id: str, version_id: str) -> None:
+    """Overwrite the current story with an earlier saved-over version.
+
+    Goes through `save_story` so the current (about-to-be-replaced) content
+    is itself snapshotted first — restoring never discards anything.
+    """
+    if not is_valid_version_id(version_id):
+        raise InvalidVersionId(version_id)
+    version_path = _versions_dir(stories_dir, story_id) / f"{version_id}.md"
+    if not version_path.is_file():
+        raise FileNotFoundError(version_id)
+    post = frontmatter.load(version_path)
+    old = _parse_post(story_id, post, include_body=True)
+    save_story(
+        stories_dir, story_id, old.title, old.date, old.body or "",
+        cover=old.cover or "", author=old.author or "",
+        draft=old.draft, unlock=old.unlock, archived=old.archived,
+    )
 
 
 def _next_photo_number(story_path: Path) -> int:
