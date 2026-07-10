@@ -966,6 +966,31 @@ mark {
   gap: 0.75rem;
 }
 
+.editor__recovery {
+  max-width: 42rem;
+  margin: 1rem auto 0;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 0.5rem;
+  background: var(--color-bg-raised);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.editor__recovery-text {
+  margin: 0;
+}
+
+.editor__recovery-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .editor__title {
   border: none;
   background: transparent;

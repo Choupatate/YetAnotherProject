@@ -174,6 +174,17 @@ local safety net for "I pasted over the wrong paragraph" or "I clicked save
 before finishing a rewrite," not a full undo/redo history — there's no diff
 view, just full-version snapshots.
 
+### Autosave and crash recovery
+
+Separately from server-side version history (which only records content
+you've actually saved), the editor also autosaves the current title, date,
+and body to the browser's `localStorage` a couple of seconds after you stop
+typing. If you close the tab, lose your connection, or the browser crashes
+before your first manual save, reopening that story (or `/new`, for a story
+you never got to save at all) shows a small banner offering to restore it.
+This never touches the server or other devices — it's purely a per-browser
+safety net for the gap between typing and clicking Save.
+
 ### Reading it as a book
 
 `/book` (linked from the bottom of the timeline as "Read as a book") renders
