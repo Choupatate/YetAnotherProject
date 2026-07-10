@@ -185,6 +185,14 @@ you never got to save at all) shows a small banner offering to restore it.
 This never touches the server or other devices — it's purely a per-browser
 safety net for the gap between typing and clicking Save.
 
+### Finding a story
+
+A search box above the timeline filters entries by title (and author) as
+you type — purely client-side, filtering what's already rendered, no
+server round-trip. A "Jump to the latest" link next to it scrolls straight
+to the newest entry, useful once there are enough stories that reading
+chronologically from the top isn't how you want to start.
+
 ### Reading it as a book
 
 `/book` (linked from the bottom of the timeline as "Read as a book") renders

@@ -358,6 +358,46 @@ mark {
   color: var(--color-text-dim);
 }
 
+.timeline__toolbar {
+  max-width: 40rem;
+  margin: 0.75rem auto 0;
+  padding: 0 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.timeline__search {
+  flex: 1;
+  min-width: 10rem;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+}
+
+.timeline__jump {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.timeline__search-empty {
+  max-width: 40rem;
+  margin: 1rem auto 0;
+  padding: 0 1.25rem;
+  color: var(--color-text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
 .timeline {
   position: relative;
   max-width: 40rem;
@@ -1308,6 +1348,8 @@ mark {
   .timeline__legend,
   .timeline__drafts-link,
   .timeline__onthisday,
+  .timeline__toolbar,
+  .timeline__search-empty,
   .timeline__footer-links,
   .story__footer,
   .flash-container,

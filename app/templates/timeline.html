@@ -36,6 +36,14 @@
   {% if archived_count %}<a href="{{ url_for('pages.archived') }}">Archived ({{ archived_count }})</a>{% endif %}
 </p>
 {% endif %}
+<div class="timeline__toolbar">
+  <input type="search" id="timeline-search" class="timeline__search"
+         placeholder="Search titles&hellip;" aria-label="Search stories by title">
+  <a href="#" id="timeline-jump-latest" class="timeline__jump">Jump to the latest &darr;</a>
+</div>
+<p class="timeline__search-empty" id="timeline-search-empty" hidden>
+  No stories match &ldquo;<span id="timeline-search-empty-query"></span>&rdquo;.
+</p>
 <div class="timeline">
   <div class="timeline__spine" aria-hidden="true"></div>
   <ol class="timeline__list">
