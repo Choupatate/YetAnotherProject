@@ -28,6 +28,7 @@ document.documentElement.classList.add("js");
   <div class="site-nav__actions">
     {% if session.get('authed') %}
     <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>
+    <a class="btn btn--instant" href="{{ url_for('pages.new_instant') }}">+ Instant</a>
     {% endif %}
     <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
       <span aria-hidden="true">&#9680;</span>

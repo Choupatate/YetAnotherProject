@@ -69,6 +69,7 @@ class Story:
     draft: bool = False
     unlock: Optional[date_cls] = None
     archived: bool = False
+    kind: str = "story"
     body: Optional[str] = None
 
 
@@ -123,6 +124,7 @@ def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> St
         draft=metadata.get("draft") is True,
         unlock=_parse_unlock(metadata.get("unlock")),
         archived=metadata.get("archived") is True,
+        kind="instant" if metadata.get("kind") == "instant" else "story",
         body=post.content if include_body else None,
     )
 
@@ -236,7 +238,8 @@ def get_story(stories_dir, story_id: str) -> Optional[Story]:
 def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
                   created: datetime, updated: datetime, cover: Optional[str], body: str,
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None, archived: bool = False) -> None:
+                  unlock: Optional[date_cls] = None, archived: bool = False,
+                  kind: str = "story") -> None:
     post = frontmatter.Post(body)
     post["title"] = title
     post["date"] = story_date.isoformat()
@@ -252,6 +255,8 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
         post["unlock"] = unlock.isoformat()
     if archived:
         post["archived"] = True
+    if kind == "instant":
+        post["kind"] = "instant"
     index_path = Path(stories_dir) / story_id / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -260,10 +265,12 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
 
 def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None, archived: bool = False) -> str:
+                  unlock: Optional[date_cls] = None, archived: bool = False,
+                  kind: str = "story") -> str:
     """Create a new story folder, returning its story_id (the folder name).
 
-    On slug collision, append -2, -3, ... to the slug.
+    On slug collision, append -2, -3, ... to the slug. `kind` is set once
+    here and never changes afterwards (see save_story).
     """
     stories_dir = Path(stories_dir)
     slug = slugify(title)
@@ -278,7 +285,7 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
     story_path.mkdir(parents=True)
     now = datetime.now()
     _write_index(stories_dir, story_id, title, story_date, now, now, None, body, author=author,
-                 draft=draft, unlock=unlock, archived=archived)
+                 draft=draft, unlock=unlock, archived=archived, kind=kind)
     return story_id
 
 
@@ -292,9 +299,11 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     the field (frontmatter key is omitted for falsy values). `draft`/`unlock`/
     `archived` are always set wholesale from the given value (their editor
     controls are always present on the form, so there is nothing to "leave
-    unchanged"). The content about to be overwritten is snapshotted into
-    `.versions/` first (see `list_versions`/`restore_version`), so an
-    accidental bad edit or overwrite is never unrecoverable.
+    unchanged"). `kind` is not a parameter here at all — it is set once at
+    creation and always carried over from the existing story. The content
+    about to be overwritten is snapshotted into `.versions/` first (see
+    `list_versions`/`restore_version`), so an accidental bad edit or
+    overwrite is never unrecoverable.
     """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
@@ -308,7 +317,8 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     if author is None:
         author = existing.author
     _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
-                 author=author, draft=draft, unlock=unlock, archived=archived)
+                 author=author, draft=draft, unlock=unlock, archived=archived,
+                 kind=existing.kind)
 
 
 def _versions_dir(stories_dir, story_id: str) -> Path:

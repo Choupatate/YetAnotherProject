@@ -44,61 +44,10 @@
     return unlockInput ? unlockInput.value : "";
   }
 
-  var AUTHOR_STORAGE_KEY = "storybook-author";
   var authorsRoot = document.getElementById("editor-authors");
-  var authorChips = authorsRoot
-    ? Array.prototype.slice.call(authorsRoot.querySelectorAll(".editor__author-chip"))
-    : [];
-  var selectedAuthor = null;
-
-  function findChipByName(name) {
-    for (var i = 0; i < authorChips.length; i++) {
-      if (authorChips[i].dataset.authorName === name) return authorChips[i];
-    }
-    return null;
-  }
-
-  if (authorChips.length) {
-    var preselected = null;
-    for (var i = 0; i < authorChips.length; i++) {
-      if (authorChips[i].getAttribute("aria-pressed") === "true") {
-        preselected = authorChips[i];
-        break;
-      }
-    }
-    if (preselected) {
-      selectedAuthor = preselected.dataset.authorName;
-    } else {
-      var stored = null;
-      try {
-        stored = localStorage.getItem(AUTHOR_STORAGE_KEY);
-      } catch (e) {}
-      var storedChip = stored ? findChipByName(stored) : null;
-      if (storedChip) {
-        storedChip.setAttribute("aria-pressed", "true");
-        selectedAuthor = stored;
-      }
-    }
-
-    authorChips.forEach(function (chip) {
-      chip.addEventListener("click", function () {
-        var wasSelected = chip.getAttribute("aria-pressed") === "true";
-        authorChips.forEach(function (c) {
-          c.setAttribute("aria-pressed", "false");
-        });
-        if (wasSelected) {
-          selectedAuthor = null;
-        } else {
-          chip.setAttribute("aria-pressed", "true");
-          selectedAuthor = chip.dataset.authorName;
-          try {
-            localStorage.setItem(AUTHOR_STORAGE_KEY, selectedAuthor);
-          } catch (e) {}
-        }
-        markDirty();
-      });
-    });
-  }
+  var authorChipsController = window.StorybookAuthorChips.init(authorsRoot, function () {
+    markDirty();
+  });
 
   function isDarkTheme() {
     var attr = document.documentElement.getAttribute("data-theme");
@@ -136,7 +85,7 @@
         title: title,
         date: storyDate,
         markdown: "",
-        author: selectedAuthor || "",
+        author: authorChipsController.getSelected() || "",
         draft: isDraft(),
         unlock: unlockValue(),
         archived: isArchived(),
@@ -353,7 +302,7 @@
       title: titleInput.value,
       date: dateInput.value,
       markdown: editor.getMarkdown(),
-      author: selectedAuthor || "",
+      author: authorChipsController.getSelected() || "",
       draft: isDraft(),
       unlock: unlockValue(),
       archived: isArchived(),
@@ -401,18 +350,7 @@
     if (archiveToggle) {
       archiveToggle.setAttribute("aria-pressed", draftData.archived ? "true" : "false");
     }
-    authorChips.forEach(function (chip) {
-      chip.setAttribute("aria-pressed", "false");
-    });
-    if (draftData.author) {
-      var chip = findChipByName(draftData.author);
-      if (chip) {
-        chip.setAttribute("aria-pressed", "true");
-        selectedAuthor = draftData.author;
-      }
-    } else {
-      selectedAuthor = null;
-    }
+    authorChipsController.setSelected(draftData.author || null);
     markDirty();
   }
 
@@ -457,7 +395,7 @@
       title: title,
       date: storyDate,
       markdown: markdown,
-      author: selectedAuthor || "",
+      author: authorChipsController.getSelected() || "",
       draft: isDraft(),
       unlock: unlockValue(),
       archived: isArchived(),

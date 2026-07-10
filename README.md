@@ -117,6 +117,16 @@ to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.
 
+### Instants — a lighter way to capture
+
+"+ Instant" (next to "+ New story") is a deliberately tiny capture form: one
+photo, one optional line, done in about fifteen seconds on a phone. Instants
+render as compact, quieter entries on the timeline (small thumbnail, no
+title styling) and as small captioned figures in `/book` — interludes, not
+chapters — while a full story page (and the full editor, for touch-ups)
+still works normally at their direct URL. They're just a story with one
+extra frontmatter key (`kind: instant`); nothing new to back up.
+
 ### Age at each memory
 
 Set `STORYBOOK_BIRTHDATE` to the child's birth date and every story and

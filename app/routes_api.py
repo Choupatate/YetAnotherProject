@@ -1,5 +1,6 @@
 import zipfile
 from datetime import date as date_cls
+from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -56,17 +57,53 @@ def _validate_unlock(data):
     return unlock, None
 
 
+def _validate_kind(data):
+    """Resolve and validate the optional 'kind' field on create (FEATURES.md
+    F13). Defaults to "story"; PUT never accepts this — kind is set once at
+    creation and preserved on every later save."""
+    kind = data.get("kind") or "story"
+    if kind not in ("story", "instant"):
+        return None, _error("Invalid kind.", 400)
+    return kind, None
+
+
+def _validate_cover(data, stories_dir, story_id):
+    """Resolve and validate the optional 'cover' field on update.
+
+    Absent means "leave unchanged"; empty string clears it; a non-empty
+    value must be a safe filename that already exists in the story folder.
+    """
+    if "cover" not in data:
+        return None, None
+    cover = data.get("cover")
+    if not cover:
+        return "", None
+    if not storage.is_valid_filename(cover):
+        return None, _error("Invalid cover filename.", 400)
+    if not (Path(stories_dir) / story_id / cover).is_file():
+        return None, _error("Cover image not found.", 400)
+    return cover, None
+
+
 @bp.route("/stories", methods=["POST"])
 @login_required
 def create_story():
     data = request.get_json(silent=True) or {}
+    kind, error = _validate_kind(data)
+    if error:
+        return error
+
     title = (data.get("title") or "").strip()
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
     draft = bool(data.get("draft"))
     archived = bool(data.get("archived"))
 
-    if not title:
+    if kind == "instant":
+        # FEATURES.md F13: the "line" is optional, so an instant never fails
+        # on a blank title — it just defaults, truncated to a sane length.
+        title = title[:60] if title else "Instant"
+    elif not title:
         return _error("Title is required.", 400)
     if story_date is None:
         return _error("Date must be an ISO date (YYYY-MM-DD).", 400)
@@ -80,9 +117,9 @@ def create_story():
 
     story_id = storage.create_story(
         current_app.config["STORIES_DIR"], title, story_date, markdown, author=author,
-        draft=draft, unlock=unlock, archived=archived,
+        draft=draft, unlock=unlock, archived=archived, kind=kind,
     )
-    return jsonify({"id": story_id})
+    return jsonify({"id": story_id, "title": title})
 
 
 @bp.route("/stories/<story_id>", methods=["PUT"])
@@ -95,7 +132,6 @@ def update_story(story_id):
     title = (data.get("title") or "").strip()
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
-    cover = data.get("cover")
     draft = bool(data.get("draft"))
     archived = bool(data.get("archived"))
 
@@ -108,6 +144,9 @@ def update_story(story_id):
     if error:
         return error
     unlock, error = _validate_unlock(data)
+    if error:
+        return error
+    cover, error = _validate_cover(data, current_app.config["STORIES_DIR"], story_id)
     if error:
         return error
 

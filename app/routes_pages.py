@@ -204,11 +204,16 @@ def story(story_id):
 
 def _reading_order_neighbors(stories_dir, current):
     """Previous/next readable story either side of `current` (F2). None/None
-    when `current` isn't itself readable (e.g. a draft or archived) or at
-    either end."""
-    if current.draft or current.archived:
+    when `current` isn't itself readable (e.g. a draft, archived, or an
+    instant) or at either end. Instants are also skipped as candidate
+    neighbors for a real story (FEATURES.md F13: page-turning is for
+    stories)."""
+    if current.draft or current.archived or current.kind != "story":
         return None, None
-    readable = storage.readable_stories(storage.list_stories(stories_dir))
+    readable = [
+        s for s in storage.readable_stories(storage.list_stories(stories_dir))
+        if s.kind == "story"
+    ]
     for i, r in enumerate(readable):
         if r.id == current.id:
             prev_story = readable[i - 1] if i > 0 else None
@@ -243,6 +248,13 @@ def story_media(story_id, filename):
 def new_story():
     authors = current_app.config.get("AUTHORS") or []
     return render_template("editor.html", story=None, today=date.today(), authors=authors)
+
+
+@bp.route("/new-instant")
+@login_required
+def new_instant():
+    authors = current_app.config.get("AUTHORS") or []
+    return render_template("instant.html", today=date.today(), authors=authors)
 
 
 @bp.route("/edit/<story_id>")

@@ -22,9 +22,18 @@
 {% for entry in entries %}
 {% set story = entry.story %}
 {% set body_html = entry.body_html %}
+{% if story.kind == 'instant' %}
+<figure class="book__instant"{% if entry.author_color %} style="--author-color: {{ entry.author_color }}"{% endif %}>
+  {% if story.cover %}
+  <img class="book__instant-photo" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="">
+  {% endif %}
+  <figcaption class="book__instant-caption">{{ story.title }}</figcaption>
+</figure>
+{% else %}
 <article class="story book__story"{% if entry.author_color %} style="--author-color: {{ entry.author_color }}"{% endif %}>
   {% include "_story_article.html" %}
 </article>
+{% endif %}
 {% if not loop.last %}
 <p class="book__ornament" aria-hidden="true">&middot; &middot; &middot;</p>
 {% endif %}
