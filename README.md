@@ -97,6 +97,8 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_SECRET_KEY` | Flask session-signing secret. Required whenever `STORYBOOK_PASSWORD` is set — the app refuses to start otherwise. |
 | `STORYBOOK_COOKIE_SECURE` | Set to `1` when serving over HTTPS to mark the session cookie `Secure`. Default off, for local/LAN HTTP use. |
 | `STORYBOOK_AUTHORS` | Optional. Comma-separated `Name:#hexcolor` pairs for several narrators (see below). Unset by default. |
+| `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
+| `STORYBOOK_TITLE` | Optional. The app's display name — nav, page titles, install manifest, book cover. Defaults to `Storybook`. |
 
 ### Several narrators
 
@@ -115,12 +117,128 @@ to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.
 
+### Age at each memory
+
+Set `STORYBOOK_BIRTHDATE` to the child's birth date and every story and
+timeline entry shows the age at that memory — `JUNE 18, 2023 · 2 YEARS OLD ·
+PAPA` on the story page, `Jun 18 · Papa · 2 years old` (smaller, dimmer) on
+the timeline. Ages before the birth date read "before you were born"; sealed
+letters never show an age, keeping the envelope minimal. Leave the variable
+unset to disable the feature entirely.
+
+### Home-screen install
+
+Storybook can be added to a phone's home screen like a native app (a
+`manifest.webmanifest`, sized icons, and standalone display mode) — set
+`STORYBOOK_TITLE` (e.g. `"Le livre de Milo"`) so it shows up under your own
+title rather than "Storybook". There is deliberately **no service worker and
+no offline caching** — every visit still talks to the server, it just looks
+like an app when launched. Regenerate the icons with
+`python scripts/make_icons.py` if you change the design; the outputs are
+committed under `app/static/icons/`.
+
+### Sealed letters
+
+Setting a "Seal until" date on a story in the editor turns it into a sealed
+envelope until that date: the timeline shows only an envelope glyph and an
+"opens on" date (no title, no photo), and the story page itself shows the
+same envelope instead of the text. **The seal is ceremonial, not
+cryptographic** — anyone with the shared password (or direct access to the
+disk) can still open and read the file; the point is the ritual of an
+unopened letter, not access control. Authors reach editing via `/edit/<id>`
+directly, which keeps working on a sealed story — only the reading view is
+blocked. Once the unlock date passes, the entry becomes a normal story
+automatically, with no action needed.
+
+### Archiving a story
+
+The "Archive" chip in the editor (next to "Draft") is a softer alternative
+to deletion, which this app deliberately doesn't have. An archived story
+disappears from the timeline, drafts list, book, prev/next navigation, and
+"years ago today" banner — same as a draft — but the file is never touched:
+it's still fully readable at its direct URL (with a small "ARCHIVED" pill),
+still listed on a dedicated `/archived` page (linked from the timeline when
+at least one story is archived), and un-archiving is just toggling the chip
+back off.
+
+### Version history
+
+Every save keeps the version it's about to overwrite: before writing new
+content, the previous `index.md` is copied into a hidden `.versions/`
+subfolder inside that story's own directory (the last 20 are kept; older
+ones are pruned automatically). "View history" on the edit page lists them
+newest-first with a one-tap Restore — restoring goes through the same save
+path, so it snapshots the current version too, meaning you can never lose
+content by restoring, only add another point to the timeline. This is a
+local safety net for "I pasted over the wrong paragraph" or "I clicked save
+before finishing a rewrite," not a full undo/redo history — there's no diff
+view, just full-version snapshots.
+
+### Autosave and crash recovery
+
+Separately from server-side version history (which only records content
+you've actually saved), the editor also autosaves the current title, date,
+and body to the browser's `localStorage` a couple of seconds after you stop
+typing. If you close the tab, lose your connection, or the browser crashes
+before your first manual save, reopening that story (or `/new`, for a story
+you never got to save at all) shows a small banner offering to restore it.
+This never touches the server or other devices — it's purely a per-browser
+safety net for the gap between typing and clicking Save.
+
+### Finding a story
+
+A search box above the timeline filters entries by title (and author) as
+you type — purely client-side, filtering what's already rendered, no
+server round-trip. A "Jump to the latest" link next to it scrolls straight
+to the newest entry, useful once there are enough stories that reading
+chronologically from the top isn't how you want to start.
+
+### Reading it as a book
+
+`/book` (linked from the bottom of the timeline as "Read as a book") renders
+every readable story on one page, oldest first, with a title cover and a
+small ornament between entries — drafts and sealed letters are excluded, same
+as the timeline. It doubles as a print layout: the floating "Print / save as
+PDF" button calls the browser's native print dialog, which (via a dedicated
+print stylesheet) forces the light palette, hides all navigation and buttons,
+and starts each story on its own page — "save as PDF" in the print dialog
+gives a clean, book-like PDF of the whole thing. "Download as PDF" on the
+timeline is the same flow made one tap shorter: it opens `/book` and
+triggers that print dialog automatically, so you land straight on "save as
+PDF" without needing to notice the floating Print button. There's no
+server-generated PDF file — that would mean adding a real dependency (a PDF
+library, or shelling out to a headless browser), which this project
+deliberately avoids; the browser's own print-to-PDF is free, reliable, and
+already produces the same clean layout.
+
+### Downloading as an EPUB
+
+"Download as EPUB" (next to "Read as a book" on the timeline) streams the
+same readable stories as a real `.epub` file — a minimal, hand-built EPUB3
+(stdlib `zipfile` and string templates, no new dependency) with a cover
+page, a chapter per story, embedded photos, and a table of contents, openable
+in Apple Books, Kindle (after conversion), calibre, or any other e-reader
+app. Unlike `/book`, this needs no browser and no print step.
+
 ## Backing up
 
 **Back up the `stories/` folder. That is everything.** There is no database, no
 other state to preserve. Copying that one directory (e.g. with `rsync`, a nightly
 `tar`, or syncing it to cloud storage) is a complete backup. Restoring is just
-putting the folder back.
+putting the folder back. For a one-tap copy from the app itself, the timeline's
+"Download everything (.zip)" link (`/export`) streams the same directory as a
+zip file.
+
+To restore one, "Import a backup" (`/import`, also linked from the timeline)
+uploads that same zip back in. It's deliberately strict: the import only
+succeeds if **none** of the zip's stories already exist in this app's
+stories folder — any collision aborts the whole import with nothing written,
+rather than risk silently overwriting newer edits. This makes it a good fit
+for disaster recovery (restoring into a fresh, empty install) or merging in
+stories from a different device that don't already exist here; it is not a
+sync tool. Very large backups may exceed the app's 32 MB upload limit — for
+those, copy the zip's contents directly onto the `stories/` folder (or the
+Docker volume) instead of going through the web UI.
 
 ## Running the tests
 
@@ -159,6 +277,10 @@ functionality.
 ## Ideas for later
 
 Out of scope for v1, deliberately: multi-user accounts, comments/reactions,
-search, tags, RSS, email, PDF/print export, image galleries/lightboxes, video,
-encryption at rest, i18n, PWA/offline support, and story deletion. If any of
-these become worth doing, they belong here first, not as a surprise addition.
+search, tags, RSS, email, video, encryption at rest, i18n, offline support
+(no service worker — see "Home-screen install" above), and story deletion.
+If any of these become worth doing, they belong here first, not as a
+surprise addition.
+
+(PDF/print export, a photo lightbox, and home-screen install were originally
+listed here too; they shipped as the book view, F7, and F9 — see above.)

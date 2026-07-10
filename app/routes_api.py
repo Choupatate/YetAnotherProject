@@ -1,3 +1,4 @@
+import zipfile
 from datetime import date as date_cls
 
 from flask import Blueprint, current_app, jsonify, request
@@ -41,6 +42,20 @@ def _validate_author(data):
     return author, None
 
 
+def _validate_unlock(data):
+    """Resolve and validate the optional 'unlock' field (FEATURES.md F0).
+
+    Missing or empty means "no seal"; anything else must be an ISO date.
+    """
+    value = data.get("unlock")
+    if not value:
+        return None, None
+    unlock = _parse_date(value)
+    if unlock is None:
+        return None, _error("Seal date must be an ISO date (YYYY-MM-DD).", 400)
+    return unlock, None
+
+
 @bp.route("/stories", methods=["POST"])
 @login_required
 def create_story():
@@ -48,6 +63,8 @@ def create_story():
     title = (data.get("title") or "").strip()
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
+    draft = bool(data.get("draft"))
+    archived = bool(data.get("archived"))
 
     if not title:
         return _error("Title is required.", 400)
@@ -57,9 +74,13 @@ def create_story():
     author, error = _validate_author(data)
     if error:
         return error
+    unlock, error = _validate_unlock(data)
+    if error:
+        return error
 
     story_id = storage.create_story(
-        current_app.config["STORIES_DIR"], title, story_date, markdown, author=author
+        current_app.config["STORIES_DIR"], title, story_date, markdown, author=author,
+        draft=draft, unlock=unlock, archived=archived,
     )
     return jsonify({"id": story_id})
 
@@ -75,6 +96,8 @@ def update_story(story_id):
     story_date = _parse_date(data.get("date"))
     markdown = data.get("markdown") or ""
     cover = data.get("cover")
+    draft = bool(data.get("draft"))
+    archived = bool(data.get("archived"))
 
     if not title:
         return _error("Title is required.", 400)
@@ -84,16 +107,54 @@ def update_story(story_id):
     author, error = _validate_author(data)
     if error:
         return error
+    unlock, error = _validate_unlock(data)
+    if error:
+        return error
 
     try:
         storage.save_story(
             current_app.config["STORIES_DIR"], story_id, title, story_date, markdown,
-            cover=cover, author=author,
+            cover=cover, author=author, draft=draft, unlock=unlock, archived=archived,
         )
     except FileNotFoundError:
         return _error("Story not found.", 404)
 
     return jsonify({"id": story_id})
+
+
+@bp.route("/stories/<story_id>/versions/<version_id>/restore", methods=["POST"])
+@login_required
+def restore_version(story_id, version_id):
+    try:
+        storage.restore_version(current_app.config["STORIES_DIR"], story_id, version_id)
+    except (storage.InvalidStoryId, storage.InvalidVersionId, FileNotFoundError):
+        return _error("Version not found.", 404)
+    return jsonify({"id": story_id})
+
+
+@bp.route("/import", methods=["POST"])
+@login_required
+def import_backup():
+    file_storage = request.files.get("file")
+    if file_storage is None or not file_storage.filename:
+        return _error("No backup file provided.", 400)
+
+    try:
+        count = storage.import_backup(current_app.config["STORIES_DIR"], file_storage.stream)
+    except storage.ImportCollision as e:
+        shown = ", ".join(e.colliding_ids[:5])
+        more = f" and {len(e.colliding_ids) - 5} more" if len(e.colliding_ids) > 5 else ""
+        return _error(
+            f"Import aborted, nothing was changed: {len(e.colliding_ids)} "
+            f"already exist here ({shown}{more}).",
+            409,
+        )
+    except zipfile.BadZipFile:
+        return _error("That doesn't look like a valid zip file.", 400)
+    except ValueError as e:
+        return _error(str(e), 400)
+
+    return jsonify({"imported": count})
 
 
 @bp.route("/stories/<story_id>/images", methods=["POST"])

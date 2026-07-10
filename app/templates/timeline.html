@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Storybook{% endblock %}
+{% block title %}{{ app_title }}{% endblock %}
 {% block body_class %}page-timeline{% endblock %}
 {% block content %}
 {% if not stories %}
@@ -8,6 +8,18 @@
   <a class="btn btn--primary" href="{{ url_for('pages.new_story') }}">+ New story</a>
 </div>
 {% else %}
+{% if on_this_day %}
+<div class="timeline__onthisday">
+  {% for m in on_this_day %}
+  {% set years_ago = today.year - m.date.year %}
+  {% set color = author_colors.get(m.author) if (authors and m.author) else None %}
+  <p class="timeline__onthisday-item"{% if color %} style="--author-color: {{ color }}"{% endif %}>
+    {{ years_ago }} year{{ 's' if years_ago != 1 else '' }} ago today &mdash;
+    <a href="{{ url_for('pages.story', story_id=m.id) }}">{{ m.title }}</a>
+  </p>
+  {% endfor %}
+</div>
+{% endif %}
 {% if authors %}
 <div class="timeline__legend">
   {% for a in authors %}
@@ -17,6 +29,21 @@
   {% endfor %}
 </div>
 {% endif %}
+{% if draft_count or archived_count %}
+<p class="timeline__drafts-link">
+  {% if draft_count %}<a href="{{ url_for('pages.drafts') }}">Drafts ({{ draft_count }})</a>{% endif %}
+  {% if draft_count and archived_count %}&middot;{% endif %}
+  {% if archived_count %}<a href="{{ url_for('pages.archived') }}">Archived ({{ archived_count }})</a>{% endif %}
+</p>
+{% endif %}
+<div class="timeline__toolbar">
+  <input type="search" id="timeline-search" class="timeline__search"
+         placeholder="Search titles&hellip;" aria-label="Search stories by title">
+  <a href="#" id="timeline-jump-latest" class="timeline__jump">Jump to the latest &darr;</a>
+</div>
+<p class="timeline__search-empty" id="timeline-search-empty" hidden>
+  No stories match &ldquo;<span id="timeline-search-empty-query"></span>&rdquo;.
+</p>
 <div class="timeline">
   <div class="timeline__spine" aria-hidden="true"></div>
   <ol class="timeline__list">
@@ -27,13 +54,24 @@
     {% for story in year_stories %}
     {% set has_author = authors and story.author %}
     {% set author_color = author_colors.get(story.author) if has_author else None %}
+    {% set sealed = is_sealed(story, today) %}
     <li class="timeline__entry"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
       <a class="timeline__link" href="{{ url_for('pages.story', story_id=story.id) }}">
+        {% if sealed %}
+        <span class="timeline__envelope" aria-hidden="true">
+          <svg width="20" height="15" viewBox="0 0 64 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="60" height="42" rx="4" stroke="currentColor" stroke-width="4"/>
+            <path d="M4 5l28 22 28-22" stroke="currentColor" stroke-width="4" fill="none"/>
+          </svg>
+        </span>
+        <span class="timeline__title timeline__title--sealed">A sealed letter &middot; opens {{ story.unlock.strftime('%B %-d, %Y') }}</span>
+        {% else %}
         <span class="timeline__dot{% if has_author %} timeline__dot--author{% endif %}" aria-hidden="true"></span>
-        <span class="timeline__date">{{ story.date.strftime('%b %-d') }}{% if has_author %} &middot; <span class="timeline__author">{{ story.author }}</span>{% endif %}</span>
+        <span class="timeline__date">{{ story.date.strftime('%b %-d') }}{% if has_author %} &middot; <span class="timeline__author">{{ story.author }}</span>{% endif %}{% if birthdate %} &middot; <span class="timeline__age">{{ age_label(birthdate, story.date) }}</span>{% endif %}</span>
         <span class="timeline__title">{{ story.title }}</span>
         {% if story.cover %}
         <img class="timeline__thumb" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="" loading="lazy">
+        {% endif %}
         {% endif %}
       </a>
     </li>
@@ -46,6 +84,17 @@
   <a class="minimap__tick" href="#year-{{ year }}" data-year="{{ year }}">{{ year }}</a>
   {% endfor %}
 </nav>
+<p class="timeline__footer-links">
+  <a href="{{ url_for('pages.book') }}">Read as a book</a>
+  &middot;
+  <a href="{{ url_for('pages.book') }}?print=1">Download as PDF</a>
+  &middot;
+  <a href="{{ url_for('pages.book_epub') }}">Download as EPUB</a>
+  &middot;
+  <a href="{{ url_for('pages.export') }}">Download everything (.zip)</a>
+  &middot;
+  <a href="{{ url_for('pages.import_page') }}">Import a backup</a>
+</p>
 {% endif %}
 {% endblock %}
 {% block scripts %}

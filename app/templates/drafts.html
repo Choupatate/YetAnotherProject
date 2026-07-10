@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Drafts — {{ app_title }}{% endblock %}
+{% block body_class %}page-drafts{% endblock %}
+{% block content %}
+<div class="drafts">
+  <p class="drafts__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <h1 class="drafts__title">Drafts</h1>
+  {% if not stories %}
+  <p class="drafts__empty">No drafts right now.</p>
+  {% else %}
+  <ul class="drafts__list">
+    {% for story in stories %}
+    {% set author_color = author_colors.get(story.author) if (authors and story.author) else None %}
+    <li class="drafts__item">
+      <a class="drafts__link" href="{{ url_for('pages.story', story_id=story.id) }}">
+        {% if author_color %}<span class="drafts__dot" style="--author-color: {{ author_color }}" aria-hidden="true"></span>{% endif %}
+        <span class="drafts__item-title">{{ story.title }}</span>
+        <span class="drafts__item-date">{{ story.date.strftime('%b %-d, %Y') }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

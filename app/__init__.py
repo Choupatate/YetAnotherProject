@@ -1,7 +1,7 @@
 import os
 import re
 import secrets
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -36,6 +36,20 @@ def _parse_authors(value):
     return authors
 
 
+def _parse_birthdate(value):
+    """Parse STORYBOOK_BIRTHDATE ("YYYY-MM-DD"). Raises RuntimeError on a
+    malformed value so misconfiguration fails at startup (like STORYBOOK_AUTHORS)."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise RuntimeError(
+            f"Invalid STORYBOOK_BIRTHDATE {value!r}. Expected an ISO date, e.g. "
+            'STORYBOOK_BIRTHDATE="2023-06-18"'
+        )
+
+
 def create_app(test_config=None):
     app = Flask(__name__)
 
@@ -44,6 +58,8 @@ def create_app(test_config=None):
     secret_key = os.environ.get("STORYBOOK_SECRET_KEY")
     cookie_secure = os.environ.get("STORYBOOK_COOKIE_SECURE") == "1"
     authors = _parse_authors(os.environ.get("STORYBOOK_AUTHORS"))
+    birthdate = _parse_birthdate(os.environ.get("STORYBOOK_BIRTHDATE"))
+    title = os.environ.get("STORYBOOK_TITLE") or "Storybook"
 
     if password and not secret_key and not test_config:
         raise RuntimeError(
@@ -57,6 +73,8 @@ def create_app(test_config=None):
         SECRET_KEY=secret_key or secrets.token_hex(32),
         DEV_MODE=password is None,
         AUTHORS=authors,
+        BIRTHDATE=birthdate,
+        TITLE=title,
         PERMANENT_SESSION_LIFETIME=timedelta(days=90),
         MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
         SESSION_COOKIE_HTTPONLY=True,
@@ -70,11 +88,18 @@ def create_app(test_config=None):
     app.config["STORIES_DIR"] = Path(app.config["STORIES_DIR"])
     app.config["STORIES_DIR"].mkdir(parents=True, exist_ok=True)
 
-    from . import auth, routes_api, routes_pages
+    from . import auth, dates, routes_api, routes_pages, storage
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(routes_pages.bp)
     app.register_blueprint(routes_api.bp)
+
+    app.jinja_env.globals["is_sealed"] = storage.is_sealed
+    app.jinja_env.globals["age_label"] = dates.age_label
+
+    @app.context_processor
+    def inject_title():
+        return {"app_title": app.config["TITLE"]}
 
     @app.errorhandler(404)
     def not_found(error):

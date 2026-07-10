@@ -1,27 +1,49 @@
 {% extends "base.html" %}
-{% block title %}{% if story %}Edit story{% else %}New story{% endif %} — Storybook{% endblock %}
+{% block title %}{% if story %}Edit story{% else %}New story{% endif %} — {{ app_title }}{% endblock %}
 {% block body_class %}page-editor{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/toastui-editor.min.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/theme/toastui-editor-dark.css') }}">
 {% endblock %}
 {% block content %}
+<div class="editor__recovery" id="editor-recovery" hidden>
+  <p class="editor__recovery-text">
+    You have an unsaved draft from <span id="editor-recovery-time"></span>.
+  </p>
+  <div class="editor__recovery-actions">
+    <button type="button" class="btn" id="editor-recovery-restore">Restore it</button>
+    <button type="button" class="btn" id="editor-recovery-discard">Discard</button>
+  </div>
+</div>
 <form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}">
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Untitled" value="{{ story.title if story else '' }}" required>
-  <input class="editor__date" id="story-date" name="date" type="date"
-         value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
-  {% if authors %}
-  <div class="editor__authors" id="editor-authors">
-    {% for a in authors %}
-    <button type="button" class="editor__author-chip" data-author-name="{{ a.name }}"
-            style="--author-color: {{ a.color }}"
-            aria-pressed="{{ 'true' if story and story.author == a.name else 'false' }}">
-      <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
-    </button>
-    {% endfor %}
+  <div class="editor__date-row">
+    <input class="editor__date" id="story-date" name="date" type="date"
+           value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
+    <label class="editor__unlock-label" for="story-unlock">Seal until</label>
+    <input class="editor__unlock" id="story-unlock" name="unlock" type="date"
+           value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
   </div>
-  {% endif %}
+  <div class="editor__toolrow" id="editor-toolrow">
+    {% if authors %}
+    <div class="editor__authors" id="editor-authors">
+      {% for a in authors %}
+      <button type="button" class="editor__author-chip" data-author-name="{{ a.name }}"
+              style="--author-color: {{ a.color }}"
+              aria-pressed="{{ 'true' if story and story.author == a.name else 'false' }}">
+        <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="editor__toggles">
+      <button type="button" id="draft-toggle" class="editor__toggle-chip"
+              aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+      <button type="button" id="archive-toggle" class="editor__toggle-chip"
+              aria-pressed="{{ 'true' if story and story.archived else 'false' }}">Archive</button>
+    </div>
+  </div>
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
   </div>
@@ -29,6 +51,11 @@
     <button id="save-story" type="submit" class="btn btn--primary editor__save">Save</button>
   </div>
 </form>
+{% if story %}
+<p class="editor__history-link">
+  <a href="{{ url_for('pages.story_history', story_id=story.id) }}">View history</a>
+</p>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>

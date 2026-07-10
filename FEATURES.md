@@ -386,15 +386,52 @@ the whole book start-to-finish on screen, and printing to PDF/paper.
 
 ---
 
-# Feature batch 3 — F11..F15 (voices, instants, people, rituals)
+## F11. HEIC/HEIF photo uploads (Android & iPhone originals)
 
-**Prerequisite: batch 2 (F0, F2–F10) must be fully implemented and merged
-first.** F12 relies on the shared partial and exclusion lists from F0/F2/F10;
-F14 relies on `readable_stories()`.
+The family's photo library is stored in compressed HEIF/HEIC (Android default
+in their case; also iPhone originals via Files/AirDrop). Pillow alone cannot
+decode these — uploads currently fail with `400 Could not process image`.
+This is an ingestion-only change: **stored output remains plain JPEG**, so
+the durability contract is untouched.
+
+- Add `pillow-heif` to `requirements.txt`, pinned like the other deps. This
+  is a deliberate exception to the minimal-dependencies rule, approved
+  because every one of the family's photos is HEIF; do not add any other
+  format plugin alongside it.
+- In `app/storage.py`, at module import:
+
+  ```python
+  from pillow_heif import register_heif_opener
+  register_heif_opener()
+  ```
+
+  That is the whole integration: `Image.open()` then handles `.heic`/`.heif`
+  and the existing pipeline (EXIF transpose → resize → `convert("RGB")` →
+  JPEG q85) applies unchanged. Verify `ImageOps.exif_transpose` still
+  corrects orientation for HEIF (pillow-heif exposes EXIF; add a test).
+- HEIF is not PNG, so the `is_png` branch stays false → output is
+  `photo-NNN.jpg`. Correct; do not add a HEIF-passthrough.
+- Tests (`tests/test_storage.py`): generate a real HEIC fixture in the test
+  itself with pillow-heif (`Image.new(...).save(tmp / "x.heic")` after
+  registering), including one with an EXIF orientation tag; upload through
+  `POST /api/stories/<id>/images` in `tests/test_api.py` and assert a valid
+  JPEG lands in the story folder with corrected orientation and long edge
+  ≤ 2000px.
+- README: add HEIC/HEIF to a short "supported photo formats" line (JPEG,
+  PNG, WebP, AVIF, GIF/TIFF/BMP, HEIC/HEIF — everything except PNG is stored
+  as JPEG).
+
+---
+
+# Feature batch 3 — F12..F16 (voices, instants, people, rituals)
+
+**Prerequisite: batch 2 (F0, F2–F10) and F11 are implemented; this batch
+builds on them.** F13 relies on the shared partial and exclusion lists from
+F0/F2/F10; F15 relies on `readable_stories()`.
 
 Same ground rules as batch 2: all decisions are made here — implement, don't
 redesign. **No new runtime dependencies** (stdlib + browser APIs + what's
-already installed only). The one apparent exception, transcription (F11), is
+already installed only). The one apparent exception, transcription (F12), is
 *not* an exception: it is an optional offline script with its own separate
 requirements file, and **nothing in `app/` may ever import it**. The app must
 run, test, and deploy exactly as before with that script deleted.
@@ -406,12 +443,12 @@ its transcript are two plain files in the story folder. `stories/` remains the
 single backup unit and stays fully readable with a file browser.
 
 **Implementation order (respect it):**
-F12 instants → F14 random → F15 prompts → F11 voice → F13 people.
+F13 instants → F15 random → F16 prompts → F12 voice → F14 people.
 Commit per feature; bare `pytest` green before each commit.
 
 ---
 
-## F12. Instants — photo + one line, fifteen seconds on a phone
+## F13. Instants — photo + one line, fifteen seconds on a phone
 
 A low-friction capture mode: one photo, one sentence, done. Instants live on
 the timeline alongside stories but visually lighter, so real stories keep
@@ -439,7 +476,7 @@ kind: instant        # absent or any unrecognized value means "story"
   `kind` — it is set at creation and preserved on update.
 - If `PUT /api/stories/<id>` does not already accept a `cover` field, add it:
   optional filename, must match `FILENAME_RE` and exist in the story folder,
-  else 400. (F12's capture flow needs to set the cover explicitly.)
+  else 400. (F13's capture flow needs to set the cover explicitly.)
 
 ### Capture UI
 
@@ -470,7 +507,7 @@ kind: instant        # absent or any unrecognized value means "story"
   `/edit/<id>` opens the full editor (kind is preserved through save — see
   API rule above).
 - Instants are **excluded from**: F2 prev/next (page-turning is for stories;
-  an instant's own page shows no prev/next), and F14 random. They are
+  an instant's own page shows no prev/next), and F15 random. They are
   **included in**: the timeline, F5 "years ago today" banners, and F10's
   `/book` — where they render compactly (photo + line as a captioned figure,
   no drop cap, no page-break-before; they are interludes, not chapters).
@@ -479,7 +516,7 @@ kind: instant        # absent or any unrecognized value means "story"
   entry; prev/next skips instants; random never returns one; book includes
   it compactly.
 
-## F14. Au hasard — open a page at random
+## F15. Au hasard — open a page at random
 
 - `GET /random` (login required): pick uniformly from
   `readable_stories(...)` filtered to `kind == "story"`, excluding the story
@@ -493,7 +530,7 @@ kind: instant        # absent or any unrecognized value means "story"
   never returns the excluded id; drafts, sealed letters, and instants are
   never chosen; empty case → timeline.
 
-## F15. Graines d'histoires — against the blank page
+## F16. Graines d'histoires — against the blank page
 
 A gentle writing prompt shown only when starting a new, empty story. Never
 inserted into the text, never generated — a plain list of questions in a
@@ -527,7 +564,7 @@ plain text file.
 - Tests: `load_prompts` cases above; `/new` page contains a prompt;
   `/edit/<id>` does not.
 
-## F11. La voix — voice memos on stories
+## F12. La voix — voice memos on stories
 
 The story in your own voice. Recording uses the browser's built-in
 `MediaRecorder` — no library. Unlimited length.
@@ -620,7 +657,7 @@ unknown filename → 404, traversal-shaped filename → 400/404; `list_memos`
 ordering and pattern strictness; story page with/without memos and
 with/without sidecar; Range → 206; auth required on all memo endpoints.
 
-## F13. Personnages — the cast of the book
+## F14. Personnages — the cast of the book
 
 Real books introduce their characters. One page per recurring person — who
 they are *to him*.
@@ -678,7 +715,7 @@ editor template supplies the people endpoints, omits the date input, the
 author chips, the draft/seal controls, and the voice section, and relabels
 the title input `Name` plus one extra plain text input `Relation`.
 `editor.js` must tolerate all of those being absent (most already are
-optional in batch 2's markup — keep it that way). Prompts (F15) do not
+optional in batch 2's markup — keep it that way). Prompts (F16) do not
 appear on person pages.
 
 ### Linking, deletion, book
@@ -704,7 +741,7 @@ editor tests stay green).
 - With batch 3 deployed and nothing new configured: timeline, stories, and
   all batch-2 features behave exactly as before until someone records a
   memo, saves an instant, or creates a person. Every pre-batch-3 test passes
-  unmodified (except the 413 limit test, updated per F11).
+  unmodified (except the 413 limit test, updated per F12).
 - Manual pass on a real phone (390px, dark): capture an instant end-to-end
   in under 20 seconds; record a 2-minute memo over HTTPS, play it back with
   seeking, delete a junk take; drop a hand-written `memo-001.txt` next to a

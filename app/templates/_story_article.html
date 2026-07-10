@@ -1,0 +1,27 @@
+{# Shared header + cover + body for a single story (FEATURES.md F10).
+
+Expects in scope: story, body_html, authors, birthdate. Does not render the
+outer <article> tag — callers wrap this with their own <article class="story"
+style="--author-color: ..."> so the CSS custom property scope and any
+per-page footer stay under the caller's control. #}
+<header class="story__header">
+  <p class="story__date">
+    {% if story.draft %}<span class="story__draft-pill">DRAFT</span>{% endif %}
+    {% if story.archived %}<span class="story__archived-pill">ARCHIVED</span>{% endif %}
+    {{ story.date.strftime('%B %-d, %Y') }}
+    {% if birthdate %}
+    &middot; <span class="story__age">{{ age_label(birthdate, story.date) }}</span>
+    {% endif %}
+    {% if authors and story.author %}
+    &middot; <span class="story__author"><span class="story__author-dot" aria-hidden="true"></span>{{ story.author }}</span>
+    {% endif %}
+  </p>
+  <h1 class="story__title">{{ story.title }}</h1>
+  <hr class="story__flourish" aria-hidden="true">
+</header>
+{% if story.cover %}
+<img class="story__cover" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="">
+{% endif %}
+<div class="story__body">
+  {{ body_html|safe }}
+</div>

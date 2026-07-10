@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}History — {{ story.title }} — {{ app_title }}{% endblock %}
+{% block body_class %}page-history{% endblock %}
+{% block content %}
+<div class="history">
+  <p class="history__back"><a href="{{ url_for('pages.edit_story', story_id=story.id) }}">&lsaquo; Back to editor</a></p>
+  <h1 class="history__title">History for &ldquo;{{ story.title }}&rdquo;</h1>
+  {% if not versions %}
+  <p class="history__empty">No earlier versions yet — every future save will be recorded here.</p>
+  {% else %}
+  <ul class="history__list" data-story-id="{{ story.id }}">
+    {% for v in versions %}
+    <li class="history__item">
+      <span class="history__item-title">{{ v.title }}</span>
+      <span class="history__item-date">{{ v.saved_at.strftime('%b %-d, %Y %H:%M') }}</span>
+      <button type="button" class="btn history__restore" data-version-id="{{ v.id }}">Restore</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/history.js') }}"></script>
+{% endblock %}

@@ -1,29 +1,33 @@
 {% extends "base.html" %}
-{% block title %}{{ story.title }} — Storybook{% endblock %}
+{% block title %}{{ story.title }} — {{ app_title }}{% endblock %}
 {% block body_class %}page-story{% endblock %}
+{% block head %}
+{% if prev_story %}<link rel="prev" href="{{ url_for('pages.story', story_id=prev_story.id) }}">{% endif %}
+{% if next_story %}<link rel="next" href="{{ url_for('pages.story', story_id=next_story.id) }}">{% endif %}
+{% endblock %}
 {% block content %}
 <article class="story"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
-  <header class="story__header">
-    <p class="story__date">
-      {{ story.date.strftime('%B %-d, %Y') }}
-      {% if authors and story.author %}
-      &middot; <span class="story__author"><span class="story__author-dot" aria-hidden="true"></span>{{ story.author }}</span>
-      {% endif %}
-    </p>
-    <h1 class="story__title">{{ story.title }}</h1>
-    <hr class="story__flourish" aria-hidden="true">
-  </header>
-  {% if story.cover %}
-  <img class="story__cover" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="">
-  {% endif %}
-  <div class="story__body">
-    {{ body_html|safe }}
-  </div>
+  {% include "_story_article.html" %}
   <footer class="story__footer">
-    <a class="story__back" href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a>
-    {% if session.get('authed') %}
-    <a class="story__edit" href="{{ url_for('pages.edit_story', story_id=story.id) }}">Edit</a>
+    {% if prev_story or next_story %}
+    <nav class="story__pagenav" aria-label="Story navigation">
+      {% if prev_story %}
+      <a class="story__prev" href="{{ url_for('pages.story', story_id=prev_story.id) }}">&lsaquo; {{ prev_story.title|truncate(40, True, '…') }}</a>
+      {% endif %}
+      {% if next_story %}
+      <a class="story__next" href="{{ url_for('pages.story', story_id=next_story.id) }}">{{ next_story.title|truncate(40, True, '…') }} &rsaquo;</a>
+      {% endif %}
+    </nav>
     {% endif %}
+    <div class="story__navrow">
+      <a class="story__back" href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a>
+      {% if session.get('authed') %}
+      <a class="story__edit" href="{{ url_for('pages.edit_story', story_id=story.id) }}">Edit</a>
+      {% endif %}
+    </div>
   </footer>
 </article>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/story.js') }}"></script>
 {% endblock %}

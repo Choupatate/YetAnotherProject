@@ -164,3 +164,46 @@ and make sure `/data/stories` stays writable by that user.
 - Manual verification per PLAN §10 checklist still passes (especially: no
   request to any external domain from any page — check the editor page
   specifically).
+
+---
+
+# Live review round 2 (2026-07-10) — batch F0/F2–F10
+
+Verified on a live instance with real Chromium at 390px, dark theme, with
+authors, birthdate, and title configured, plus one draft, one sealed letter,
+and one archived story on disk. **Everything functional passed**: anniversary
+banner, ages, sealed envelope page, drafts/archived pages, prev/next +
+keyboard arrows, lightbox (closes on back gesture), autosave recovery banner
+with restore, `/book` printed to a correct 6-page PDF (cover alone on page 1,
+drafts/sealed excluded), valid EPUB, manifest, export zip (complete: includes
+sealed, drafts, and `.versions/`), per-save version snapshots + restore. Zero
+external requests, zero JS console errors. The unspecced additions (history,
+archive, import, EPUB, autosave, search, CI) were reviewed and are accepted.
+
+Two layout defects to fix, both measured on a 390px viewport:
+
+## R2.1 Timeline entry title gets crushed when metadata is long
+
+With `Jun 18 · Papa · 2 years old` plus a cover thumbnail, the title column
+measures **55px wide** and wraps one word per line ("First / bike / ride").
+Fix the `.timeline__entry` layout so the title never drops below a readable
+width on narrow screens: stack the entry vertically at small widths — meta
+line (date · author · age) on its own row, title on the next row at full
+width, thumbnail below or floated right at a fixed size. The title is the
+element a reader scans; it wins over the thumbnail. Verify with the longest
+realistic combo (long month-day, long author name, "11 months old", thumb)
+at 360px and 390px.
+
+## R2.2 Minimap year labels overlap entry thumbnails
+
+The fixed right-edge minimap renders on top of `.timeline__thumb` images
+(geometrically confirmed overlap). Either reserve a right gutter for the
+minimap on viewports where it is shown (padding-right on the timeline list
+equal to the minimap's width), or hide the minimap below a width breakpoint
+where the gutter would cost too much reading width — pick whichever preserves
+more title width at 390px, and make sure tap targets stay ≥ 44px if kept.
+
+Definition of done: both fixed; a Playwright-measured title box ≥ 60% of the
+content column width at 390px with full metadata; no bounding-box
+intersection between `.minimap` and any timeline entry element; bare `pytest`
+green; no visual change at desktop widths beyond the reserved gutter.
