@@ -420,3 +420,397 @@ the durability contract is untouched.
 - README: add HEIC/HEIF to a short "supported photo formats" line (JPEG,
   PNG, WebP, AVIF, GIF/TIFF/BMP, HEIC/HEIF — everything except PNG is stored
   as JPEG).
+
+---
+
+# Feature batch 3 — F12..F16 (voices, instants, people, rituals)
+
+**Prerequisite: batch 2 (F0, F2–F10) and F11 are implemented; this batch
+builds on them.** F13 relies on the shared partial and exclusion lists from
+F0/F2/F10; F15 relies on `readable_stories()`.
+
+Same ground rules as batch 2: all decisions are made here — implement, don't
+redesign. **No new runtime dependencies** (stdlib + browser APIs + what's
+already installed only). The one apparent exception, transcription (F12), is
+*not* an exception: it is an optional offline script with its own separate
+requirements file, and **nothing in `app/` may ever import it**. The app must
+run, test, and deploy exactly as before with that script deleted.
+
+One shared architectural rule for this batch: **no new storage formats.** An
+instant is a story with one extra frontmatter key. A person is the same
+folder-with-`index.md`-and-photos shape stories already use. A voice memo and
+its transcript are two plain files in the story folder. `stories/` remains the
+single backup unit and stays fully readable with a file browser.
+
+**Implementation order (respect it):**
+F13 instants → F15 random → F16 prompts → F12 voice → F14 people.
+Commit per feature; bare `pytest` green before each commit.
+
+---
+
+## F13. Instants — photo + one line, fifteen seconds on a phone
+
+A low-friction capture mode: one photo, one sentence, done. Instants live on
+the timeline alongside stories but visually lighter, so real stories keep
+their weight.
+
+### Storage
+
+New **optional** frontmatter key, parsed tolerantly like `draft`/`unlock`:
+
+```yaml
+kind: instant        # absent or any unrecognized value means "story"
+```
+
+- `Story` dataclass gains `kind: str = "story"`. `_write_index()` writes the
+  key only when it is `"instant"`.
+- An instant is otherwise a completely normal story folder: `title` is the
+  line truncated to 60 chars (or `"Instant"` when the line is empty), `cover`
+  is the photo, the body is the one line of text as a single markdown
+  paragraph. Nothing else.
+
+### API
+
+- `POST /api/stories` accepts optional `kind`: `"story"` (default) or
+  `"instant"`; any other value → 400 JSON error. `PUT` does not accept
+  `kind` — it is set at creation and preserved on update.
+- If `PUT /api/stories/<id>` does not already accept a `cover` field, add it:
+  optional filename, must match `FILENAME_RE` and exist in the story folder,
+  else 400. (F13's capture flow needs to set the cover explicitly.)
+
+### Capture UI
+
+- `GET /new-instant` (login required) → `instant.html`: a deliberately tiny
+  form — photo `<input type="file" accept="image/*">` (no `capture`
+  attribute, so the phone offers both camera and gallery), a single-line text
+  input (placeholder `One line…`, maxlength 200), a date input defaulting to
+  today, the author chips (same markup/localStorage behavior as the editor —
+  extract the chip logic if needed rather than duplicating it), and one Save
+  button. No Toast UI, no draft/seal controls.
+- New `app/static/js/instant.js` (~60 lines), loaded only by `instant.html`.
+  On save: `POST /api/stories` with `{title, date, kind: "instant",
+  markdown: line, author}` (title derived from the line per the storage rule)
+  → upload the photo via the existing images endpoint → `PUT` with
+  `cover: <filename>` → redirect to `/`. Photo is required (block save with
+  a message if missing); the line is optional. Disable the Save button while
+  in flight. All fetches go through the `response.ok` error pattern from
+  `editor.js`.
+- Timeline header: next to `+ New story`, a secondary (outline-style) button
+  `+ Instant` → `/new-instant`.
+
+### Rendering
+
+- Timeline: instants render as compact entries — small square thumbnail
+  (~56px), the line in body-text style (no title styling, no title at all),
+  then the usual date + author dot. Clearly quieter than a story entry.
+- Story page for an instant (`/story/<id>`) works as normal (cover + line);
+  `/edit/<id>` opens the full editor (kind is preserved through save — see
+  API rule above).
+- Instants are **excluded from**: F2 prev/next (page-turning is for stories;
+  an instant's own page shows no prev/next), and F15 random. They are
+  **included in**: the timeline, F5 "years ago today" banners, and F10's
+  `/book` — where they render compactly (photo + line as a captioned figure,
+  no drop cap, no page-break-before; they are interludes, not chapters).
+- Tests: kind round-trips through create/read and survives an edit-PUT;
+  invalid kind → 400; cover-PUT validation; timeline shows the compact
+  entry; prev/next skips instants; random never returns one; book includes
+  it compactly.
+
+## F15. Au hasard — open a page at random
+
+- `GET /random` (login required): pick uniformly from
+  `readable_stories(...)` filtered to `kind == "story"`, excluding the story
+  id in the optional `?not=<id>` query param; 302 to `/story/<id>`. No
+  eligible story → 302 to `/`.
+- Entry points, exact labels:
+  - timeline footer line (where F8/F10 links live): `Open a page at random`;
+  - story page footer, on the prev/next row: a centered `At random` link
+    between the two arrows, carrying `?not=<current id>`.
+- Tests: redirects to an eligible story; with 2+ eligible stories and `?not`,
+  never returns the excluded id; drafts, sealed letters, and instants are
+  never chosen; empty case → timeline.
+
+## F16. Graines d'histoires — against the blank page
+
+A gentle writing prompt shown only when starting a new, empty story. Never
+inserted into the text, never generated — a plain list of questions in a
+plain text file.
+
+### Prompt source
+
+- Default list shipped at `app/prompts/default.txt` — the exact 56 lines in
+  the appendix at the bottom of this document, verbatim, one prompt per line,
+  UTF-8. (They are in French — the family's writing language. The UI chrome
+  around them stays in English like the rest of the app.)
+- Override: if `<stories_dir>/prompts.txt` exists and contains at least one
+  valid line, it is used **instead** (not merged). Lines are stripped; blank
+  lines and lines starting with `#` are ignored. This file belongs to the
+  family and travels with their backup.
+- New `app/prompts.py`: `load_prompts(stories_dir) -> list[str]` implementing
+  the above, unit-tested (default, override, override-empty falls back,
+  comments skipped).
+
+### Editor UI
+
+- Only on `/new` (no story id) and only until the story is first saved: above
+  the editor widget, a single line in small italic muted type — the prompt
+  text — followed by a small `↻` button (`aria-label="Another idea"`). No
+  label, no icon, no box. Tapping `↻` shows another prompt (random, not
+  sequential, no repeat until the list is exhausted).
+- The server injects the initial prompt and the full list into the template
+  as `<script type="application/json">`; cycling is client-side in
+  `editor.js` (~15 lines). Nothing is ever inserted into the editor content.
+- Hidden entirely when editing an existing story or when the list is empty.
+- Tests: `load_prompts` cases above; `/new` page contains a prompt;
+  `/edit/<id>` does not.
+
+## F12. La voix — voice memos on stories
+
+The story in your own voice. Recording uses the browser's built-in
+`MediaRecorder` — no library. Unlimited length.
+
+### Storage
+
+- Audio files live in the story folder next to the photos:
+  `memo-001.webm`, `memo-002.m4a`, … — same `NNN` numbering scheme as
+  photos (next free number, per-story). Allowed extensions:
+  `.webm .m4a .mp3 .ogg`.
+- Optional transcript sidecar: same stem, `.txt` (`memo-001.txt`), plain
+  UTF-8 text. **The app only ever reads sidecars; it never writes or
+  generates them.** A sidecar can be produced by the offline script below or
+  typed by hand — the app cannot tell the difference and must not care.
+- Discovery: no frontmatter. `storage.py` gains
+  `list_memos(story_dir) -> list[Memo]` (a small dataclass: `filename`,
+  `transcript: Optional[str]`), sorted by filename; filenames must match
+  `memo-\d{3}\.(webm|m4a|mp3|ogg)`.
+
+### Server
+
+- Raise `MAX_CONTENT_LENGTH` to `128 * 1024 * 1024` (long memos; ~9 h of
+  Opus). Update the 413 handler message to "max 128 MB" and the item-3 test.
+- `POST /api/stories/<id>/memos` (multipart `file`): validate the extension
+  against the allowlist using the uploaded filename (the client names the
+  blob `memo.webm` or `memo.m4a` from the recorder's actual mimetype);
+  store as the next `memo-NNN.<ext>`; return `{"filename": ...}` 201.
+  Invalid extension → 400 JSON.
+- `DELETE /api/stories/<id>/memos/<filename>` (filename must match the memo
+  pattern above, 404 if absent): removes the audio file **and its sidecar if
+  present**, returns 204. (Accidental pocket recordings are common; this is
+  the one deletion the app supports, and it stays memo-scoped.)
+- Playback goes through the existing `/story/<id>/media/<filename>` route —
+  `send_from_directory` already answers Range requests (verify with a test
+  asserting a 206 on a `Range: bytes=0-3` request; iOS Safari requires Range
+  support for audio seeking).
+
+### Recorder UI (editor page, both Toast and fallback paths)
+
+- A "Voice" section below the editor widget: a record button, an elapsed
+  `mm:ss` timer, pause/resume, and stop. On stop, upload immediately (via
+  `ensureStoryId()`, same as images), then append the new memo to the list.
+- Use `MediaRecorder` with `audio/webm;codecs=opus` when
+  `MediaRecorder.isTypeSupported` says so, else `audio/mp4` (iOS) — file
+  extension `.webm`/`.m4a` accordingly. Call `recorder.start(1000)` and
+  collect chunks so long recordings don't produce one giant final buffer.
+  No client-side length cap.
+- Below the controls, the story's existing memos: an `<audio controls
+  preload="none">` player each, plus a delete button with a
+  `confirm("Delete this recording?")` guard.
+- Feature-detect: if `navigator.mediaDevices?.getUserMedia` or
+  `window.MediaRecorder` is missing, hide the record controls but still show
+  existing memos. If the user denies the mic permission, show a one-line
+  message in the section, not an alert loop.
+- **README note (required):** microphone capture only works in a secure
+  context — HTTPS or `localhost`. On plain LAN HTTP the record button will
+  not appear; playback still works everywhere. Recommend HTTPS via the
+  reverse proxy for this feature.
+
+### Story page
+
+- After the story body, before the footer: a "Listen" section (small-caps
+  heading, same style as the date line) — one `<audio controls
+  preload="none">` per memo, in order. When a memo has a transcript sidecar,
+  a `<details><summary>Transcript</summary>` below its player with the text
+  as paragraphs. Section absent when the story has no memos. Sealed stories
+  never show memos (the envelope stays sealed).
+
+### Offline transcription (optional, never imported by the app)
+
+- `scripts/transcribe_memos.py`: walks a stories dir, finds memos without a
+  `.txt` sidecar, transcribes with `faster-whisper`, writes the sidecar.
+  CLI: `python scripts/transcribe_memos.py ./stories --language fr --model
+  small` (both flags with those defaults). Print per-file progress; skip and
+  warn on failure, never crash the batch.
+- Its dependencies go in `requirements-transcribe.txt` **only** — never in
+  `requirements.txt`, never imported anywhere under `app/`. Add a README
+  section: what it does, that it downloads a model on first run (hundreds of
+  MB), that it is meant to be run occasionally from a laptop against the
+  stories folder (or a copy of it — sidecars can be copied back), and that
+  transcripts are ordinary text files anyone can also just write by hand.
+- No tests for the script itself (its deps aren't installed in CI); test the
+  app-side behavior only (sidecar shown when present, absent when not).
+
+### Tests
+
+Upload happy path (file lands as `memo-001.webm`, 201) and numbering after
+an existing memo; bad extension → 400; delete removes audio + sidecar → 204,
+unknown filename → 404, traversal-shaped filename → 400/404; `list_memos`
+ordering and pattern strictness; story page with/without memos and
+with/without sidecar; Range → 206; auth required on all memo endpoints.
+
+## F14. Personnages — the cast of the book
+
+Real books introduce their characters. One page per recurring person — who
+they are *to him*.
+
+### Storage
+
+- `stories/people/<slug>/index.md` + photos, inside the existing stories
+  dir — **one backup folder, unchanged**. `list_stories()` must skip the
+  `people/` entry silently (explicitly, no "malformed folder" warning; add a
+  test).
+- Frontmatter: `name` (required), `relation` (optional free text, e.g.
+  `"your grandmother"`), `photo` (optional filename in the same folder — the
+  portrait), plus `created`/`updated` like stories. Body: free markdown
+  about the person. Slug from `name` via the existing `slugify`, same `-2`
+  collision rule; photos via the **same** image pipeline (refactor
+  `save_image` so stories and people share it — resize/EXIF/naming
+  identical, `photo-NNN` numbering).
+- New `app/people.py` mirroring `storage.py`'s shape: `list_people`,
+  `get_person`, `create_person`, `update_person` — pure functions taking the
+  people dir, same atomic-write rule, same tolerant parsing (missing `name`
+  → skip with a logged warning).
+
+### Routes & pages
+
+- `GET /people` → `people.html`: a card grid — portrait (square,
+  `object-fit: cover`, subtle rounded corners; a neutral initial-letter
+  placeholder when no photo), name, relation. Sorted by `created` ascending
+  (the order they entered the book). Empty state: one quiet sentence and the
+  New button. Header: `+ New person`.
+- `GET /people/<slug>` → `person.html`: styled like a story page — relation
+  as the small-caps line where the date goes, name as the title, portrait as
+  the cover, body below. Footer: `‹ People` and `Edit`.
+- `GET /people/<slug>/media/<filename>`: same validation/serving as story
+  media.
+- `GET /new-person`, `GET /edit-person/<slug>`: the editor page, reused (see
+  below).
+- API: `POST /api/people` (`{name, relation, markdown}`, name required →
+  400 when blank), `PUT /api/people/<slug>`,
+  `POST /api/people/<slug>/images` (returns `{"filename": ...}`; the first
+  uploaded image becomes `photo` automatically if `photo` is not yet set).
+- Nav: a `People` link in the top nav, always visible (it is the only way to
+  discover the feature; the empty state explains it).
+- Markdown image srcs in a person body must resolve to the person's media
+  route: generalize the existing image-rewriting treeprocessor to take a
+  media base path instead of hardcoding `/story/<id>/media/`.
+
+### Editor reuse — do not fork editor.js
+
+Parametrize instead of duplicating: `editor.js` currently hardcodes
+`/api/stories...` endpoints. Change it to read its endpoints from the form's
+data attributes (`data-create-url`, `data-update-url-template`,
+`data-image-url-template`, `data-redirect-template`), with the story
+editor template supplying today's values — behavior identical. The person
+editor template supplies the people endpoints, omits the date input, the
+author chips, the draft/seal controls, and the voice section, and relabels
+the title input `Name` plus one extra plain text input `Relation`.
+`editor.js` must tolerate all of those being absent (most already are
+optional in batch 2's markup — keep it that way). Prompts (F16) do not
+appear on person pages.
+
+### Linking, deletion, book
+
+- Stories link to people manually in markdown
+  (`[Mamie](/people/mamie)`) — no auto-linking, no mention syntax; state
+  this in the README.
+- No person deletion (consistent with stories).
+- People do **not** appear in `/book` or on the timeline in this batch.
+
+### Tests
+
+CRUD happy paths; blank name → 400; slug collision; people dir skipped by
+`list_stories` without warning; person media traversal rejected; first image
+becomes portrait; pages render (grid, person page, empty state); auth
+required; story editor still works against its own endpoints (existing
+editor tests stay green).
+
+---
+
+## Batch 3 definition of done
+
+- With batch 3 deployed and nothing new configured: timeline, stories, and
+  all batch-2 features behave exactly as before until someone records a
+  memo, saves an instant, or creates a person. Every pre-batch-3 test passes
+  unmodified (except the 413 limit test, updated per F12).
+- Manual pass on a real phone (390px, dark): capture an instant end-to-end
+  in under 20 seconds; record a 2-minute memo over HTTPS, play it back with
+  seeking, delete a junk take; drop a hand-written `memo-001.txt` next to a
+  memo and see the transcript appear; create two people and visit their
+  pages; tap "Open a page at random" three times.
+- `stories/` inspected by hand afterwards: instants, memos, sidecars, and
+  people are all obvious, readable files in obvious places.
+- No external requests from any page — including while recording.
+- Bare `pytest` green from a clean checkout.
+
+---
+
+## Appendix — `app/prompts/default.txt` (copy verbatim, one per line)
+
+```
+Qu'est-ce qui t'a fait rire aux éclats cette semaine ?
+Raconte le petit rituel du soir en ce moment, minute par minute.
+Quel mot inventes-tu ou écorches-tu en ce moment ? Qui te comprend à ta place ?
+Décris un dimanche matin ordinaire de cette période de ta vie.
+Qu'est-ce que tu refuses catégoriquement de manger en ce moment — et la tête que tu fais ?
+Raconte la dernière conversation surprenante qu'on a eue avec toi.
+Quel jouet (ou objet improbable) ne te quitte jamais en ce moment ?
+Raconte ta première rencontre avec quelqu'un qui compte aujourd'hui dans ta vie.
+Qu'est-ce qui te fait peur en ce moment, et comment on te rassure ?
+Décris ta chambre telle qu'elle est aujourd'hui, comme si on la faisait visiter.
+Raconte le jour où on a appris que tu allais arriver.
+Comment on a choisi ton prénom — et ceux qu'on a failli te donner.
+Raconte ta naissance, du point de vue de celui ou celle qui écrit.
+À quoi ressemblait la maison le jour où tu es arrivé ?
+Quelle chanson te calme (ou te déchaîne) en ce moment ?
+Raconte une bêtise récente qu'on n'a pas réussi à gronder sans rire.
+Qu'est-ce que tu fais en ce moment qui ressemble trait pour trait à ton père ou ta mère ?
+Raconte le trajet qu'on fait le plus souvent ensemble, et ce que tu y regardes.
+Quel livre on te lit en boucle, et à quel moment tu ris ou tournes la page ?
+Décris tes mains, tes pieds, tes cheveux en ce moment — ils changent si vite.
+Raconte un moment récent où tu as été incroyablement courageux.
+Qu'est-ce que tu dis au réveil, en ce moment ?
+Raconte la dernière fois qu'on a dansé ou chanté ensemble dans la cuisine.
+Quel est ton plat préféré du moment, et comment tu le manges ?
+Raconte une visite chez tes grands-parents, telle qu'elle s'est vraiment passée.
+Qu'est-ce qu'on aimerait que tu saches sur cette période de notre vie de parents ?
+Raconte une nuit difficile — honnêtement — et ce qu'on s'est dit à trois heures du matin.
+Décris ton rire. Vraiment. Qu'on l'entende en le lisant.
+Quelle est ta cachette ou ton coin préféré de la maison en ce moment ?
+Raconte tes premiers pas (ou le premier « presque »).
+Quel a été ton premier mot — et le contexte exact ?
+Raconte un anniversaire (le tien ou celui de quelqu'un d'autre) vu par toi.
+Qu'est-ce que tu collectionnes ou accumules mystérieusement en ce moment ?
+Raconte une grosse colère récente, et ce qui se passait vraiment derrière.
+Décris comment tu t'endors, et ce qu'il faut absolument pour y arriver.
+Raconte la première fois qu'on t'a vu te faire un ami.
+Qu'est-ce que tu réclames « encore ! » sans jamais te lasser ?
+Raconte une sortie récente — marché, forêt, piscine — avec un détail que toi seul as remarqué.
+Quelles sont les personnes que tu réclames par leur nom en ce moment ?
+Raconte le moment de la journée qu'on préfère secrètement passer avec toi.
+Qu'est-ce que la saison actuelle change à tes journées — flaques, neige, cerises ?
+Raconte un objet de famille qu'on veut te transmettre, et son histoire.
+Qu'est-ce qu'on faisait, nous, à ton âge ? Raconte un souvenir d'enfance en miroir.
+Raconte la dernière fois que tu nous as impressionnés sans le savoir.
+Décris un repas complet avec toi en ce moment, du début motivé à la fin par terre.
+Quelle expression ou grimace fais-tu qu'on veut absolument ne pas oublier ?
+Raconte comment tu accueilles les gens qui passent la porte.
+Qu'est-ce que tu fais quand tu crois qu'on ne te regarde pas ?
+Raconte une promesse qu'on se fait à ton sujet en ce moment.
+Quel métier ou quelle passion déclares-tu vouloir faire plus tard, cette semaine ?
+Raconte la dernière photo qu'on a prise de toi : ce qu'il y a autour, avant, après.
+Qu'est-ce qui a été difficile pour nous cette semaine, et pourquoi ça valait le coup quand même ?
+Raconte le bain en ce moment : la logistique, les inondations, les jouets.
+Décris ta voix en ce moment, les phrases que tu répètes, ton accent à toi.
+Raconte une tradition familiale qu'on est en train d'inventer avec toi.
+Qu'est-ce qu'on voudrait te dire aujourd'hui, si tu pouvais tout comprendre ?
+```
