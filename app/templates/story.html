@@ -8,6 +8,26 @@
 {% block content %}
 <article class="story"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
   {% include "_story_article.html" %}
+  {% if memos %}
+  <section class="story__listen" aria-labelledby="story-listen-heading">
+    <h2 class="story__listen-heading" id="story-listen-heading">Listen</h2>
+    {% for memo in memos %}
+    <div class="story__memo">
+      <audio controls preload="none" src="{{ url_for('pages.story_media', story_id=story.id, filename=memo.filename) }}"></audio>
+      {% if memo.transcript %}
+      <details class="story__transcript">
+        <summary>Transcript</summary>
+        {% for paragraph in memo.transcript.split('\n\n') %}
+        {% if paragraph.strip() %}
+        <p>{{ paragraph.strip() }}</p>
+        {% endif %}
+        {% endfor %}
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
   <footer class="story__footer">
     <nav class="story__pagenav" aria-label="Story navigation">
       {% if prev_story %}

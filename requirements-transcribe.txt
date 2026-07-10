@@ -1,0 +1,4 @@
+# Optional dependencies for scripts/transcribe_memos.py only.
+# Never installed by the app itself — install separately with:
+#   pip install -r requirements-transcribe.txt
+faster-whisper==1.1.1

@@ -214,3 +214,38 @@ def upload_image(story_id):
         return _error("Could not process image.", 400)
 
     return jsonify({"filename": filename})
+
+
+@bp.route("/stories/<story_id>/memos", methods=["POST"])
+@login_required
+def upload_memo(story_id):
+    if not storage.is_valid_story_id(story_id):
+        return _error("Story not found.", 404)
+
+    file_storage = request.files.get("file")
+    if file_storage is None or not file_storage.filename:
+        return _error("No audio file provided.", 400)
+
+    try:
+        filename = storage.save_memo(current_app.config["STORIES_DIR"], story_id, file_storage)
+    except FileNotFoundError:
+        return _error("Story not found.", 404)
+    except ValueError as e:
+        return _error(str(e), 400)
+
+    response = jsonify({"filename": filename})
+    response.status_code = 201
+    return response
+
+
+@bp.route("/stories/<story_id>/memos/<filename>", methods=["DELETE"])
+@login_required
+def delete_memo(story_id, filename):
+    if not storage.is_valid_story_id(story_id):
+        return _error("Memo not found.", 404)
+
+    deleted = storage.delete_memo(current_app.config["STORIES_DIR"], story_id, filename)
+    if not deleted:
+        return _error("Memo not found.", 404)
+
+    return "", 204

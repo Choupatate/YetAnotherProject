@@ -218,9 +218,10 @@ def story(story_id):
         return render_template("sealed.html", story=s, author_color=author_color)
     body_html = render_markdown(s.body, story_id)
     prev_story, next_story = _reading_order_neighbors(current_app.config["STORIES_DIR"], s)
+    memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
     return render_template(
         "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color,
-        prev_story=prev_story, next_story=next_story,
+        prev_story=prev_story, next_story=next_story, memos=memos,
         birthdate=current_app.config.get("BIRTHDATE"),
     )
 
@@ -274,7 +275,7 @@ def new_story():
     initial_prompt = random.choice(prompt_list) if prompt_list else None
     return render_template(
         "editor.html", story=None, today=date.today(), authors=authors,
-        prompts=prompt_list, initial_prompt=initial_prompt,
+        prompts=prompt_list, initial_prompt=initial_prompt, memos=[],
     )
 
 
@@ -292,4 +293,5 @@ def edit_story(story_id):
     if s is None:
         abort(404)
     authors = current_app.config.get("AUTHORS") or []
-    return render_template("editor.html", story=s, today=date.today(), authors=authors)
+    memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
+    return render_template("editor.html", story=s, today=date.today(), authors=authors, memos=memos)

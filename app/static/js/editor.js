@@ -66,6 +66,194 @@
     });
   }
 
+  // --- Voice memos (F12) ----------------------------------------------------
+  var voiceSection = document.getElementById("editor-voice");
+  if (voiceSection) {
+    var recordBtn = document.getElementById("voice-record-btn");
+    var pauseBtn = document.getElementById("voice-pause-btn");
+    var stopBtn = document.getElementById("voice-stop-btn");
+    var timerEl = document.getElementById("voice-timer");
+    var voiceMessageEl = document.getElementById("voice-message");
+    var voiceListEl = document.getElementById("voice-list");
+
+    var mediaRecorder = null;
+    var recordedChunks = [];
+    var recordStartTime = null;
+    var elapsedBeforePause = 0;
+    var timerInterval = null;
+    var recordMimeType = null;
+    var recordExt = null;
+
+    function showVoiceMessage(text) {
+      voiceMessageEl.textContent = text || "";
+      voiceMessageEl.hidden = !text;
+    }
+
+    function supportsRecording() {
+      return !!(
+        navigator.mediaDevices &&
+        navigator.mediaDevices.getUserMedia &&
+        window.MediaRecorder
+      );
+    }
+
+    function pickMimeType() {
+      if (
+        window.MediaRecorder &&
+        MediaRecorder.isTypeSupported &&
+        MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ) {
+        return { mimeType: "audio/webm;codecs=opus", ext: "webm" };
+      }
+      return { mimeType: "audio/mp4", ext: "m4a" };
+    }
+
+    function formatElapsed(ms) {
+      var totalSeconds = Math.floor(ms / 1000);
+      var minutes = Math.floor(totalSeconds / 60);
+      var seconds = totalSeconds % 60;
+      return (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+    }
+
+    function updateTimer() {
+      var elapsed = elapsedBeforePause + (recordStartTime ? Date.now() - recordStartTime : 0);
+      timerEl.textContent = formatElapsed(elapsed);
+    }
+
+    function appendMemoToList(filename) {
+      var li = document.createElement("li");
+      li.className = "editor__voice-item";
+      li.dataset.filename = filename;
+
+      var audio = document.createElement("audio");
+      audio.controls = true;
+      audio.preload = "none";
+      audio.src = "/story/" + storyId + "/media/" + filename;
+      li.appendChild(audio);
+
+      var deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "btn editor__voice-delete";
+      deleteBtn.dataset.filename = filename;
+      deleteBtn.textContent = "Delete";
+      li.appendChild(deleteBtn);
+
+      voiceListEl.appendChild(li);
+    }
+
+    function uploadMemo(blob) {
+      return ensureStoryId().then(function (id) {
+        var formData = new FormData();
+        formData.append("file", blob, "memo." + recordExt);
+        return fetch("/api/stories/" + id + "/memos", {
+          method: "POST",
+          body: formData,
+        }).then(handleJsonResponse);
+      });
+    }
+
+    function resetRecordUI() {
+      recordBtn.hidden = false;
+      pauseBtn.hidden = true;
+      pauseBtn.textContent = "Pause";
+      stopBtn.hidden = true;
+      timerEl.hidden = true;
+      timerEl.textContent = "00:00";
+    }
+
+    if (!supportsRecording()) {
+      recordBtn.hidden = true;
+    } else {
+      recordBtn.addEventListener("click", function () {
+        showVoiceMessage("");
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then(function (stream) {
+            var picked = pickMimeType();
+            recordMimeType = picked.mimeType;
+            recordExt = picked.ext;
+            recordedChunks = [];
+            elapsedBeforePause = 0;
+            try {
+              mediaRecorder = new MediaRecorder(stream, { mimeType: recordMimeType });
+            } catch (e) {
+              mediaRecorder = new MediaRecorder(stream);
+            }
+            mediaRecorder.addEventListener("dataavailable", function (event) {
+              if (event.data && event.data.size > 0) recordedChunks.push(event.data);
+            });
+            mediaRecorder.addEventListener("stop", function () {
+              stream.getTracks().forEach(function (track) {
+                track.stop();
+              });
+              clearInterval(timerInterval);
+              timerInterval = null;
+              var blob = new Blob(recordedChunks, { type: recordMimeType });
+              recordBtn.disabled = true;
+              uploadMemo(blob)
+                .then(function (data) {
+                  appendMemoToList(data.filename);
+                  resetRecordUI();
+                  recordBtn.disabled = false;
+                })
+                .catch(function (error) {
+                  showVoiceMessage((error && error.message) || "Could not save the recording.");
+                  resetRecordUI();
+                  recordBtn.disabled = false;
+                });
+            });
+            mediaRecorder.start(1000);
+            recordStartTime = Date.now();
+            recordBtn.hidden = true;
+            pauseBtn.hidden = false;
+            stopBtn.hidden = false;
+            timerEl.hidden = false;
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 1000);
+          })
+          .catch(function () {
+            showVoiceMessage("Microphone access was denied.");
+          });
+      });
+
+      pauseBtn.addEventListener("click", function () {
+        if (!mediaRecorder) return;
+        if (mediaRecorder.state === "recording") {
+          mediaRecorder.pause();
+          elapsedBeforePause += Date.now() - recordStartTime;
+          recordStartTime = null;
+          pauseBtn.textContent = "Resume";
+        } else if (mediaRecorder.state === "paused") {
+          mediaRecorder.resume();
+          recordStartTime = Date.now();
+          pauseBtn.textContent = "Pause";
+        }
+      });
+
+      stopBtn.addEventListener("click", function () {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+      });
+    }
+
+    voiceListEl.addEventListener("click", function (event) {
+      var btn = event.target.closest(".editor__voice-delete");
+      if (!btn) return;
+      if (!window.confirm("Delete this recording?")) return;
+      var filename = btn.dataset.filename;
+      fetch("/api/stories/" + storyId + "/memos/" + encodeURIComponent(filename), {
+        method: "DELETE",
+      }).then(function (response) {
+        if (response.ok) {
+          btn.closest(".editor__voice-item").remove();
+        } else {
+          showVoiceMessage("Could not delete the recording.");
+        }
+      });
+    });
+  }
+
   function isDarkTheme() {
     var attr = document.documentElement.getAttribute("data-theme");
     if (attr) return attr === "dark";

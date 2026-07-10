@@ -127,6 +127,46 @@ chapters — while a full story page (and the full editor, for touch-ups)
 still works normally at their direct URL. They're just a story with one
 extra frontmatter key (`kind: instant`); nothing new to back up.
 
+### Voice memos
+
+A "Voice" section on the story editor lets you record directly in the
+browser — record, pause/resume, stop — with no length limit; recordings
+upload as soon as you stop and appear in the list right away, each with
+its own delete button (the one deletion this app supports, undoable only
+by re-recording). On the story page, a "Listen" section plays back every
+memo in order. Files are ordinary `memo-001.webm`/`memo-002.m4a`/... in
+the story folder, same numbering scheme as photos.
+
+**Microphone capture only works in a secure context** — HTTPS, or
+`localhost`. Over plain LAN HTTP the record button simply won't appear
+(playback still works everywhere), so if you're running Storybook on your
+home network rather than on the same machine as the browser, put a
+reverse proxy with a certificate in front of it to use this feature.
+
+Drop a plain-text file named after a memo with a `.txt` extension next to
+it (e.g. `memo-001.txt`) and its contents show up as a "Transcript" under
+that recording — the app never writes these itself, so anyone can type
+one by hand, or generate them offline:
+
+#### Offline transcription
+
+`scripts/transcribe_memos.py` walks a stories folder, finds memos that
+don't have a transcript yet, and writes one using
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) — entirely
+offline, nothing is uploaded anywhere:
+
+```
+pip install -r requirements-transcribe.txt
+python scripts/transcribe_memos.py ./stories --language fr --model small
+```
+
+Its dependencies are intentionally kept out of `requirements.txt` and are
+never imported by the app itself — this is a tool you run occasionally
+from a laptop against the stories folder (or a copy of it; the resulting
+`.txt` sidecars can be copied back), not something the server needs. The
+first run downloads a model (hundreds of MB), so expect it to take a
+while the first time.
+
 ### Age at each memory
 
 Set `STORYBOOK_BIRTHDATE` to the child's birth date and every story and

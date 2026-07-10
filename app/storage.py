@@ -28,11 +28,13 @@ logger = logging.getLogger(__name__)
 STORY_ID_RE = re.compile(r"^[a-z0-9-]+$")
 FILENAME_RE = re.compile(r"^[a-z0-9._-]+$")
 VERSION_ID_RE = re.compile(r"^\d{8}T\d{6}\d{6}$")
+MEMO_RE = re.compile(r"^memo-(\d{3})\.(webm|m4a|mp3|ogg)$")
 
 MAX_IMAGE_EDGE = 2000
 JPEG_QUALITY = 85
 VERSIONS_DIRNAME = ".versions"
 MAX_VERSIONS = 20
+MEMO_ALLOWED_EXTENSIONS = ("webm", "m4a", "mp3", "ogg")
 
 
 class InvalidStoryId(ValueError):
@@ -55,6 +57,12 @@ class ImportCollision(ValueError):
         self.colliding_ids = colliding_ids
         noun = "story" if len(colliding_ids) == 1 else "stories"
         super().__init__(f"{len(colliding_ids)} {noun} already exist: {', '.join(colliding_ids)}")
+
+
+@dataclass
+class Memo:
+    filename: str
+    transcript: Optional[str] = None
 
 
 @dataclass
@@ -427,6 +435,81 @@ def save_image(stories_dir, story_id: str, file_storage) -> str:
         image.save(story_path / filename, format="JPEG", quality=JPEG_QUALITY)
 
     return filename
+
+
+def _next_memo_number(story_path: Path) -> int:
+    max_n = 0
+    for f in story_path.glob("memo-*"):
+        m = MEMO_RE.match(f.name)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return max_n + 1
+
+
+def list_memos(story_dir) -> list["Memo"]:
+    """Voice memos in a story folder, sorted by filename (FEATURES.md F12).
+
+    No frontmatter involved — memos are discovered purely from filenames
+    matching `memo-NNN.<ext>`. An optional same-stem `.txt` sidecar is read
+    as the transcript; the app only ever reads sidecars, never writes them.
+    """
+    story_dir = Path(story_dir)
+    memos = []
+    if not story_dir.is_dir():
+        return memos
+    for f in sorted(story_dir.iterdir()):
+        if not f.is_file() or not MEMO_RE.match(f.name):
+            continue
+        sidecar = f.with_suffix(".txt")
+        transcript = None
+        if sidecar.is_file():
+            try:
+                transcript = sidecar.read_text(encoding="utf-8").strip() or None
+            except OSError:
+                transcript = None
+        memos.append(Memo(filename=f.name, transcript=transcript))
+    return memos
+
+
+def save_memo(stories_dir, story_id: str, file_storage) -> str:
+    """Store an uploaded voice memo as the next memo-NNN.<ext> in the story
+    folder. The extension is taken from the uploaded filename (the recorder
+    names its blob after its own mimetype) and must be one of
+    MEMO_ALLOWED_EXTENSIONS, else ValueError.
+    """
+    story_path = _story_dir(stories_dir, story_id)
+    if not story_path.is_dir():
+        raise FileNotFoundError(story_id)
+
+    original = file_storage.filename or ""
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    if ext not in MEMO_ALLOWED_EXTENSIONS:
+        raise ValueError("Unsupported audio format.")
+
+    number = _next_memo_number(story_path)
+    filename = f"memo-{number:03d}.{ext}"
+    file_storage.save(story_path / filename)
+    return filename
+
+
+def delete_memo(stories_dir, story_id: str, filename: str) -> bool:
+    """Remove a voice memo and its transcript sidecar if present.
+
+    Returns False (caller should 404) when the filename doesn't match the
+    memo pattern or doesn't exist on disk. This is the one deletion the app
+    supports, and it stays memo-scoped.
+    """
+    story_path = _story_dir(stories_dir, story_id)
+    if not MEMO_RE.match(filename):
+        return False
+    memo_path = story_path / filename
+    if not memo_path.is_file():
+        return False
+    memo_path.unlink()
+    sidecar = memo_path.with_suffix(".txt")
+    if sidecar.is_file():
+        sidecar.unlink()
+    return True
 
 
 def import_backup(stories_dir, zip_file) -> int:
