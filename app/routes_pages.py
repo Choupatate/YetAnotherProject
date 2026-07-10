@@ -16,7 +16,7 @@ from flask import (
     url_for,
 )
 
-from . import epub, storage
+from . import epub, prompts, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -270,7 +270,12 @@ def story_media(story_id, filename):
 @login_required
 def new_story():
     authors = current_app.config.get("AUTHORS") or []
-    return render_template("editor.html", story=None, today=date.today(), authors=authors)
+    prompt_list = prompts.load_prompts(current_app.config["STORIES_DIR"])
+    initial_prompt = random.choice(prompt_list) if prompt_list else None
+    return render_template(
+        "editor.html", story=None, today=date.today(), authors=authors,
+        prompts=prompt_list, initial_prompt=initial_prompt,
+    )
 
 
 @bp.route("/new-instant")

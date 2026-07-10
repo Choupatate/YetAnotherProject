@@ -49,6 +49,23 @@
     markDirty();
   });
 
+  // --- Writing prompt cycling (F16) — never inserted into the story itself.
+  var promptTextEl = document.getElementById("editor-prompt-text");
+  var promptCycleBtn = document.getElementById("editor-prompt-cycle");
+  var promptsDataEl = document.getElementById("editor-prompts-data");
+  if (promptCycleBtn && promptsDataEl) {
+    var allPrompts = JSON.parse(promptsDataEl.textContent);
+    var remainingPrompts = allPrompts.filter(function (p) {
+      return p !== promptTextEl.textContent;
+    });
+    promptCycleBtn.addEventListener("click", function () {
+      if (!remainingPrompts.length) remainingPrompts = allPrompts.slice();
+      var index = Math.floor(Math.random() * remainingPrompts.length);
+      promptTextEl.textContent = remainingPrompts[index];
+      remainingPrompts.splice(index, 1);
+    });
+  }
+
   function isDarkTheme() {
     var attr = document.documentElement.getAttribute("data-theme");
     if (attr) return attr === "dark";

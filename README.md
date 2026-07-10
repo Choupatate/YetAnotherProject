@@ -203,6 +203,18 @@ letters, and instants are never picked (page-turning is for real stories).
 The story-page link excludes the page you're already on, so tapping it
 repeatedly always moves somewhere new.
 
+### Writing prompts
+
+A new story starts with a quiet idea to answer or ignore: a small italic
+line above the editor ("Qu'est-ce qui t'a fait rire aux éclats cette
+semaine ?" and 55 others in the same spirit), with a &#8635; button next to
+it for another one. It only appears before a story's first save — editing
+an existing story never shows it — and it is never inserted into the text
+itself, it's just there for inspiration. To use your own list instead of
+the shipped one, drop a `prompts.txt` file in the stories folder, one
+prompt per line (blank lines and `#`-prefixed comments are ignored); it
+replaces the default list entirely rather than adding to it.
+
 ### Finding a story
 
 A search box above the timeline filters entries by title (and author) as

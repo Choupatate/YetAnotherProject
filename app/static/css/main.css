@@ -1187,6 +1187,34 @@ mark {
   font-size: 0.875rem;
 }
 
+.editor__prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 0.9375rem;
+  color: var(--color-text-dim);
+}
+
+.editor__prompt-cycle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--color-text-dim);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.editor__prompt-cycle:hover {
+  color: var(--color-accent);
+}
+
 .editor__recovery-text {
   margin: 0;
 }
