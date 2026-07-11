@@ -266,3 +266,127 @@ Record button. Definition of done: on a fresh /edit page, computed display
 is `none` for `#editor-recovery`, `#voice-pause-btn`, `#voice-stop-btn`;
 recording still reveals pause/stop/timer; a genuinely stored autosave still
 shows the banner with a real timestamp; bare pytest green.
+
+# UI audit round 4 — 2026-07-11, polish batch (R4.1–R4.8)
+
+Full UI audit on real Chromium: every page at 390×844 (mobile emulation),
+key pages at 1280px, all three themes, empty states against a fresh stories
+dir, programmatic checks (tap targets, horizontal overflow, focus, alt
+text, error paths). What needs no work: dark-theme contrast (the "washed
+out" look is only the scroll fade-in mid-animation; with reduced motion
+everything is crisp), focus outlines, empty-state copy, failed-login flash,
+sealed page, arrow-key page turning, lightbox close mechanics (tap, Escape,
+back button), Drafts/Archived links appearing only when non-empty, the
+instant page's Save button correctly disabling during upload.
+
+Batch rules, same as ever: no new dependencies, no new storage formats, no
+external requests, bare pytest green before each commit. Recommended order:
+R4.1 → R4.2 → R4.3 → R4.4 → R4.6 → R4.8 → R4.5 → R4.7 (cheap and
+high-value first). Do R3.1 and R3.2 (above) before starting this batch —
+R4.4 in particular touches the same nav/footer areas as R3.1.
+
+## R4.1 Inputs under 16px trigger iOS Safari auto-zoom
+
+`#timeline-search` computes to 15px and the date/seal `<input type=date>`
+fields to 13.33px. On iOS, focusing any input below 16px zooms the page and
+leaves it zoomed. Give every input, textarea, and select an effective
+font-size ≥ 16px (1rem) — a single shared rule is fine; adjust padding so
+the search bar and date fields don't grow visually out of proportion.
+Definition of done: on /, /new, /new-instant, /new-person, /import and
+/login, every focusable text/date/file input computes to ≥ 16px font-size
+at a 390px viewport.
+
+## R4.2 Story editor Save has no in-flight state (double-tap creates duplicates)
+
+`editor.js` never disables `#save-story` while the create/update request is
+in flight, so a double-tap on a slow connection sends two POSTs and creates
+the story twice (slug gets `-2`). Errors surface as `window.alert()`. Fix
+exactly like instant.js already does: on submit, disable the button and set
+its label to "Saving…"; on success keep it disabled through the redirect;
+on failure re-enable, restore the label, and show the error as an inline
+message near the save bar (same pattern as the voice recorder's
+`#voice-message`) instead of `window.alert`. Apply to both the story editor
+and the person editor (same file). Also replace the two other
+`window.alert(error.message)` calls in editor.js (image upload, version
+restore) with the same inline message element. Definition of done: with the
+server stopped, tapping Save shows an inline error and the button
+re-enables; rapid double-click on Save of a new story creates exactly one
+story folder; pytest green.
+
+## R4.3 No way to log out
+
+`POST /logout` exists in auth.py but nothing in any template points to it.
+Add a "Log out" control in the timeline footer, next to the existing
+utility links, rendered as a small inline form (`<form method="post"
+action="/logout">` with a link-styled button — it must stay a POST; do not
+add a GET route). Only show it when authed. Definition of done: logging out
+from the timeline footer returns you to the login page; the control meets
+the 44px tap-target rule of R4.4; no logout link appears on the login page.
+
+## R4.4 Tap targets below 44px
+
+Measured at 390px: the timeline footer links ("Open a page at random",
+"Read as a book", "Download as PDF/EPUB", "Download everything", "Import a
+backup") are ~15px tall; "Drafts (1)" ~15px; "Jump to the latest" ~20px;
+"‹ Timeline" / "‹ Back to editor" ~19px; the story page "Edit" is 27px
+wide; "View history" ~15px tall. Bring every interactive element to an
+effective ≥ 44×44px hit area using padding (negative margin where needed to
+keep visual size), not font-size increases. The visual design should not
+noticeably change. Definition of done: re-run of a bounding-box sweep at
+390px finds no anchor or button under 40px in either dimension on /,
+story, editor, people, person, drafts, archived, history, import (the
+Toast UI toolbar's internal 32px buttons are vendor UI and exempt).
+
+## R4.5 Instant photo picker: bare native control, no preview
+
+/new-instant uses the default "Choose File" control (~90×30px, unstyled)
+and after choosing there is no visual confirmation. Style the photo input
+as a large tappable area (full content width, generous height, dashed
+border, "Add a photo" label with the design's muted style) that, once a
+file is chosen, shows a client-side thumbnail preview (`URL.createObjectURL`
+into an `<img>`, revoke on change) inside the same area. Keep the native
+`<input type=file accept="image/*">` as the underlying control (label-wrap
+or visually-hidden input + label) so the OS photo picker still opens; no
+`capture` attribute, per F13. Give /import's file input the same styled
+treatment (no preview needed — show the chosen filename). Definition of
+done: on /new-instant, tapping the area opens the picker, the chosen photo
+previews before saving, and save still works end to end; /import shows the
+chosen zip's name; both inputs meet R4.1's 16px and R4.4's 44px rules.
+
+## R4.6 Lightbox has no visible close affordance
+
+Tap-anywhere, Escape, and the back button all close it, but nothing says
+so. Add a small "×" button pinned to the overlay's top-right corner
+(`aria-label="Close"`, ≥ 44px hit area, same muted style as the theme
+toggle) that calls the existing close path. Keep all current close
+mechanics. Definition of done: the × is visible on an opened lightbox in
+all three themes and closes it; Escape/tap/back still work; focus returns
+to the tapped image.
+
+## R4.7 Desktop timeline titles have a ragged left edge
+
+At desktop widths the meta line (date · author · age) renders inline before
+the title, so every title starts at a different x position and vertical
+scanning suffers. Use the same stacked layout as mobile (meta on its own
+line above the title) at all widths, or align titles to a fixed column —
+whichever reads better with the existing minimap; keep R2.1's mobile fix
+intact. Definition of done: at 1280px, all story titles on the timeline
+start at the same x coordinate; no regression of R2.1/R2.2 at 390px.
+
+## R4.8 Address-bar color doesn't follow the chosen theme
+
+The two `theme-color` meta tags key off `prefers-color-scheme`, so after
+picking a theme with the toggle the browser chrome can clash (e.g. OS dark
++ manuscript theme shows a dark address bar over a cream page). In
+theme.js, when applying a theme (on load and on toggle), set a single
+`meta[name=theme-color]`'s content to that theme's background color
+(read it from the computed `--color-bg` custom property after applying
+`data-theme`, or hardcode the three values next to the THEMES list).
+Definition of done: cycling the toggle updates the meta tag's content to
+match each theme's background; with no stored theme the OS-scheme defaults
+still apply.
+
+Definition of done for the batch: all of R4.1–R4.8 plus R3.1–R3.2 fixed;
+zero external requests re-verified; bare pytest green; a fresh 390px pass
+shows no horizontal scroll on any page and no interactive element under
+44px effective hit area outside vendor editor UI.
