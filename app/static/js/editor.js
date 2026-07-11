@@ -8,6 +8,14 @@
   var root = document.getElementById("editor-root");
   var sourceTextarea = document.getElementById("markdown-source");
   var saveButton = document.getElementById("save-story");
+  var saveMessageEl = document.getElementById("editor-save-message");
+  var saveButtonDefaultLabel = saveButton.textContent;
+
+  function showSaveMessage(text) {
+    if (!saveMessageEl) return;
+    saveMessageEl.textContent = text || "";
+    saveMessageEl.hidden = !text;
+  }
 
   var storyId = form.dataset.storyId || null;
   var dirty = false;
@@ -361,7 +369,7 @@
               callback(filename, "");
             })
             .catch(function (error) {
-              window.alert(error.message);
+              showSaveMessage(error.message);
             });
         },
       },
@@ -482,7 +490,7 @@
           markDirty();
         })
         .catch(function (error) {
-          window.alert(error.message);
+          showSaveMessage(error.message);
           imageInput.value = "";
         });
     });
@@ -612,12 +620,16 @@
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
+    if (saveButton.disabled) return;
     var title = titleInput.value.trim();
     var storyDate = dateInput ? dateInput.value : "";
     if (!title) {
       titleInput.focus();
       return;
     }
+    showSaveMessage("");
+    saveButton.disabled = true;
+    saveButton.textContent = "Saving…";
     var markdown = editor.getMarkdown();
     var payload = {
       title: title,
@@ -654,7 +666,9 @@
         window.location.href = fillUrlTemplate(redirectTemplate, data.id);
       })
       .catch(function (error) {
-        window.alert(
+        saveButton.disabled = false;
+        saveButton.textContent = saveButtonDefaultLabel;
+        showSaveMessage(
           (error && error.message) ||
             "Could not save your story. Please check your connection and try again."
         );

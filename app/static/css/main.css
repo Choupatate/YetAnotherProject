@@ -1628,15 +1628,31 @@ mark {
   width: 100%;
 }
 
+.editor__save-message {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-error);
+}
+
 @media (min-width: 40rem) {
   .editor__save-bar {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
+    gap: 0 1rem;
   }
 
   .editor__save {
     width: auto;
     padding: 0 2rem;
+  }
+
+  .editor__save-message {
+    margin: 0;
+    flex-basis: 100%;
+    text-align: right;
   }
 }
 
