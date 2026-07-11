@@ -595,17 +595,18 @@ mark {
 /* R2.1 (REVIEW.md live review round 2): below ~480px the meta line
    (date · author · age) plus a thumbnail can crush the title into a
    one-word-per-line column. Stack the entry — meta, then title at full
-   width, then the thumbnail — so the title always gets the reading width. */
-@media (max-width: 30rem) {
-  .timeline__link {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-  }
+   width, then the thumbnail — so the title always gets the reading width.
+   R4.7 (round 4): applying this at every width, not just below 480px, also
+   fixes desktop's ragged left edge, since every title now starts at the
+   same x position instead of trailing a variable-length meta line. */
+.timeline__link {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
 
-  .timeline__title {
-    width: 100%;
-  }
+.timeline__title {
+  width: 100%;
 }
 
 .minimap {
