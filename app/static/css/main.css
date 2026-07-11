@@ -647,6 +647,24 @@ mark {
   color: var(--color-text-dim);
 }
 
+.timeline__logout-form {
+  display: inline;
+}
+
+.timeline__logout-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.25rem;
+  border: none;
+  background: none;
+  color: var(--color-text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Drafts / Archived pages (identical layout, separate templates)          */
 /* ---------------------------------------------------------------------- */

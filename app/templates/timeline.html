@@ -91,7 +91,7 @@
   <a class="minimap__tick" href="#year-{{ year }}" data-year="{{ year }}">{{ year }}</a>
   {% endfor %}
 </nav>
-<p class="timeline__footer-links">
+<div class="timeline__footer-links">
   <a href="{{ url_for('pages.random_page') }}">Open a page at random</a>
   &middot;
   <a href="{{ url_for('pages.book') }}">Read as a book</a>
@@ -103,7 +103,11 @@
   <a href="{{ url_for('pages.export') }}">Download everything (.zip)</a>
   &middot;
   <a href="{{ url_for('pages.import_page') }}">Import a backup</a>
-</p>
+  &middot;
+  <form class="timeline__logout-form" method="post" action="{{ url_for('auth.logout') }}">
+    <button type="submit" class="timeline__logout-button">Log out</button>
+  </form>
+</div>
 {% endif %}
 {% endblock %}
 {% block scripts %}
