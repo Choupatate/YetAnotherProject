@@ -1207,6 +1207,21 @@ mark {
   }
 }
 
+.lightbox__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(232, 226, 217, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2ede4;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .lightbox__image {
   max-width: 100%;
   max-height: 85vh;
