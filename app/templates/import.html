@@ -11,7 +11,10 @@
     anything would collide, nothing is changed and you'll see an error below.
   </p>
   <form id="import-form" class="import__form">
-    <input type="file" id="import-file" name="file" accept=".zip,application/zip" required>
+    <label class="import__file-picker" id="import-file-picker" for="import-file">
+      <span class="import__file-label" id="import-file-label">Choose a backup .zip</span>
+      <input type="file" id="import-file" name="file" class="import__file" accept=".zip,application/zip" required>
+    </label>
     <button type="submit" class="btn btn--primary">Import</button>
   </form>
   <p class="import__result" id="import-result" hidden></p>
