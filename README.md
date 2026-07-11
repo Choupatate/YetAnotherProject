@@ -117,6 +117,73 @@ to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.
 
+### Instants — a lighter way to capture
+
+"+ Instant" (next to "+ New story") is a deliberately tiny capture form: one
+photo, one optional line, done in about fifteen seconds on a phone. Instants
+render as compact, quieter entries on the timeline (small thumbnail, no
+title styling) and as small captioned figures in `/book` — interludes, not
+chapters — while a full story page (and the full editor, for touch-ups)
+still works normally at their direct URL. They're just a story with one
+extra frontmatter key (`kind: instant`); nothing new to back up.
+
+### People — the cast of the book
+
+"People" in the nav (always visible, whether or not you've added anyone
+yet) is a small cast page: a portrait, a name, and how they relate to the
+child — "your grandmother", "your godfather" — with a free-text page of
+their own for a longer bio, in the same editor as stories. The grid on
+`/people` shows everyone in the order they were added, each as a square
+portrait (or a plain initial when there's no photo yet).
+
+People live in `stories/people/<slug>/` — still inside the one stories
+folder, still one backup. Stories link to a person by hand with an
+ordinary Markdown link (`[Mamie](/people/mamie)`); there's no
+auto-linking or `@mention` syntax, so a name in a story stays plain text
+unless you deliberately link it. People don't show up on the timeline or
+in `/book` — this is a reference page, not another kind of memory — and,
+like stories, there's no way to delete one once added.
+
+### Voice memos
+
+A "Voice" section on the story editor lets you record directly in the
+browser — record, pause/resume, stop — with no length limit; recordings
+upload as soon as you stop and appear in the list right away, each with
+its own delete button (the one deletion this app supports, undoable only
+by re-recording). On the story page, a "Listen" section plays back every
+memo in order. Files are ordinary `memo-001.webm`/`memo-002.m4a`/... in
+the story folder, same numbering scheme as photos.
+
+**Microphone capture only works in a secure context** — HTTPS, or
+`localhost`. Over plain LAN HTTP the record button simply won't appear
+(playback still works everywhere), so if you're running Storybook on your
+home network rather than on the same machine as the browser, put a
+reverse proxy with a certificate in front of it to use this feature.
+
+Drop a plain-text file named after a memo with a `.txt` extension next to
+it (e.g. `memo-001.txt`) and its contents show up as a "Transcript" under
+that recording — the app never writes these itself, so anyone can type
+one by hand, or generate them offline:
+
+#### Offline transcription
+
+`scripts/transcribe_memos.py` walks a stories folder, finds memos that
+don't have a transcript yet, and writes one using
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) — entirely
+offline, nothing is uploaded anywhere:
+
+```
+pip install -r requirements-transcribe.txt
+python scripts/transcribe_memos.py ./stories --language fr --model small
+```
+
+Its dependencies are intentionally kept out of `requirements.txt` and are
+never imported by the app itself — this is a tool you run occasionally
+from a laptop against the stories folder (or a copy of it; the resulting
+`.txt` sidecars can be copied back), not something the server needs. The
+first run downloads a model (hundreds of MB), so expect it to take a
+while the first time.
+
 ### Age at each memory
 
 Set `STORYBOOK_BIRTHDATE` to the child's birth date and every story and
@@ -184,6 +251,26 @@ before your first manual save, reopening that story (or `/new`, for a story
 you never got to save at all) shows a small banner offering to restore it.
 This never touches the server or other devices — it's purely a per-browser
 safety net for the gap between typing and clicking Save.
+
+### Opening a page at random
+
+"Open a page at random" on the timeline, and "At random" on every story
+page's footer, jump to a uniformly random readable story — drafts, sealed
+letters, and instants are never picked (page-turning is for real stories).
+The story-page link excludes the page you're already on, so tapping it
+repeatedly always moves somewhere new.
+
+### Writing prompts
+
+A new story starts with a quiet idea to answer or ignore: a small italic
+line above the editor ("Qu'est-ce qui t'a fait rire aux éclats cette
+semaine ?" and 55 others in the same spirit), with a &#8635; button next to
+it for another one. It only appears before a story's first save — editing
+an existing story never shows it — and it is never inserted into the text
+itself, it's just there for inspiration. To use your own list instead of
+the shipped one, drop a `prompts.txt` file in the stories folder, one
+prompt per line (blank lines and `#`-prefixed comments are ignored); it
+replaces the default list entirely rather than adding to it.
 
 ### Finding a story
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
-MAX_CONTENT_LENGTH = 32 * 1024 * 1024
+MAX_CONTENT_LENGTH = 128 * 1024 * 1024
 
 _HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
@@ -108,7 +108,7 @@ def create_app(test_config=None):
     @app.errorhandler(413)
     def too_large(error):
         if request.path.startswith("/api/"):
-            return jsonify({"error": "File too large (max 32 MB)."}), 413
+            return jsonify({"error": "File too large (max 128 MB)."}), 413
         return render_template("404.html"), 413
 
     return app

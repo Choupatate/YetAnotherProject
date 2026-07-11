@@ -8,17 +8,36 @@
 {% block content %}
 <article class="story"{% if author_color %} style="--author-color: {{ author_color }}"{% endif %}>
   {% include "_story_article.html" %}
+  {% if memos %}
+  <section class="story__listen" aria-labelledby="story-listen-heading">
+    <h2 class="story__listen-heading" id="story-listen-heading">Listen</h2>
+    {% for memo in memos %}
+    <div class="story__memo">
+      <audio controls preload="none" src="{{ url_for('pages.story_media', story_id=story.id, filename=memo.filename) }}"></audio>
+      {% if memo.transcript %}
+      <details class="story__transcript">
+        <summary>Transcript</summary>
+        {% for paragraph in memo.transcript.split('\n\n') %}
+        {% if paragraph.strip() %}
+        <p>{{ paragraph.strip() }}</p>
+        {% endif %}
+        {% endfor %}
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
   <footer class="story__footer">
-    {% if prev_story or next_story %}
     <nav class="story__pagenav" aria-label="Story navigation">
       {% if prev_story %}
       <a class="story__prev" href="{{ url_for('pages.story', story_id=prev_story.id) }}">&lsaquo; {{ prev_story.title|truncate(40, True, '…') }}</a>
       {% endif %}
+      <a class="story__random" href="{{ url_for('pages.random_page', **{'not': story.id}) }}">At random</a>
       {% if next_story %}
       <a class="story__next" href="{{ url_for('pages.story', story_id=next_story.id) }}">{{ next_story.title|truncate(40, True, '…') }} &rsaquo;</a>
       {% endif %}
     </nav>
-    {% endif %}
     <div class="story__navrow">
       <a class="story__back" href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a>
       {% if session.get('authed') %}

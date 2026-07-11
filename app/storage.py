@@ -28,11 +28,13 @@ logger = logging.getLogger(__name__)
 STORY_ID_RE = re.compile(r"^[a-z0-9-]+$")
 FILENAME_RE = re.compile(r"^[a-z0-9._-]+$")
 VERSION_ID_RE = re.compile(r"^\d{8}T\d{6}\d{6}$")
+MEMO_RE = re.compile(r"^memo-(\d{3})\.(webm|m4a|mp3|ogg)$")
 
 MAX_IMAGE_EDGE = 2000
 JPEG_QUALITY = 85
 VERSIONS_DIRNAME = ".versions"
 MAX_VERSIONS = 20
+MEMO_ALLOWED_EXTENSIONS = ("webm", "m4a", "mp3", "ogg")
 
 
 class InvalidStoryId(ValueError):
@@ -58,6 +60,12 @@ class ImportCollision(ValueError):
 
 
 @dataclass
+class Memo:
+    filename: str
+    transcript: Optional[str] = None
+
+
+@dataclass
 class Story:
     id: str
     title: str
@@ -69,6 +77,7 @@ class Story:
     draft: bool = False
     unlock: Optional[date_cls] = None
     archived: bool = False
+    kind: str = "story"
     body: Optional[str] = None
 
 
@@ -123,6 +132,7 @@ def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> St
         draft=metadata.get("draft") is True,
         unlock=_parse_unlock(metadata.get("unlock")),
         archived=metadata.get("archived") is True,
+        kind="instant" if metadata.get("kind") == "instant" else "story",
         body=post.content if include_body else None,
     )
 
@@ -156,6 +166,10 @@ def list_stories(stories_dir) -> list[Story]:
 
     for entry in stories_dir.iterdir():
         if not entry.is_dir():
+            continue
+        if entry.name == "people":
+            # FEATURES.md F14: people live in their own subtree, sorted
+            # separately via app/people.py — silently not a story.
             continue
         if not is_valid_story_id(entry.name):
             continue
@@ -236,7 +250,8 @@ def get_story(stories_dir, story_id: str) -> Optional[Story]:
 def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
                   created: datetime, updated: datetime, cover: Optional[str], body: str,
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None, archived: bool = False) -> None:
+                  unlock: Optional[date_cls] = None, archived: bool = False,
+                  kind: str = "story") -> None:
     post = frontmatter.Post(body)
     post["title"] = title
     post["date"] = story_date.isoformat()
@@ -252,6 +267,8 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
         post["unlock"] = unlock.isoformat()
     if archived:
         post["archived"] = True
+    if kind == "instant":
+        post["kind"] = "instant"
     index_path = Path(stories_dir) / story_id / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -260,10 +277,12 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
 
 def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
                   author: Optional[str] = None, draft: bool = False,
-                  unlock: Optional[date_cls] = None, archived: bool = False) -> str:
+                  unlock: Optional[date_cls] = None, archived: bool = False,
+                  kind: str = "story") -> str:
     """Create a new story folder, returning its story_id (the folder name).
 
-    On slug collision, append -2, -3, ... to the slug.
+    On slug collision, append -2, -3, ... to the slug. `kind` is set once
+    here and never changes afterwards (see save_story).
     """
     stories_dir = Path(stories_dir)
     slug = slugify(title)
@@ -278,7 +297,7 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
     story_path.mkdir(parents=True)
     now = datetime.now()
     _write_index(stories_dir, story_id, title, story_date, now, now, None, body, author=author,
-                 draft=draft, unlock=unlock, archived=archived)
+                 draft=draft, unlock=unlock, archived=archived, kind=kind)
     return story_id
 
 
@@ -292,9 +311,11 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     the field (frontmatter key is omitted for falsy values). `draft`/`unlock`/
     `archived` are always set wholesale from the given value (their editor
     controls are always present on the form, so there is nothing to "leave
-    unchanged"). The content about to be overwritten is snapshotted into
-    `.versions/` first (see `list_versions`/`restore_version`), so an
-    accidental bad edit or overwrite is never unrecoverable.
+    unchanged"). `kind` is not a parameter here at all — it is set once at
+    creation and always carried over from the existing story. The content
+    about to be overwritten is snapshotted into `.versions/` first (see
+    `list_versions`/`restore_version`), so an accidental bad edit or
+    overwrite is never unrecoverable.
     """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
@@ -308,7 +329,8 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
     if author is None:
         author = existing.author
     _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
-                 author=author, draft=draft, unlock=unlock, archived=archived)
+                 author=author, draft=draft, unlock=unlock, archived=archived,
+                 kind=existing.kind)
 
 
 def _versions_dir(stories_dir, story_id: str) -> Path:
@@ -384,39 +406,120 @@ def restore_version(stories_dir, story_id: str, version_id: str) -> None:
     )
 
 
-def _next_photo_number(story_path: Path) -> int:
+def _next_photo_number(dir_path: Path) -> int:
     max_n = 0
-    for f in story_path.glob("photo-*"):
+    for f in dir_path.glob("photo-*"):
         m = re.match(r"photo-(\d+)\.", f.name)
         if m:
             max_n = max(max_n, int(m.group(1)))
     return max_n + 1
 
 
-def save_image(stories_dir, story_id: str, file_storage) -> str:
-    """Re-encode an uploaded image with Pillow and store it in the story folder.
+def save_image_to(dir_path: Path, file_storage) -> str:
+    """Re-encode an uploaded image with Pillow and store it in `dir_path`.
 
-    Returns the new filename (photo-NNN.<ext>). Never deletes existing images.
+    Returns the new filename (photo-NNN.<ext>). Never deletes existing
+    images. Shared by stories and people (FEATURES.md F14) so resize/EXIF/
+    naming behavior is identical either way.
+    """
+    image = Image.open(file_storage.stream)
+    is_png = (image.format or "").upper() == "PNG"
+    image = ImageOps.exif_transpose(image)
+    number = _next_photo_number(dir_path)
+    image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
+
+    if is_png:
+        filename = f"photo-{number:03d}.png"
+        image.save(dir_path / filename, format="PNG")
+    else:
+        filename = f"photo-{number:03d}.jpg"
+        image = image.convert("RGB")
+        image.save(dir_path / filename, format="JPEG", quality=JPEG_QUALITY)
+
+    return filename
+
+
+def save_image(stories_dir, story_id: str, file_storage) -> str:
+    """Re-encode an uploaded image and store it in a story's folder."""
+    story_path = _story_dir(stories_dir, story_id)
+    if not story_path.is_dir():
+        raise FileNotFoundError(story_id)
+    return save_image_to(story_path, file_storage)
+
+
+def _next_memo_number(story_path: Path) -> int:
+    max_n = 0
+    for f in story_path.glob("memo-*"):
+        m = MEMO_RE.match(f.name)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return max_n + 1
+
+
+def list_memos(story_dir) -> list["Memo"]:
+    """Voice memos in a story folder, sorted by filename (FEATURES.md F12).
+
+    No frontmatter involved — memos are discovered purely from filenames
+    matching `memo-NNN.<ext>`. An optional same-stem `.txt` sidecar is read
+    as the transcript; the app only ever reads sidecars, never writes them.
+    """
+    story_dir = Path(story_dir)
+    memos = []
+    if not story_dir.is_dir():
+        return memos
+    for f in sorted(story_dir.iterdir()):
+        if not f.is_file() or not MEMO_RE.match(f.name):
+            continue
+        sidecar = f.with_suffix(".txt")
+        transcript = None
+        if sidecar.is_file():
+            try:
+                transcript = sidecar.read_text(encoding="utf-8").strip() or None
+            except OSError:
+                transcript = None
+        memos.append(Memo(filename=f.name, transcript=transcript))
+    return memos
+
+
+def save_memo(stories_dir, story_id: str, file_storage) -> str:
+    """Store an uploaded voice memo as the next memo-NNN.<ext> in the story
+    folder. The extension is taken from the uploaded filename (the recorder
+    names its blob after its own mimetype) and must be one of
+    MEMO_ALLOWED_EXTENSIONS, else ValueError.
     """
     story_path = _story_dir(stories_dir, story_id)
     if not story_path.is_dir():
         raise FileNotFoundError(story_id)
 
-    image = Image.open(file_storage.stream)
-    is_png = (image.format or "").upper() == "PNG"
-    image = ImageOps.exif_transpose(image)
-    number = _next_photo_number(story_path)
-    image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
+    original = file_storage.filename or ""
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    if ext not in MEMO_ALLOWED_EXTENSIONS:
+        raise ValueError("Unsupported audio format.")
 
-    if is_png:
-        filename = f"photo-{number:03d}.png"
-        image.save(story_path / filename, format="PNG")
-    else:
-        filename = f"photo-{number:03d}.jpg"
-        image = image.convert("RGB")
-        image.save(story_path / filename, format="JPEG", quality=JPEG_QUALITY)
-
+    number = _next_memo_number(story_path)
+    filename = f"memo-{number:03d}.{ext}"
+    file_storage.save(story_path / filename)
     return filename
+
+
+def delete_memo(stories_dir, story_id: str, filename: str) -> bool:
+    """Remove a voice memo and its transcript sidecar if present.
+
+    Returns False (caller should 404) when the filename doesn't match the
+    memo pattern or doesn't exist on disk. This is the one deletion the app
+    supports, and it stays memo-scoped.
+    """
+    story_path = _story_dir(stories_dir, story_id)
+    if not MEMO_RE.match(filename):
+        return False
+    memo_path = story_path / filename
+    if not memo_path.is_file():
+        return False
+    memo_path.unlink()
+    sidecar = memo_path.with_suffix(".txt")
+    if sidecar.is_file():
+        sidecar.unlink()
+    return True
 
 
 def import_backup(stories_dir, zip_file) -> int:

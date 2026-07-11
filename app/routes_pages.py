@@ -1,3 +1,4 @@
+import random
 import tempfile
 import zipfile
 from datetime import date, datetime
@@ -7,13 +8,15 @@ from flask import (
     abort,
     current_app,
     jsonify,
+    redirect,
     render_template,
+    request,
     send_file,
     send_from_directory,
     url_for,
 )
 
-from . import epub, storage
+from . import epub, people, prompts, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -45,6 +48,26 @@ def timeline():
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
     )
+
+
+@bp.route("/random")
+@login_required
+def random_page():
+    """Open a random readable story (FEATURES.md F15). Drafts, sealed
+    letters, and instants (page-turning is for stories) are never chosen;
+    `?not=<id>` excludes one story id (e.g. the one you're already on)."""
+    stories_dir = current_app.config["STORIES_DIR"]
+    candidates = [
+        s for s in storage.readable_stories(storage.list_stories(stories_dir))
+        if s.kind == "story"
+    ]
+    exclude_id = request.args.get("not")
+    if exclude_id:
+        candidates = [s for s in candidates if s.id != exclude_id]
+    if not candidates:
+        return redirect(url_for("pages.timeline"))
+    choice = random.choice(candidates)
+    return redirect(url_for("pages.story", story_id=choice.id))
 
 
 @bp.route("/manifest.webmanifest")
@@ -88,7 +111,7 @@ def book():
     entries = []
     for s in readable:
         full = storage.get_story(stories_dir, s.id)
-        body_html = render_markdown(full.body, full.id)
+        body_html = render_markdown(full.body, f"/story/{full.id}/media")
         author_color = author_colors.get(full.author) if (authors and full.author) else None
         entries.append({"story": full, "body_html": body_html, "author_color": author_color})
     return render_template(
@@ -112,7 +135,7 @@ def book_epub():
     entries = []
     for s in readable:
         full = storage.get_story(stories_dir, s.id)
-        body_html = render_markdown(full.body, full.id)
+        body_html = render_markdown(full.body, f"/story/{full.id}/media")
         entries.append({"story": full, "body_html": body_html})
 
     def image_loader(story_id, filename):
@@ -193,22 +216,28 @@ def story(story_id):
     author_color = author_colors.get(s.author) if (authors and s.author) else None
     if storage.is_sealed(s):
         return render_template("sealed.html", story=s, author_color=author_color)
-    body_html = render_markdown(s.body, story_id)
+    body_html = render_markdown(s.body, f"/story/{story_id}/media")
     prev_story, next_story = _reading_order_neighbors(current_app.config["STORIES_DIR"], s)
+    memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
     return render_template(
         "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color,
-        prev_story=prev_story, next_story=next_story,
+        prev_story=prev_story, next_story=next_story, memos=memos,
         birthdate=current_app.config.get("BIRTHDATE"),
     )
 
 
 def _reading_order_neighbors(stories_dir, current):
     """Previous/next readable story either side of `current` (F2). None/None
-    when `current` isn't itself readable (e.g. a draft or archived) or at
-    either end."""
-    if current.draft or current.archived:
+    when `current` isn't itself readable (e.g. a draft, archived, or an
+    instant) or at either end. Instants are also skipped as candidate
+    neighbors for a real story (FEATURES.md F13: page-turning is for
+    stories)."""
+    if current.draft or current.archived or current.kind != "story":
         return None, None
-    readable = storage.readable_stories(storage.list_stories(stories_dir))
+    readable = [
+        s for s in storage.readable_stories(storage.list_stories(stories_dir))
+        if s.kind == "story"
+    ]
     for i, r in enumerate(readable):
         if r.id == current.id:
             prev_story = readable[i - 1] if i > 0 else None
@@ -242,7 +271,19 @@ def story_media(story_id, filename):
 @login_required
 def new_story():
     authors = current_app.config.get("AUTHORS") or []
-    return render_template("editor.html", story=None, today=date.today(), authors=authors)
+    prompt_list = prompts.load_prompts(current_app.config["STORIES_DIR"])
+    initial_prompt = random.choice(prompt_list) if prompt_list else None
+    return render_template(
+        "editor.html", story=None, today=date.today(), authors=authors,
+        prompts=prompt_list, initial_prompt=initial_prompt, memos=[],
+    )
+
+
+@bp.route("/new-instant")
+@login_required
+def new_instant():
+    authors = current_app.config.get("AUTHORS") or []
+    return render_template("instant.html", today=date.today(), authors=authors)
 
 
 @bp.route("/edit/<story_id>")
@@ -252,4 +293,51 @@ def edit_story(story_id):
     if s is None:
         abort(404)
     authors = current_app.config.get("AUTHORS") or []
-    return render_template("editor.html", story=s, today=date.today(), authors=authors)
+    memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
+    return render_template("editor.html", story=s, today=date.today(), authors=authors, memos=memos)
+
+
+def _people_dir():
+    return current_app.config["STORIES_DIR"] / "people"
+
+
+@bp.route("/people")
+@login_required
+def people_page():
+    return render_template("people.html", people=people.list_people(_people_dir()))
+
+
+@bp.route("/people/<slug>")
+@login_required
+def person_page(slug):
+    p = people.get_person(_people_dir(), slug)
+    if p is None:
+        abort(404)
+    body_html = render_markdown(p.body, f"/people/{slug}/media")
+    return render_template("person.html", person=p, body_html=body_html)
+
+
+@bp.route("/people/<slug>/media/<filename>")
+@login_required
+def person_media(slug, filename):
+    if not storage.is_valid_story_id(slug) or not storage.is_valid_filename(filename):
+        abort(404)
+    person_dir = _people_dir() / slug
+    if not (person_dir / filename).is_file():
+        abort(404)
+    return send_from_directory(person_dir, filename)
+
+
+@bp.route("/new-person")
+@login_required
+def new_person():
+    return render_template("person_editor.html", person=None)
+
+
+@bp.route("/edit-person/<slug>")
+@login_required
+def edit_person(slug):
+    p = people.get_person(_people_dir(), slug)
+    if p is None:
+        abort(404)
+    return render_template("person_editor.html", person=p)

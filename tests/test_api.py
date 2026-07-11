@@ -204,11 +204,11 @@ def test_upload_image_too_large_returns_413(auth_client, stories_dir):
     from datetime import date
 
     story_id = storage.create_story(stories_dir, "Big upload", date(2026, 1, 1), "")
-    oversized = BytesIO(b"0" * (33 * 1024 * 1024))
+    oversized = BytesIO(b"0" * (129 * 1024 * 1024))
     resp = auth_client.post(
         f"/api/stories/{story_id}/images",
         data={"file": (oversized, "huge.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 413
-    assert "error" in resp.get_json()
+    assert "max 128 MB" in resp.get_json()["error"]

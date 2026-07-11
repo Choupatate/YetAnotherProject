@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}People — {{ app_title }}{% endblock %}
+{% block body_class %}page-people{% endblock %}
+{% block content %}
+<div class="people">
+  <p class="people__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <div class="people__header">
+    <h1 class="people__title">People</h1>
+    <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">+ New person</a>
+  </div>
+  {% if not people %}
+  <p class="people__empty">
+    The people who show up again and again — grandparents, godparents, the
+    family dog — get a page of their own here.
+  </p>
+  {% else %}
+  <ul class="people__grid">
+    {% for person in people %}
+    <li class="people__card">
+      <a class="people__card-link" href="{{ url_for('pages.person_page', slug=person.slug) }}">
+        {% if person.photo %}
+        <img class="people__portrait" src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt="">
+        {% else %}
+        <span class="people__portrait people__portrait--placeholder" aria-hidden="true">{{ person.name[0]|upper }}</span>
+        {% endif %}
+        <span class="people__name">{{ person.name }}</span>
+        {% if person.relation %}<span class="people__relation">{{ person.relation }}</span>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

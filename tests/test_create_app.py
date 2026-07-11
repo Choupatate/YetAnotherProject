@@ -51,4 +51,4 @@ def test_session_cookie_secure_env_var(monkeypatch, tmp_path):
 def test_max_content_length_set(tmp_path, monkeypatch):
     monkeypatch.setenv("STORYBOOK_STORIES_DIR", str(tmp_path))
     app = create_app()
-    assert app.config["MAX_CONTENT_LENGTH"] == 32 * 1024 * 1024
+    assert app.config["MAX_CONTENT_LENGTH"] == 128 * 1024 * 1024

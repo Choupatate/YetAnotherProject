@@ -65,6 +65,13 @@
           </svg>
         </span>
         <span class="timeline__title timeline__title--sealed">A sealed letter &middot; opens {{ story.unlock.strftime('%B %-d, %Y') }}</span>
+        {% elif story.kind == 'instant' %}
+        <span class="timeline__dot{% if has_author %} timeline__dot--author{% endif %}" aria-hidden="true"></span>
+        <span class="timeline__date">{{ story.date.strftime('%b %-d') }}{% if has_author %} &middot; <span class="timeline__author">{{ story.author }}</span>{% endif %}{% if birthdate %} &middot; <span class="timeline__age">{{ age_label(birthdate, story.date) }}</span>{% endif %}</span>
+        <span class="timeline__instant-line">{{ story.title }}</span>
+        {% if story.cover %}
+        <img class="timeline__thumb timeline__thumb--instant" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="" loading="lazy">
+        {% endif %}
         {% else %}
         <span class="timeline__dot{% if has_author %} timeline__dot--author{% endif %}" aria-hidden="true"></span>
         <span class="timeline__date">{{ story.date.strftime('%b %-d') }}{% if has_author %} &middot; <span class="timeline__author">{{ story.author }}</span>{% endif %}{% if birthdate %} &middot; <span class="timeline__age">{{ age_label(birthdate, story.date) }}</span>{% endif %}</span>
@@ -85,6 +92,8 @@
   {% endfor %}
 </nav>
 <p class="timeline__footer-links">
+  <a href="{{ url_for('pages.random_page') }}">Open a page at random</a>
+  &middot;
   <a href="{{ url_for('pages.book') }}">Read as a book</a>
   &middot;
   <a href="{{ url_for('pages.book') }}?print=1">Download as PDF</a>

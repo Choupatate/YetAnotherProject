@@ -15,7 +15,12 @@
     <button type="button" class="btn" id="editor-recovery-discard">Discard</button>
   </div>
 </div>
-<form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}">
+<form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}"
+      data-create-url="{{ url_for('api.create_story') }}"
+      data-update-url-template="{{ url_for('api.update_story', story_id='__ID__') }}"
+      data-image-url-template="{{ url_for('api.upload_image', story_id='__ID__') }}"
+      data-redirect-template="{{ url_for('pages.story', story_id='__ID__') }}"
+      data-edit-url-template="{{ url_for('pages.edit_story', story_id='__ID__') }}">
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Untitled" value="{{ story.title if story else '' }}" required>
   <div class="editor__date-row">
@@ -44,9 +49,35 @@
               aria-pressed="{{ 'true' if story and story.archived else 'false' }}">Archive</button>
     </div>
   </div>
+  {% if not story and prompts %}
+  <p class="editor__prompt" id="editor-prompt">
+    <span id="editor-prompt-text">{{ initial_prompt }}</span>
+    <button type="button" id="editor-prompt-cycle" class="editor__prompt-cycle"
+            aria-label="Another idea">&#8635;</button>
+  </p>
+  <script type="application/json" id="editor-prompts-data">{{ prompts | tojson }}</script>
+  {% endif %}
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
   </div>
+  <section class="editor__voice" id="editor-voice">
+    <h2 class="editor__voice-heading">Voice</h2>
+    <div class="editor__voice-recorder">
+      <button type="button" id="voice-record-btn" class="btn editor__voice-record">Record</button>
+      <button type="button" id="voice-pause-btn" class="btn editor__voice-pause" hidden>Pause</button>
+      <button type="button" id="voice-stop-btn" class="btn editor__voice-stop" hidden>Stop</button>
+      <span class="editor__voice-timer" id="voice-timer" hidden>00:00</span>
+    </div>
+    <p class="editor__voice-message" id="voice-message" hidden></p>
+    <ul class="editor__voice-list" id="voice-list">
+      {% for memo in memos %}
+      <li class="editor__voice-item" data-filename="{{ memo.filename }}">
+        <audio controls preload="none" src="{{ url_for('pages.story_media', story_id=story.id, filename=memo.filename) }}"></audio>
+        <button type="button" class="btn editor__voice-delete" data-filename="{{ memo.filename }}">Delete</button>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
   <div class="editor__save-bar">
     <button id="save-story" type="submit" class="btn btn--primary editor__save">Save</button>
   </div>
@@ -59,5 +90,6 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/author-chips.js') }}"></script>
 <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 {% endblock %}

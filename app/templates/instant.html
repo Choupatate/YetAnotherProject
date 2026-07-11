@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}New instant — {{ app_title }}{% endblock %}
+{% block body_class %}page-instant{% endblock %}
+{% block content %}
+<form id="instant-form" class="instant">
+  <label class="instant__label" for="instant-photo">Photo</label>
+  <input type="file" id="instant-photo" name="photo" class="instant__file" accept="image/*" required>
+  <input type="text" id="instant-line" name="line" class="instant__line"
+         placeholder="One line&hellip;" maxlength="200">
+  <input type="date" id="instant-date" name="date" class="instant__date"
+         value="{{ today.isoformat() }}" required>
+  {% if authors %}
+  <div class="editor__authors" id="editor-authors">
+    {% for a in authors %}
+    <button type="button" class="editor__author-chip" data-author-name="{{ a.name }}"
+            style="--author-color: {{ a.color }}" aria-pressed="false">
+      <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <button type="submit" id="instant-save" class="btn btn--primary instant__save">Save</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/author-chips.js') }}"></script>
+<script src="{{ url_for('static', filename='js/instant.js') }}"></script>
+{% endblock %}
