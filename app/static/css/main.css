@@ -9,6 +9,14 @@ html, body {
   padding: 0;
 }
 
+/* R3.2: class rules like `.editor__recovery { display: flex }` and
+   `.btn { display: inline-flex }` outrank the UA stylesheet's
+   `[hidden] { display: none }` by specificity. Elements that toggle the
+   `hidden` attribute (rather than a class) must actually disappear. */
+[hidden] {
+  display: none !important;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Theme: dark is the default palette, applied at :root.                  */
 /* ---------------------------------------------------------------------- */
