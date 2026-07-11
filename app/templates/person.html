@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ person.name }} — {{ app_title }}{% endblock %}
+{% block body_class %}page-person{% endblock %}
+{% block content %}
+<article class="story">
+  <header class="story__header">
+    <p class="story__date">{% if person.relation %}{{ person.relation }}{% endif %}</p>
+    <h1 class="story__title">{{ person.name }}</h1>
+    <hr class="story__flourish" aria-hidden="true">
+  </header>
+  {% if person.photo %}
+  <img class="story__cover" src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt="">
+  {% endif %}
+  <div class="story__body">
+    {{ body_html|safe }}
+  </div>
+  <footer class="story__footer">
+    <div class="story__navrow">
+      <a class="story__back" href="{{ url_for('pages.people_page') }}">&lsaquo; People</a>
+      <a class="story__edit" href="{{ url_for('pages.edit_person', slug=person.slug) }}">Edit</a>
+    </div>
+  </footer>
+</article>
+{% endblock %}

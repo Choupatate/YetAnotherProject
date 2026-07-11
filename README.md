@@ -127,6 +127,23 @@ chapters — while a full story page (and the full editor, for touch-ups)
 still works normally at their direct URL. They're just a story with one
 extra frontmatter key (`kind: instant`); nothing new to back up.
 
+### People — the cast of the book
+
+"People" in the nav (always visible, whether or not you've added anyone
+yet) is a small cast page: a portrait, a name, and how they relate to the
+child — "your grandmother", "your godfather" — with a free-text page of
+their own for a longer bio, in the same editor as stories. The grid on
+`/people` shows everyone in the order they were added, each as a square
+portrait (or a plain initial when there's no photo yet).
+
+People live in `stories/people/<slug>/` — still inside the one stories
+folder, still one backup. Stories link to a person by hand with an
+ordinary Markdown link (`[Mamie](/people/mamie)`); there's no
+auto-linking or `@mention` syntax, so a name in a story stays plain text
+unless you deliberately link it. People don't show up on the timeline or
+in `/book` — this is a reference page, not another kind of memory — and,
+like stories, there's no way to delete one once added.
+
 ### Voice memos
 
 A "Voice" section on the story editor lets you record directly in the

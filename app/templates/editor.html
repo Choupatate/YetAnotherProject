@@ -15,7 +15,12 @@
     <button type="button" class="btn" id="editor-recovery-discard">Discard</button>
   </div>
 </div>
-<form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}">
+<form id="editor-form" class="editor" data-story-id="{{ story.id if story else '' }}"
+      data-create-url="{{ url_for('api.create_story') }}"
+      data-update-url-template="{{ url_for('api.update_story', story_id='__ID__') }}"
+      data-image-url-template="{{ url_for('api.upload_image', story_id='__ID__') }}"
+      data-redirect-template="{{ url_for('pages.story', story_id='__ID__') }}"
+      data-edit-url-template="{{ url_for('pages.edit_story', story_id='__ID__') }}">
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Untitled" value="{{ story.title if story else '' }}" required>
   <div class="editor__date-row">

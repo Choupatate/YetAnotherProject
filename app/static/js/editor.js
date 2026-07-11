@@ -12,6 +12,23 @@
   var storyId = form.dataset.storyId || null;
   var dirty = false;
 
+  // --- Endpoint parametrization (FEATURES.md F14) ---------------------------
+  //
+  // Story and person editors share this file rather than forking it. The
+  // story editor template leaves these data attributes unset, so behavior
+  // stays byte-for-byte identical to before; the person editor template
+  // supplies the /api/people... equivalents.
+  var relationInput = document.getElementById("person-relation");
+  var createUrl = form.dataset.createUrl || "/api/stories";
+  var updateUrlTemplate = form.dataset.updateUrlTemplate || "/api/stories/__ID__";
+  var imageUrlTemplate = form.dataset.imageUrlTemplate || "/api/stories/__ID__/images";
+  var redirectTemplate = form.dataset.redirectTemplate || "/story/__ID__";
+  var editUrlTemplate = form.dataset.editUrlTemplate || "/edit/__ID__";
+
+  function fillUrlTemplate(template, id) {
+    return template.replace("__ID__", id);
+  }
+
   if (draftToggle) {
     draftToggle.addEventListener("click", function () {
       var pressed = draftToggle.getAttribute("aria-pressed") === "true";
@@ -282,25 +299,27 @@
   function ensureStoryId() {
     if (storyId) return Promise.resolve(storyId);
     var title = titleInput.value.trim() || "Untitled";
-    var storyDate = dateInput.value;
-    return fetch("/api/stories", {
+    var storyDate = dateInput ? dateInput.value : "";
+    var payload = {
+      title: title,
+      date: storyDate,
+      markdown: "",
+      author: authorChipsController.getSelected() || "",
+      draft: isDraft(),
+      unlock: unlockValue(),
+      archived: isArchived(),
+    };
+    if (relationInput) payload.relation = relationInput.value.trim();
+    return fetch(createUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: title,
-        date: storyDate,
-        markdown: "",
-        author: authorChipsController.getSelected() || "",
-        draft: isDraft(),
-        unlock: unlockValue(),
-        archived: isArchived(),
-      }),
+      body: JSON.stringify(payload),
     })
       .then(handleJsonResponse)
       .then(function (data) {
         storyId = data.id;
         form.dataset.storyId = storyId;
-        history.replaceState(null, "", "/edit/" + storyId);
+        history.replaceState(null, "", fillUrlTemplate(editUrlTemplate, storyId));
         return storyId;
       });
   }
@@ -309,7 +328,7 @@
     return ensureStoryId().then(function (id) {
       var formData = new FormData();
       formData.append("file", file);
-      return fetch("/api/stories/" + id + "/images", {
+      return fetch(fillUrlTemplate(imageUrlTemplate, id), {
         method: "POST",
         body: formData,
       })
@@ -484,7 +503,8 @@
     window.toastui && window.toastui.Editor ? createToastEditor() : createFallbackEditor();
 
   titleInput.addEventListener("input", markDirty);
-  dateInput.addEventListener("input", markDirty);
+  if (dateInput) dateInput.addEventListener("input", markDirty);
+  if (relationInput) relationInput.addEventListener("input", markDirty);
 
   // --- Autosave to localStorage + crash/close recovery ---------------------
   //
@@ -503,9 +523,9 @@
   var initialMarkdown = sourceTextarea.value;
 
   function currentDraftPayload() {
-    return {
+    var payload = {
       title: titleInput.value,
-      date: dateInput.value,
+      date: dateInput ? dateInput.value : "",
       markdown: editor.getMarkdown(),
       author: authorChipsController.getSelected() || "",
       draft: isDraft(),
@@ -513,6 +533,8 @@
       archived: isArchived(),
       savedAt: Date.now(),
     };
+    if (relationInput) payload.relation = relationInput.value;
+    return payload;
   }
 
   function readAutosave() {
@@ -548,13 +570,14 @@
 
   function applyDraft(draftData) {
     titleInput.value = draftData.title || "";
-    if (draftData.date) dateInput.value = draftData.date;
+    if (dateInput && draftData.date) dateInput.value = draftData.date;
     editor.setMarkdown(draftData.markdown || "");
     if (unlockInput) unlockInput.value = draftData.unlock || "";
     if (draftToggle) draftToggle.setAttribute("aria-pressed", draftData.draft ? "true" : "false");
     if (archiveToggle) {
       archiveToggle.setAttribute("aria-pressed", draftData.archived ? "true" : "false");
     }
+    if (relationInput) relationInput.value = draftData.relation || "";
     authorChipsController.setSelected(draftData.author || null);
     markDirty();
   }
@@ -590,7 +613,7 @@
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var title = titleInput.value.trim();
-    var storyDate = dateInput.value;
+    var storyDate = dateInput ? dateInput.value : "";
     if (!title) {
       titleInput.focus();
       return;
@@ -605,18 +628,19 @@
       unlock: unlockValue(),
       archived: isArchived(),
     };
+    if (relationInput) payload.relation = relationInput.value.trim();
 
     // A brand-new story is created with its real content in one request
     // rather than going through ensureStoryId()'s empty-body POST followed
     // by an immediate PUT — avoids a redundant write (and, now that saves
     // are versioned, a spurious near-empty entry in that story's history).
     var request = storyId
-      ? fetch("/api/stories/" + storyId, {
+      ? fetch(fillUrlTemplate(updateUrlTemplate, storyId), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
-      : fetch("/api/stories", {
+      : fetch(createUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -627,7 +651,7 @@
       .then(function (data) {
         dirty = false;
         clearAutosave();
-        window.location.href = "/story/" + data.id;
+        window.location.href = fillUrlTemplate(redirectTemplate, data.id);
       })
       .catch(function (error) {
         window.alert(

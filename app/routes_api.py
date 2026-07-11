@@ -4,7 +4,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
-from . import storage
+from . import people, storage
 from .auth import login_required
 
 bp = Blueprint("api", __name__, url_prefix="/api")
@@ -249,3 +249,99 @@ def delete_memo(story_id, filename):
         return _error("Memo not found.", 404)
 
     return "", 204
+
+
+def _people_dir():
+    return current_app.config["STORIES_DIR"] / "people"
+
+
+def _validate_person_photo(data, slug):
+    """Resolve and validate the optional 'photo' field on person update.
+    Same rules as a story's `cover` (FEATURES.md F14)."""
+    if "photo" not in data:
+        return None, None
+    photo = data.get("photo")
+    if not photo:
+        return "", None
+    if not storage.is_valid_filename(photo):
+        return None, _error("Invalid photo filename.", 400)
+    if not (_people_dir() / slug / photo).is_file():
+        return None, _error("Photo not found.", 400)
+    return photo, None
+
+
+def _person_name(data):
+    """The person's name, sent as `name` per the documented API — also
+    accepts `title`, since the shared editor.js (FEATURES.md F14: "do not
+    fork editor.js") always posts a `title` field regardless of whether the
+    form is editing a story or a person."""
+    return (data.get("name") or data.get("title") or "").strip()
+
+
+@bp.route("/people", methods=["POST"])
+@login_required
+def create_person():
+    data = request.get_json(silent=True) or {}
+    name = _person_name(data)
+    if not name:
+        return _error("Name is required.", 400)
+    relation = (data.get("relation") or "").strip() or None
+    markdown = data.get("markdown") or ""
+
+    slug = people.create_person(_people_dir(), name, relation=relation, body=markdown)
+    return jsonify({"id": slug, "title": name})
+
+
+@bp.route("/people/<slug>", methods=["PUT"])
+@login_required
+def update_person(slug):
+    if not storage.is_valid_story_id(slug):
+        return _error("Person not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    name = _person_name(data)
+    if not name:
+        return _error("Name is required.", 400)
+    relation = (data.get("relation") or "").strip() or None
+    markdown = data.get("markdown") or ""
+
+    photo, error = _validate_person_photo(data, slug)
+    if error:
+        return error
+
+    try:
+        people.update_person(
+            _people_dir(), slug, name, relation=relation, body=markdown, photo=photo
+        )
+    except FileNotFoundError:
+        return _error("Person not found.", 404)
+
+    return jsonify({"id": slug})
+
+
+@bp.route("/people/<slug>/images", methods=["POST"])
+@login_required
+def upload_person_image(slug):
+    if not storage.is_valid_story_id(slug):
+        return _error("Person not found.", 404)
+    person_dir = _people_dir() / slug
+    if not person_dir.is_dir():
+        return _error("Person not found.", 404)
+
+    file_storage = request.files.get("file")
+    if file_storage is None or not file_storage.filename:
+        return _error("No image file provided.", 400)
+
+    try:
+        filename = storage.save_image_to(person_dir, file_storage)
+    except Exception:
+        return _error("Could not process image.", 400)
+
+    existing = people.get_person(_people_dir(), slug)
+    if existing is not None and not existing.photo:
+        people.update_person(
+            _people_dir(), slug, existing.name, relation=existing.relation,
+            body=existing.body or "", photo=filename,
+        )
+
+    return jsonify({"filename": filename})

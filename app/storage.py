@@ -167,6 +167,10 @@ def list_stories(stories_dir) -> list[Story]:
     for entry in stories_dir.iterdir():
         if not entry.is_dir():
             continue
+        if entry.name == "people":
+            # FEATURES.md F14: people live in their own subtree, sorted
+            # separately via app/people.py — silently not a story.
+            continue
         if not is_valid_story_id(entry.name):
             continue
         index_path = entry / "index.md"
@@ -402,39 +406,45 @@ def restore_version(stories_dir, story_id: str, version_id: str) -> None:
     )
 
 
-def _next_photo_number(story_path: Path) -> int:
+def _next_photo_number(dir_path: Path) -> int:
     max_n = 0
-    for f in story_path.glob("photo-*"):
+    for f in dir_path.glob("photo-*"):
         m = re.match(r"photo-(\d+)\.", f.name)
         if m:
             max_n = max(max_n, int(m.group(1)))
     return max_n + 1
 
 
-def save_image(stories_dir, story_id: str, file_storage) -> str:
-    """Re-encode an uploaded image with Pillow and store it in the story folder.
+def save_image_to(dir_path: Path, file_storage) -> str:
+    """Re-encode an uploaded image with Pillow and store it in `dir_path`.
 
-    Returns the new filename (photo-NNN.<ext>). Never deletes existing images.
+    Returns the new filename (photo-NNN.<ext>). Never deletes existing
+    images. Shared by stories and people (FEATURES.md F14) so resize/EXIF/
+    naming behavior is identical either way.
     """
-    story_path = _story_dir(stories_dir, story_id)
-    if not story_path.is_dir():
-        raise FileNotFoundError(story_id)
-
     image = Image.open(file_storage.stream)
     is_png = (image.format or "").upper() == "PNG"
     image = ImageOps.exif_transpose(image)
-    number = _next_photo_number(story_path)
+    number = _next_photo_number(dir_path)
     image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
 
     if is_png:
         filename = f"photo-{number:03d}.png"
-        image.save(story_path / filename, format="PNG")
+        image.save(dir_path / filename, format="PNG")
     else:
         filename = f"photo-{number:03d}.jpg"
         image = image.convert("RGB")
-        image.save(story_path / filename, format="JPEG", quality=JPEG_QUALITY)
+        image.save(dir_path / filename, format="JPEG", quality=JPEG_QUALITY)
 
     return filename
+
+
+def save_image(stories_dir, story_id: str, file_storage) -> str:
+    """Re-encode an uploaded image and store it in a story's folder."""
+    story_path = _story_dir(stories_dir, story_id)
+    if not story_path.is_dir():
+        raise FileNotFoundError(story_id)
+    return save_image_to(story_path, file_storage)
 
 
 def _next_memo_number(story_path: Path) -> int:

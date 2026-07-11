@@ -20,12 +20,15 @@ _ABSOLUTE_SRC_RE = re.compile(r"^([a-z]+:)?//|^/")
 
 
 class _StoryImageTreeprocessor(Treeprocessor):
-    """Rewrites bare image srcs to the story's media URL and wraps images in
-    <figure>, turning non-empty alt text into a <figcaption>."""
+    """Rewrites bare image srcs to a media URL and wraps images in <figure>,
+    turning non-empty alt text into a <figcaption>. `media_base` is a path
+    prefix like "/story/<id>/media" or "/people/<slug>/media" (FEATURES.md
+    F14 generalized this from a hardcoded story path so person pages can
+    share the same rendering)."""
 
-    def __init__(self, md, story_id):
+    def __init__(self, md, media_base):
         super().__init__(md)
-        self.story_id = story_id
+        self.media_base = media_base
 
     def run(self, root):
         self._process(root)
@@ -54,7 +57,7 @@ class _StoryImageTreeprocessor(Treeprocessor):
     def _rewrite_src(self, img):
         src = img.get("src", "")
         if src and not _ABSOLUTE_SRC_RE.match(src):
-            img.set("src", f"/story/{self.story_id}/media/{src}")
+            img.set("src", f"{self.media_base}/{src}")
 
     def _build_figure(self, img):
         figure = etree.Element("figure")
@@ -69,20 +72,21 @@ class _StoryImageTreeprocessor(Treeprocessor):
 
 
 class _StoryImageExtension(Extension):
-    def __init__(self, story_id, **kwargs):
-        self.story_id = story_id
+    def __init__(self, media_base, **kwargs):
+        self.media_base = media_base
         super().__init__(**kwargs)
 
     def extendMarkdown(self, md):
         md.treeprocessors.register(
-            _StoryImageTreeprocessor(md, self.story_id), "story_images", 5
+            _StoryImageTreeprocessor(md, self.media_base), "story_images", 5
         )
 
 
-def render_markdown(body: str, story_id: str) -> str:
-    """Render a story's markdown body to HTML, rewriting image srcs to point
-    at /story/<story_id>/media/<filename> and wrapping them in <figure>."""
+def render_markdown(body: str, media_base: str) -> str:
+    """Render markdown to HTML, rewriting bare image srcs to
+    `<media_base>/<filename>` and wrapping them in <figure>. `media_base` is
+    a path prefix with no trailing slash, e.g. "/story/<id>/media"."""
     md = markdown.Markdown(
-        extensions=EXTENSIONS + [_StoryImageExtension(story_id=story_id)]
+        extensions=EXTENSIONS + [_StoryImageExtension(media_base=media_base)]
     )
     return md.convert(body or "")

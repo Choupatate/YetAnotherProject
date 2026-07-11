@@ -16,7 +16,7 @@ from flask import (
     url_for,
 )
 
-from . import epub, prompts, storage
+from . import epub, people, prompts, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -111,7 +111,7 @@ def book():
     entries = []
     for s in readable:
         full = storage.get_story(stories_dir, s.id)
-        body_html = render_markdown(full.body, full.id)
+        body_html = render_markdown(full.body, f"/story/{full.id}/media")
         author_color = author_colors.get(full.author) if (authors and full.author) else None
         entries.append({"story": full, "body_html": body_html, "author_color": author_color})
     return render_template(
@@ -135,7 +135,7 @@ def book_epub():
     entries = []
     for s in readable:
         full = storage.get_story(stories_dir, s.id)
-        body_html = render_markdown(full.body, full.id)
+        body_html = render_markdown(full.body, f"/story/{full.id}/media")
         entries.append({"story": full, "body_html": body_html})
 
     def image_loader(story_id, filename):
@@ -216,7 +216,7 @@ def story(story_id):
     author_color = author_colors.get(s.author) if (authors and s.author) else None
     if storage.is_sealed(s):
         return render_template("sealed.html", story=s, author_color=author_color)
-    body_html = render_markdown(s.body, story_id)
+    body_html = render_markdown(s.body, f"/story/{story_id}/media")
     prev_story, next_story = _reading_order_neighbors(current_app.config["STORIES_DIR"], s)
     memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
     return render_template(
@@ -295,3 +295,49 @@ def edit_story(story_id):
     authors = current_app.config.get("AUTHORS") or []
     memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
     return render_template("editor.html", story=s, today=date.today(), authors=authors, memos=memos)
+
+
+def _people_dir():
+    return current_app.config["STORIES_DIR"] / "people"
+
+
+@bp.route("/people")
+@login_required
+def people_page():
+    return render_template("people.html", people=people.list_people(_people_dir()))
+
+
+@bp.route("/people/<slug>")
+@login_required
+def person_page(slug):
+    p = people.get_person(_people_dir(), slug)
+    if p is None:
+        abort(404)
+    body_html = render_markdown(p.body, f"/people/{slug}/media")
+    return render_template("person.html", person=p, body_html=body_html)
+
+
+@bp.route("/people/<slug>/media/<filename>")
+@login_required
+def person_media(slug, filename):
+    if not storage.is_valid_story_id(slug) or not storage.is_valid_filename(filename):
+        abort(404)
+    person_dir = _people_dir() / slug
+    if not (person_dir / filename).is_file():
+        abort(404)
+    return send_from_directory(person_dir, filename)
+
+
+@bp.route("/new-person")
+@login_required
+def new_person():
+    return render_template("person_editor.html", person=None)
+
+
+@bp.route("/edit-person/<slug>")
+@login_required
+def edit_person(slug):
+    p = people.get_person(_people_dir(), slug)
+    if p is None:
+        abort(404)
+    return render_template("person_editor.html", person=p)
