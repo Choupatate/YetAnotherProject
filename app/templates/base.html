@@ -24,17 +24,19 @@ document.documentElement.classList.add("js");
 <body class="{% block body_class %}{% endblock %}">
 <a class="skip-link" href="#content">Skip to content</a>
 <nav class="site-nav">
-  <a class="site-nav__brand" href="{{ url_for('pages.timeline') }}">{{ app_title }}</a>
-  <div class="site-nav__actions">
-    {% if session.get('authed') %}
-    <a class="site-nav__link" href="{{ url_for('pages.people_page') }}">People</a>
-    <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>
-    <a class="btn btn--instant" href="{{ url_for('pages.new_instant') }}">+ Instant</a>
-    {% endif %}
+  <div class="site-nav__row">
+    <a class="site-nav__brand" href="{{ url_for('pages.timeline') }}">{{ app_title }}</a>
     <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
       <span aria-hidden="true">&#9680;</span>
     </button>
   </div>
+  {% if session.get('authed') %}
+  <div class="site-nav__actions">
+    <a class="site-nav__link" href="{{ url_for('pages.people_page') }}">People</a>
+    <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>
+    <a class="btn btn--instant" href="{{ url_for('pages.new_instant') }}">+ Instant</a>
+  </div>
+  {% endif %}
 </nav>
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}

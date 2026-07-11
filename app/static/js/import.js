@@ -1,8 +1,15 @@
 (function () {
   var form = document.getElementById("import-form");
   var fileInput = document.getElementById("import-file");
+  var fileLabel = document.getElementById("import-file-label");
+  var fileLabelDefault = fileLabel ? fileLabel.textContent : "";
   var result = document.getElementById("import-result");
   if (!form) return;
+
+  fileInput.addEventListener("change", function () {
+    var file = fileInput.files[0];
+    if (fileLabel) fileLabel.textContent = file ? file.name : fileLabelDefault;
+  });
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();

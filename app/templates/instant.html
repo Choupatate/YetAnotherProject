@@ -3,8 +3,11 @@
 {% block body_class %}page-instant{% endblock %}
 {% block content %}
 <form id="instant-form" class="instant">
-  <label class="instant__label" for="instant-photo">Photo</label>
-  <input type="file" id="instant-photo" name="photo" class="instant__file" accept="image/*" required>
+  <label class="instant__photo-picker" id="instant-photo-picker" for="instant-photo">
+    <img class="instant__photo-preview" id="instant-photo-preview" alt="" hidden>
+    <span class="instant__photo-label" id="instant-photo-label">Add a photo</span>
+    <input type="file" id="instant-photo" name="photo" class="instant__file" accept="image/*" required>
+  </label>
   <input type="text" id="instant-line" name="line" class="instant__line"
          placeholder="One line&hellip;" maxlength="200">
   <input type="date" id="instant-date" name="date" class="instant__date"

@@ -1,12 +1,34 @@
 (function () {
   var form = document.getElementById("instant-form");
   var photoInput = document.getElementById("instant-photo");
+  var photoPicker = document.getElementById("instant-photo-picker");
+  var photoPreview = document.getElementById("instant-photo-preview");
   var lineInput = document.getElementById("instant-line");
   var dateInput = document.getElementById("instant-date");
   var saveButton = document.getElementById("instant-save");
 
   var authorsRoot = document.getElementById("editor-authors");
   var authorChipsController = window.StorybookAuthorChips.init(authorsRoot);
+
+  var previewUrl = null;
+
+  photoInput.addEventListener("change", function () {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    }
+    var file = photoInput.files[0];
+    if (file) {
+      previewUrl = URL.createObjectURL(file);
+      photoPreview.src = previewUrl;
+      photoPreview.hidden = false;
+      photoPicker.classList.add("has-photo");
+    } else {
+      photoPreview.hidden = true;
+      photoPreview.removeAttribute("src");
+      photoPicker.classList.remove("has-photo");
+    }
+  });
 
   function handleJsonResponse(response) {
     return response

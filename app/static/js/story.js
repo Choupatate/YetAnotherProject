@@ -15,7 +15,8 @@
   }
 
   function openLightbox(img) {
-    lastFocused = document.activeElement;
+    lastFocused = img;
+    if (!img.hasAttribute("tabindex")) img.tabIndex = -1;
     var figure = img.closest("figure");
     var caption = figure ? figure.querySelector("figcaption") : null;
     var captionText = caption ? caption.textContent.trim() : "";
@@ -28,6 +29,17 @@
     overlay.addEventListener("click", function () {
       closeLightbox(false);
     });
+
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "lightbox__close";
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", function (event) {
+      event.stopPropagation();
+      closeLightbox(false);
+    });
+    overlay.appendChild(closeBtn);
 
     var bigImg = document.createElement("img");
     bigImg.src = img.currentSrc || img.src;
