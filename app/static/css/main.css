@@ -17,6 +17,12 @@ html, body {
   display: none !important;
 }
 
+/* R4.1: any focusable text/date/file input under 16px triggers iOS Safari's
+   auto-zoom on focus, which then leaves the page zoomed in. */
+input, textarea, select {
+  font-size: 1rem;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Theme: dark is the default palette, applied at :root.                  */
 /* ---------------------------------------------------------------------- */
@@ -407,7 +413,7 @@ mark {
   background: var(--color-bg-raised);
   color: var(--color-text);
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 
 .timeline__jump {
@@ -1289,6 +1295,7 @@ mark {
 .instant__file {
   font-family: var(--font-sans);
   color: var(--color-text);
+  font-size: 1rem;
 }
 
 .instant__line,
@@ -1395,7 +1402,7 @@ mark {
   background: var(--color-bg-raised);
   color: var(--color-text);
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 
 .editor__relation::placeholder {
@@ -1411,6 +1418,7 @@ mark {
   background: var(--color-bg-raised);
   color: var(--color-text);
   font-family: var(--font-sans);
+  font-size: 1rem;
 }
 
 .editor__date-row {
@@ -1434,6 +1442,7 @@ mark {
   background: var(--color-bg-raised);
   color: var(--color-text);
   font-family: var(--font-sans);
+  font-size: 1rem;
 }
 
 .editor__toolrow {
