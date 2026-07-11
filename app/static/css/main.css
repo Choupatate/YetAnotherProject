@@ -177,6 +177,9 @@ mark {
 }
 
 .site-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-family: var(--font-serif);
   font-size: 1.25rem;
   text-decoration: none;
@@ -390,6 +393,9 @@ mark {
 }
 
 .timeline__drafts-link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
 }
 
@@ -417,6 +423,9 @@ mark {
 }
 
 .timeline__jump {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   color: var(--color-text-dim);
@@ -644,6 +653,9 @@ mark {
 }
 
 .timeline__footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
 }
 
@@ -678,6 +690,9 @@ mark {
 
 .drafts__back a,
 .archived__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
   text-decoration: none;
 }
@@ -752,6 +767,9 @@ mark {
 }
 
 .people__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
   text-decoration: none;
 }
@@ -833,6 +851,9 @@ mark {
 }
 
 .import__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
   text-decoration: none;
 }
@@ -1111,8 +1132,10 @@ mark {
   color: var(--color-text-dim);
   text-decoration: none;
   min-height: 44px;
+  min-width: 44px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1144,6 +1167,9 @@ mark {
 }
 
 .sealed__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
   text-decoration: none;
 }
@@ -1374,8 +1400,8 @@ mark {
 
 .editor__prompt-cycle {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: none;
   color: var(--color-text-dim);
@@ -1684,6 +1710,9 @@ mark {
 }
 
 .editor__history-link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
 }
 
@@ -1698,6 +1727,9 @@ mark {
 }
 
 .history__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--color-text-dim);
   text-decoration: none;
 }
