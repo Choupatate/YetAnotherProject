@@ -207,3 +207,62 @@ Definition of done: both fixed; a Playwright-measured title box ≥ 60% of the
 content column width at 390px with full metadata; no bounding-box
 intersection between `.minimap` and any timeline entry element; bare `pytest`
 green; no visual change at desktop widths beyond the reserved gutter.
+
+# Live review round 3 — 2026-07-11, batch 3 (F12–F16) on main at 4daef11
+
+Reviewed on a real Chromium at 390×844 (mobile emulation, touch), with a fake
+microphone for real MediaRecorder recording. What passed, end to end: bare
+pytest green (352 tests); instant capture in well under 20s with the photo
+becoming the cover and a compact timeline entry; a real recorded memo
+(pause/resume, timer, upload as `memo-001.webm`), playing back on the story
+page with HTTP Range → 206; a hand-written `memo-001.txt` sidecar appearing
+as the transcript; memo Delete removing both the audio and the sidecar (and
+nothing else); two people created (portrait cover + initial-letter
+placeholder), relation line, People nav link, `people/` skipped by the
+timeline; /random six times never landing on an instant, story-footer link
+carrying `?not=`; prompts cycling on /new and absent after first save; 413
+with the new 128 MB limit; HEIC upload converted to JPEG; sealed story body
+hidden; /book printed to an A4 PDF with one story per page and instants as
+inline captioned figures; EPUB a valid zip. **Zero external network requests
+across the entire run, including while recording.** The stories/ folder on
+disk is exactly the promised plain format.
+
+Two defects to fix, both regressions visible on every page or every editor
+visit:
+
+## R3.1 Nav overflows the viewport at phone width
+
+Batch 3 added "People" and "+ Instant" to `.site-nav__actions`. At 390px the
+nav row no longer fits: `document.documentElement.scrollWidth` is 399px vs a
+390px viewport, the theme toggle's right edge sits at 399px (half clipped
+off-screen), and the "+ New story" label wraps onto two lines inside its
+button. Every page now scrolls sideways by ~9px. Fix the nav so nothing
+overflows at 360–414px: let `.site-nav` wrap onto two rows at a small-width
+breakpoint (brand + theme toggle on the first row, the action buttons on the
+second), or shorten the button labels at that breakpoint — either is fine,
+but button labels must not wrap internally (`white-space: nowrap`) and every
+tap target stays ≥ 44px. Definition of done: at 360, 390, and 414px wide, on
+the timeline, a story page, /people, and the editor,
+`document.documentElement.scrollWidth <= clientWidth`, and the theme toggle
+is fully inside the viewport.
+
+## R3.2 CSS defeats the `hidden` attribute: recovery banner and recorder buttons always visible
+
+The autosave recovery banner (`#editor-recovery`), the voice Pause button,
+and the voice Stop button all carry the `hidden` attribute but render
+visible on a completely fresh editor page, because class rules
+(`.editor__recovery { display: flex }`, `.btn { display: inline-flex }`)
+override the UA stylesheet's `[hidden] { display: none }`. Measured:
+`el.hidden === true` yet computed display `flex` for all three. The worst
+symptom is user-facing: every visit to /new or /edit shows "You have an
+unsaved draft from ." with an empty timestamp even when no draft exists.
+Fix globally, not per-element — add `[hidden] { display: none !important; }`
+near the top of main.css — then check every current user of the `hidden`
+attribute (recovery banner, voice pause/stop/timer/message, timeline search
+empty-state) still shows and hides correctly when its JS toggles it, since
+they toggle the attribute rather than a class. Add a fresh-page check to the
+manual pass: /new on a clean browser shows no recovery banner and only the
+Record button. Definition of done: on a fresh /edit page, computed display
+is `none` for `#editor-recovery`, `#voice-pause-btn`, `#voice-stop-btn`;
+recording still reveals pause/stop/timer; a genuinely stored autosave still
+shows the banner with a real timestamp; bare pytest green.
