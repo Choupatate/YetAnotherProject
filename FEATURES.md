@@ -903,3 +903,181 @@ people (with and without portraits), /new-instant, /book (screen + printed
 PDF), a story page, in all three themes — paper cards read as cards on
 dark; transparent rope elements show no cream box; no horizontal scroll;
 no cumulative layout shift when images load; zero external requests.
+
+# F18. L'arbre — the family tree
+
+A genealogical tree built on the people pages (F14), designed in three
+layers with different life expectancies: facts in frontmatter (forever),
+a Python kinship engine with a JSON contract (life of the app), and a
+vendored JS renderer (replaceable). The renderer — family-chart 0.9.0 +
+d3 7.9.0 — is **already committed** under `app/static/vendor/familychart/`
+and `app/static/vendor/d3/` (pinned, licensed, audited for zero network
+calls; see VENDORED.md there). Do not fetch anything from npm.
+
+Ground rules: no new pip dependencies; the vendored JS is the only new
+front-end code source; every new frontmatter field is optional and
+tolerantly parsed; the whole feature is invisible until the first family
+link exists; the backup format does not change.
+
+## Layer 1 — facts in frontmatter (`stories/people/<slug>/index.md`)
+
+New optional fields, all slugs referring to other people:
+
+```yaml
+parents: [papi-georges, mamie-lise]   # this person's parents
+partners: [claire]                    # spouses/companions (symmetric)
+friend_of: [papa]                     # for friends: whose friend they are
+gender: m                             # m | f, only used to pick label words
+```
+
+- Store ONLY these atomic facts. Never store computed kinship ("uncle",
+  "cousin") — it is always derived. The existing free-text `relation`
+  field stays and, when present, wins over any computed label.
+- `parents` is the single source of parent/child truth; children are
+  computed by reverse lookup. Cap of 2 parents enforced on write; extra
+  entries on disk are read tolerantly.
+- `partners` is symmetric: the API writes both sides; reads take the
+  union of both directions so a hand-edited single side still works.
+- Dangling or unknown slugs anywhere: ignored silently. Files outlive
+  edits.
+- `Person` dataclass gains `parents`, `partners`, `friend_of` (lists,
+  default empty) and `gender` (optional). Writers omit empty fields.
+
+## Config
+
+`STORYBOOK_CHILD=<slug>` (optional, alongside STORYBOOK_BIRTHDATE in
+.env.example + README): the anchor person all kinship labels are relative
+to. Unset or slug not found → no kinship labels, everything else works.
+The child should get his own person page — document that in the README
+("create a person for your child and point STORYBOOK_CHILD at it").
+When the book is inherited, the heir re-points this one line and every
+label re-anchors to the next generation.
+
+## Layer 2 — kinship engine (`app/kinship.py`, new, stdlib only)
+
+- `build_graph(people) -> Graph`: nodes by slug; parent and partner edges
+  (partner edges from the union of both sides).
+- `children_of`, `siblings_of` (share ≥1 parent), `partners_of` helpers.
+- `kinship_label(graph, anchor_slug, person_slug) -> str | None`:
+  BFS from anchor over parent/child edges, classify by (steps up, steps
+  down), gendered word when `gender` is set:
+  - up n: parent / grandparent / great-grandparent / (n-2)×"great-" —
+    m: father→"your father", grandfather…; f: mother…; absent: parent…
+  - down n: son/daughter/child, grandson… (used when anchor is an
+    ancestor of the person's descendants view — labels are always about
+    the PERSON relative to the anchor: "your uncle", "your cousin")
+  - up 1 + down 1: brother / sister / sibling
+  - up 2 + down 1: uncle / aunt / "aunt or uncle"
+  - up n≥3 + down 1: great-uncle / great-aunt (one "great-" per extra step)
+  - up 2 + down 2: cousin; anything deeper or unequal: "cousin"
+  - up 1 + down 2 does not exist from a child anchor; nephews/nieces
+    (down via sibling) appear when the anchor changes generations:
+    sibling's child = nephew / niece / "niece or nephew"
+  - partner of a labeled relative, not otherwise related: "X's husband /
+    wife / partner" using the closest labeled relative's short label
+    (e.g. "your uncle's wife"). One hop only — beyond that, no label.
+  - unreachable from anchor: None.
+- Cycle guard: `would_create_cycle(graph, child, new_parent) -> bool`
+  (a person cannot be their own ancestor).
+- All label text in English, matching the app UI. Unit-test the label
+  table exhaustively with a fixture family of ~15 people including a
+  great-grandmother, an uncle by marriage, and a half-sibling.
+
+## API
+
+- `PUT /api/people/<slug>` (and POST create) accepts `parents`,
+  `partners`, `friend_of` (lists of slugs) and `gender` ("m"/"f"/"").
+  Validation, each → 400 with a clear message: unknown slug; self
+  reference; >2 parents; parent cycle (use the cycle guard); gender not
+  in {m, f, ""}.
+  Partner symmetry: when partners change, update the other person's file
+  too (add/remove the reverse link); their `updated` timestamp changes —
+  that is correct and version history (F8) records it.
+- `GET /api/tree` (login required): the Layer-2/3 contract —
+  ```json
+  { "anchor": "milo",
+    "people": [ { "id": "papi-georges", "name": "Papi Georges",
+      "gender": "m", "photo": "/people/papi-georges/media/photo-001.jpg",
+      "url": "/people/papi-georges", "kinship": "your grandfather",
+      "rels": { "parents": ["henri"], "partners": ["mamie-lise"],
+                "children": ["papa", "remi"] } } ] }
+  ```
+  `anchor` null when unset; `photo` null when none; `kinship` null when
+  no anchor or unreachable; `rels.children` computed. Friends (people
+  whose only link is `friend_of`) are included with a `"friend_of":
+  [...]` key instead of `kinship`. Document this contract in the README —
+  it is the seam future renderers plug into.
+
+## Person pages (works without JavaScript)
+
+- A "Family" section after the body, computed server-side: Parents,
+  Partner, Children, Siblings — name links to their pages, portraits as
+  small inline thumbs where available. Rendered only when non-empty.
+- The kinship label: when an anchor is set and `relation` (free text) is
+  absent, the small-caps line above the name uses the computed label
+  ("YOUR GREAT-GRANDMOTHER"). Free-text `relation` always wins.
+- Friend pages: the small-caps line reads "Friend of Papa" (linked),
+  from `friend_of` + the same relation-wins rule.
+
+## Person editor — filling the tree in
+
+A "Family" fieldset below Relation, shown only when at least one other
+person exists: three pickers (Parents — up to two, Partner, Friend of),
+each a row of person-chips reusing the author-chip look (portrait thumb +
+name, tap to toggle), plus a Gender segmented control (M / F / unset).
+editor.js includes the values in the person PUT payload. No drag-and-drop
+tree editing — the pickers are the entire editing surface.
+
+## Layer 3 — the /tree page
+
+- `GET /tree` (login required): page with a full-height chart container,
+  loading the vendored `d3.min.js`, `family-chart.min.js`,
+  `family-chart.css`, and a new `app/static/js/tree.js` (~80 lines) that
+  fetches `/api/tree`, maps it to family-chart's Datum format
+  (`{id, data: {label, avatar, gender}, rels: {parents, spouses,
+  children}}`; gender absent → "M" is NOT assumed, pass the field only
+  when known and default the card styling to neutral), and calls
+  `f3.createChart('#FamilyChart', data)` with `setCardHtml()`, card
+  display = name, `cardImageField` avatar (fallback: the
+  `person-oval.jpg` asset), main id = anchor (else first person),
+  `setSingleParentEmptyCard(false)`, vertical orientation, transition
+  ~600ms. Card click navigates to the person's page; the mini re-root
+  control (library default) stays enabled so any family member can
+  become the center. Hide the library's edit/add-relative UI — editing
+  happens only in the person editor.
+- Ranch restyle in main.css (scoped under `.page-tree .f3`): cream card
+  faces (`--card` tokens per theme), umber connectors, gold border on the
+  main card, Georgia/serif labels, neutralize the library's pink/blue
+  gender fills in ALL themes. The dark theme shows dark cards with cream
+  portraits — cards here are chart cards, not F17 paper cards.
+- Below the chart, a plain HTML list "Friends & others": friends (with
+  "friend of X") and people with no links at all. Nothing is ever
+  invisible just because it is unlinked.
+- Discoverability: a "Family tree" link on the /people page header, shown
+  only when at least one person has parents or partners; same condition
+  for showing nothing at /tree except a gentle empty state ("Link two
+  people in the person editor and the tree will grow here.").
+- Print: `@media print` hides the chart and shows the "Friends & others"
+  list plus a note to use the app for the interactive tree (a dedicated
+  print layout is a future feature — do not attempt it here).
+
+## Tests
+
+Kinship label table (the fixture family), cycle rejection, partner
+symmetry round-trip through the API, tolerant parsing of dangling slugs,
+/api/tree contract shape (including friends and anchor-unset), person
+page Family section rendering, tree page 200 + contains the vendored
+script tags, feature fully invisible (no Family fieldset, no tree link)
+when no links exist. Bare pytest green.
+
+## Definition of done
+
+Phone-width pass in all three themes: link up a three-generation family
+of ~10 people through the editor pickers only; the tree renders with
+portraits, expands a collapsed uncle branch, re-roots on a grandparent
+and back; person pages show correct computed labels ("your uncle", "your
+great-grandmother") and the free-text override still wins; JS disabled →
+person pages still show the full Family section; zero external network
+requests with the tree page open (the vendored bundle must be re-audited
+by watching the network panel during pan/zoom/expand); hand-inspect one
+person's index.md — the only new lines are the plain optional fields.
