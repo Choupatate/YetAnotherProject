@@ -16,7 +16,7 @@ from flask import (
     url_for,
 )
 
-from . import epub, people, prompts, storage
+from . import epub, kinship, people, prompts, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -307,6 +307,16 @@ def people_page():
     return render_template("people.html", people=people.list_people(_people_dir()))
 
 
+def _person_ref(people_by_slug, slug):
+    """A lightweight {slug, name, photo_url} dict for linking to another
+    person in a template — None when the slug isn't a real person."""
+    p = people_by_slug.get(slug)
+    if p is None:
+        return None
+    photo_url = url_for("pages.person_media", slug=p.slug, filename=p.photo) if p.photo else None
+    return {"slug": p.slug, "name": p.name, "photo_url": photo_url}
+
+
 @bp.route("/people/<slug>")
 @login_required
 def person_page(slug):
@@ -314,7 +324,35 @@ def person_page(slug):
     if p is None:
         abort(404)
     body_html = render_markdown(p.body, f"/people/{slug}/media")
-    return render_template("person.html", person=p, body_html=body_html)
+
+    all_people = people.list_people(_people_dir())
+    people_by_slug = {person.slug: person for person in all_people}
+    graph = kinship.build_graph(all_people)
+
+    anchor = current_app.config.get("CHILD_SLUG")
+    if anchor not in graph.nodes:
+        anchor = None
+
+    kinship_line = None
+    friend_of_line = None
+    if not p.relation:
+        if anchor:
+            kinship_line = kinship.kinship_label(graph, anchor, slug)
+        if kinship_line is None and p.friend_of:
+            friend_of_line = _person_ref(people_by_slug, p.friend_of[0])
+
+    family = {
+        "parents": [_person_ref(people_by_slug, s) for s in graph.parents.get(slug, [])],
+        "partners": [_person_ref(people_by_slug, s) for s in kinship.partners_of(graph, slug)],
+        "children": [_person_ref(people_by_slug, s) for s in kinship.children_of(graph, slug)],
+        "siblings": [_person_ref(people_by_slug, s) for s in kinship.siblings_of(graph, slug)],
+    }
+    family = {key: [ref for ref in refs if ref] for key, refs in family.items()}
+
+    return render_template(
+        "person.html", person=p, body_html=body_html,
+        kinship_line=kinship_line, friend_of_line=friend_of_line, family=family,
+    )
 
 
 @bp.route("/people/<slug>/media/<filename>")
