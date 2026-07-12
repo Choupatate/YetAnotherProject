@@ -5,6 +5,25 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/toastui-editor.min.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/toastui/theme/toastui-editor-dark.css') }}">
 {% endblock %}
+{% macro chip_group(container_id, label, selected_slugs) %}
+<div class="editor__family-group">
+  <p class="editor__family-label">{{ label }}</p>
+  <div class="editor__family-chips" id="{{ container_id }}">
+    {% for other in other_people %}
+    <button type="button" class="editor__author-chip family-chip" data-person-slug="{{ other.slug }}"
+            aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
+      {% if other.photo_url %}
+      <img class="family-chip__thumb" src="{{ other.photo_url }}" alt="" loading="lazy" decoding="async">
+      {% else %}
+      <span class="family-chip__thumb family-chip__thumb--placeholder" aria-hidden="true">{{ other.name[0]|upper }}</span>
+      {% endif %}
+      {{ other.name }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
 {% block content %}
 <div class="editor__recovery" id="editor-recovery" hidden>
   <p class="editor__recovery-text">
@@ -24,7 +43,26 @@
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Name" value="{{ person.name if person else '' }}" required>
   <input class="editor__relation" id="person-relation" name="relation" type="text"
-         placeholder="Relation (e.g. your grandmother)" value="{{ person.relation if person else '' }}">
+         placeholder="Relation (e.g. your grandmother)" value="{{ (person.relation or '') if person else '' }}">
+  {% if other_people %}
+  <fieldset class="editor__family" id="editor-family">
+    <legend class="editor__family-legend">Family</legend>
+    {{ chip_group("family-parents", "Parents (up to two)", person.parents if person else []) }}
+    {{ chip_group("family-partners", "Partner", person.partners if person else []) }}
+    {{ chip_group("family-friend-of", "Friend of", person.friend_of if person else []) }}
+    <div class="editor__family-group">
+      <p class="editor__family-label">Gender</p>
+      <div class="editor__gender-segmented" id="family-gender">
+        <button type="button" class="editor__gender-btn" data-gender="m"
+                aria-pressed="{{ 'true' if person and person.gender == 'm' else 'false' }}">M</button>
+        <button type="button" class="editor__gender-btn" data-gender="f"
+                aria-pressed="{{ 'true' if person and person.gender == 'f' else 'false' }}">F</button>
+        <button type="button" class="editor__gender-btn" data-gender=""
+                aria-pressed="{{ 'true' if not person or not person.gender else 'false' }}">Unset</button>
+      </div>
+    </div>
+  </fieldset>
+  {% endif %}
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ person.body if person else '' }}</textarea>
   </div>

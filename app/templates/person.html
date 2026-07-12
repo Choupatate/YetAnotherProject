@@ -1,10 +1,41 @@
 {% extends "base.html" %}
 {% block title %}{{ person.name }} — {{ app_title }}{% endblock %}
 {% block body_class %}page-person{% endblock %}
+
+{% macro family_group(heading, refs) %}
+{% if refs %}
+<div class="person-family__group">
+  <h2 class="person-family__heading">{{ heading }}</h2>
+  <ul class="person-family__list">
+    {% for ref in refs %}
+    <li class="person-family__item">
+      <a class="person-family__link" href="{{ url_for('pages.person_page', slug=ref.slug) }}">
+        {% if ref.photo_url %}
+        <img class="person-family__thumb" src="{{ ref.photo_url }}" alt="" loading="lazy" decoding="async">
+        {% else %}
+        <span class="person-family__thumb person-family__thumb--placeholder" aria-hidden="true">{{ ref.name[0]|upper }}</span>
+        {% endif %}
+        <span class="person-family__name">{{ ref.name }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <article class="story">
   <header class="story__header">
-    <p class="story__date">{% if person.relation %}{{ person.relation }}{% endif %}</p>
+    <p class="story__date">
+      {%- if person.relation -%}
+      {{ person.relation }}
+      {%- elif kinship_line -%}
+      {{ kinship_line }}
+      {%- elif friend_of_line -%}
+      Friend of <a href="{{ url_for('pages.person_page', slug=friend_of_line.slug) }}">{{ friend_of_line.name }}</a>
+      {%- endif -%}
+    </p>
     <h1 class="story__title">{{ person.name }}</h1>
     <hr class="story__flourish" aria-hidden="true">
   </header>
@@ -14,6 +45,14 @@
   <div class="story__body">
     {{ body_html|safe }}
   </div>
+  {% if family.parents or family.partners or family.children or family.siblings %}
+  <section class="person-family">
+    {{ family_group("Parents", family.parents) }}
+    {{ family_group("Partner" if family.partners|length == 1 else "Partners", family.partners) }}
+    {{ family_group("Children", family.children) }}
+    {{ family_group("Siblings", family.siblings) }}
+  </section>
+  {% endif %}
   <footer class="story__footer">
     <div class="story__navrow">
       <a class="story__back" href="{{ url_for('pages.people_page') }}">&lsaquo; People</a>

@@ -99,6 +99,7 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_AUTHORS` | Optional. Comma-separated `Name:#hexcolor` pairs for several narrators (see below). Unset by default. |
 | `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
 | `STORYBOOK_TITLE` | Optional. The app's display name — nav, page titles, install manifest, book cover. Defaults to `Storybook`. |
+| `STORYBOOK_CHILD` | Optional. The slug of the person page the family tree's kinship labels are computed relative to (see below). Unset by default. |
 
 ### Several narrators
 
@@ -143,6 +144,57 @@ auto-linking or `@mention` syntax, so a name in a story stays plain text
 unless you deliberately link it. People don't show up on the timeline or
 in `/book` — this is a reference page, not another kind of memory — and,
 like stories, there's no way to delete one once added.
+
+### The family tree
+
+Person pages can optionally record `parents` (up to two), `partners`
+(symmetric — linking one side writes both), `friend_of`, and `gender`.
+These are plain facts, never computed labels: relations like "uncle" or
+"cousin" are always derived from them at read time, never stored. Fill
+them in through the "Family" fieldset in the person editor — chip pickers
+reusing the author-chip look, shown once at least one other person exists.
+
+Set `STORYBOOK_CHILD` to the slug of your child's person page and every
+"YOUR ___" line on a person page, and the whole `/tree` chart, computes
+labels relative to that anchor ("your grandmother", "your great-uncle",
+"your uncle's wife" for an in-law one hop out). Leave it unset and
+everything still works, just without the "your ___" wording. When the
+book is inherited, re-point this one line at the next generation.
+
+`GET /api/tree` (login required) is the seam future renderers plug into —
+the vendored chart on `/tree` is just today's consumer:
+
+```json
+{
+  "anchor": "milo",
+  "people": [
+    {
+      "id": "papi-georges",
+      "name": "Papi Georges",
+      "gender": "m",
+      "photo": "/people/papi-georges/media/photo-001.jpg",
+      "url": "/people/papi-georges",
+      "kinship": "your grandfather",
+      "rels": { "parents": [], "partners": ["mamie-lise"], "children": ["papa"] }
+    },
+    {
+      "id": "ami-jean",
+      "name": "Ami Jean",
+      "gender": null,
+      "photo": null,
+      "url": "/people/ami-jean",
+      "friend_of": ["papa"]
+    }
+  ]
+}
+```
+
+`anchor` is `null` when `STORYBOOK_CHILD` is unset or points at a slug
+that doesn't exist. Anyone linked into the family graph (has a parent,
+partner, or child) gets a `kinship` label (`null` when there's no anchor
+or they're unreachable from it) and a `rels` object. Everyone else —
+friends and people with no links at all — gets a `friend_of` list instead
+(empty for a fully unlinked person).
 
 ### Voice memos
 

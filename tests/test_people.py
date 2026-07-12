@@ -99,6 +99,78 @@ def test_get_person_missing_returns_none(stories_dir):
     assert people.get_person(_people_dir(stories_dir), "nobody") is None
 
 
+# --- F18: family fields on the Person dataclass -----------------------------
+
+
+def test_person_defaults_family_fields_empty(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Solo")
+    p = people.get_person(people_dir, slug)
+    assert p.parents == []
+    assert p.partners == []
+    assert p.friend_of == []
+    assert p.gender is None
+
+
+def test_create_person_with_family_fields(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi Georges", gender="m")
+    mamie = people.create_person(people_dir, "Mamie Lise", gender="f")
+    child = people.create_person(
+        people_dir, "Papa", parents=[papi, mamie], partners=["claire"], gender="m",
+    )
+    p = people.get_person(people_dir, child)
+    assert p.parents == [papi, mamie]
+    assert p.partners == ["claire"]
+    assert p.gender == "m"
+
+
+def test_update_person_family_fields_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Kept", parents=["a", "b"], gender="f")
+    people.update_person(people_dir, slug, "Kept", body="updated")
+    p = people.get_person(people_dir, slug)
+    assert p.parents == ["a", "b"]
+    assert p.gender == "f"
+
+
+def test_update_person_family_fields_empty_list_clears(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Cleared", parents=["a", "b"], partners=["c"])
+    people.update_person(people_dir, slug, "Cleared", parents=[], partners=[])
+    p = people.get_person(people_dir, slug)
+    assert p.parents == []
+    assert p.partners == []
+
+
+def test_update_person_gender_empty_string_clears(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Ungendered", gender="m")
+    people.update_person(people_dir, slug, "Ungendered", gender="")
+    p = people.get_person(people_dir, slug)
+    assert p.gender is None
+
+
+def test_family_fields_tolerant_of_malformed_frontmatter(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    person_dir = people_dir / "weird"
+    person_dir.mkdir(parents=True)
+    (person_dir / "index.md").write_text(
+        "---\nname: Weird\nparents: not-a-list\ngender: nonbinary-typo\n---\nbody",
+        encoding="utf-8",
+    )
+    p = people.get_person(people_dir, "weird")
+    assert p.parents == []
+    assert p.gender is None
+
+
+def test_friend_of_round_trips(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Buddy", friend_of=["papa"])
+    p = people.get_person(people_dir, slug)
+    assert p.friend_of == ["papa"]
+
+
 # --- list_stories() skips people/ silently ----------------------------------
 
 

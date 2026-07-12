@@ -75,6 +75,82 @@
     markDirty();
   });
 
+  // --- Family pickers (FEATURES.md F18) --------------------------------------
+  var familyRoot = document.getElementById("editor-family");
+
+  function initChipPicker(root, maxSelected) {
+    var chips = root ? Array.prototype.slice.call(root.querySelectorAll(".family-chip")) : [];
+
+    function selected() {
+      return chips
+        .filter(function (c) {
+          return c.getAttribute("aria-pressed") === "true";
+        })
+        .map(function (c) {
+          return c.dataset.personSlug;
+        });
+    }
+
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var pressed = chip.getAttribute("aria-pressed") === "true";
+        if (!pressed && maxSelected && selected().length >= maxSelected) return;
+        chip.setAttribute("aria-pressed", pressed ? "false" : "true");
+        markDirty();
+      });
+    });
+
+    return {
+      getSelected: selected,
+      setSelected: function (slugs) {
+        var set = {};
+        (slugs || []).forEach(function (s) {
+          set[s] = true;
+        });
+        chips.forEach(function (c) {
+          c.setAttribute("aria-pressed", set[c.dataset.personSlug] ? "true" : "false");
+        });
+      },
+    };
+  }
+
+  var parentsPicker = initChipPicker(document.getElementById("family-parents"), 2);
+  var partnersPicker = initChipPicker(document.getElementById("family-partners"));
+  var friendOfPicker = initChipPicker(document.getElementById("family-friend-of"));
+
+  var genderRoot = document.getElementById("family-gender");
+  var genderButtons = genderRoot
+    ? Array.prototype.slice.call(genderRoot.querySelectorAll(".editor__gender-btn"))
+    : [];
+
+  function getGender() {
+    var pressed = genderButtons.filter(function (b) {
+      return b.getAttribute("aria-pressed") === "true";
+    })[0];
+    return pressed ? pressed.dataset.gender : "";
+  }
+
+  function setGender(value) {
+    genderButtons.forEach(function (b) {
+      b.setAttribute("aria-pressed", b.dataset.gender === (value || "") ? "true" : "false");
+    });
+  }
+
+  genderButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setGender(btn.dataset.gender);
+      markDirty();
+    });
+  });
+
+  function addFamilyFields(payload) {
+    if (!familyRoot) return;
+    payload.parents = parentsPicker.getSelected();
+    payload.partners = partnersPicker.getSelected();
+    payload.friend_of = friendOfPicker.getSelected();
+    payload.gender = getGender();
+  }
+
   // --- Writing prompt cycling (F16) — never inserted into the story itself.
   var promptTextEl = document.getElementById("editor-prompt-text");
   var promptCycleBtn = document.getElementById("editor-prompt-cycle");
@@ -319,6 +395,7 @@
       archived: isArchived(),
     };
     if (relationInput) payload.relation = relationInput.value.trim();
+    addFamilyFields(payload);
     return fetch(createUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -543,6 +620,7 @@
       savedAt: Date.now(),
     };
     if (relationInput) payload.relation = relationInput.value;
+    addFamilyFields(payload);
     return payload;
   }
 
@@ -588,6 +666,12 @@
     }
     if (relationInput) relationInput.value = draftData.relation || "";
     authorChipsController.setSelected(draftData.author || null);
+    if (familyRoot) {
+      parentsPicker.setSelected(draftData.parents || []);
+      partnersPicker.setSelected(draftData.partners || []);
+      friendOfPicker.setSelected(draftData.friend_of || []);
+      setGender(draftData.gender || "");
+    }
     markDirty();
   }
 
@@ -643,6 +727,7 @@
       archived: isArchived(),
     };
     if (relationInput) payload.relation = relationInput.value.trim();
+    addFamilyFields(payload);
 
     // A brand-new story is created with its real content in one request
     // rather than going through ensureStoryId()'s empty-body POST followed
