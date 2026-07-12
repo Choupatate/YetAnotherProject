@@ -17,6 +17,66 @@ html, body {
   display: none !important;
 }
 
+/* ---------------------------------------------------------------------- */
+/* F17: hand-drawn visual identity ("le style du ranch")                   */
+/*                                                                          */
+/* Every JPEG illustration carries its own cream paper background, so the  */
+/* .illo class mounts it as a paper card pinned to the page: matching      */
+/* cream padding, a light-theme border regardless of theme, a soft shadow  */
+/* and a slight rotation. It stays cream in every theme on purpose — in    */
+/* dark mode it reads as a photograph tucked into an album. The two        */
+/* transparent PNGs (rope-divider, lasso-ring) are NOT cards and never get */
+/* this class — they sit directly on the page background.                 */
+/* ---------------------------------------------------------------------- */
+
+.illo {
+  display: block;
+  padding: 0.75rem;
+  background: #f9f2e1;
+  border: 1px solid #e2d9c8;
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  transform: rotate(-1.2deg);
+}
+
+.illo--tilt-right {
+  transform: rotate(1deg);
+}
+
+.lasso-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  vertical-align: middle;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lasso-spinner {
+    animation: lasso-spin 1.4s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lasso-spinner {
+    animation: lasso-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes lasso-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lasso-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 /* R4.1: any focusable text/date/file input under 16px triggers iOS Safari's
    auto-zoom on focus, which then leaves the page zoomed in. */
 input, textarea, select {
@@ -290,6 +350,13 @@ mark {
   margin: 0 0 2rem;
 }
 
+.login__illo {
+  max-width: 20rem;
+  width: 100%;
+  height: auto;
+  margin: 0 auto 2rem;
+}
+
 .login__form {
   display: flex;
   flex-direction: column;
@@ -325,6 +392,13 @@ mark {
   margin: 4rem auto;
   padding: 0 1.25rem;
   text-align: center;
+}
+
+.empty-state__illo {
+  max-width: 20rem;
+  width: 100%;
+  height: auto;
+  margin: 0 auto 1.5rem;
 }
 
 .empty-state p {
@@ -710,6 +784,14 @@ mark {
   color: var(--color-text-dim);
 }
 
+.drafts__illo,
+.archived__illo {
+  max-width: 14rem;
+  width: 100%;
+  height: auto;
+  margin: 0 auto 1rem;
+}
+
 .drafts__list,
 .archived__list {
   list-style: none;
@@ -820,14 +902,32 @@ mark {
 }
 
 .people__portrait--placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border);
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+
+.people__portrait-oval {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.people__portrait-initial {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   color: var(--color-text-dim);
   font-family: var(--font-serif);
   font-size: 2rem;
+}
+
+.people__illo {
+  max-width: 14rem;
+  width: 100%;
+  height: auto;
+  margin: 0 auto 1rem;
 }
 
 .people__name {
@@ -875,6 +975,12 @@ mark {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.import__submit-row {
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
 }
 
@@ -990,11 +1096,11 @@ mark {
 }
 
 .story__flourish {
-  width: 4rem;
-  height: 0;
+  width: 160px;
+  height: 23px;
   border: none;
-  border-top: 2px solid var(--author-color, var(--color-accent));
   margin: 0 auto;
+  background: url("../img/rope-divider.png") no-repeat center / contain;
 }
 
 .story__cover {
@@ -1178,10 +1284,11 @@ mark {
   text-align: center;
 }
 
-.sealed__envelope {
-  display: inline-flex;
-  color: var(--author-color, var(--color-accent));
-  margin-bottom: 1.5rem;
+.sealed__illo {
+  max-width: 18rem;
+  width: 100%;
+  height: auto;
+  margin: 0 auto 1.5rem;
 }
 
 .sealed__label {
@@ -1273,22 +1380,51 @@ mark {
 .book-cover {
   min-height: 60vh;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+}
+
+.book-cover__frame-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 auto;
+}
+
+.book-cover__frame {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The frame's opening is baked into the JPEG as the same cream as every
+   other illustration, regardless of site theme — so the overlaid text is
+   a fixed dark ink color rather than the theme's --color-text, exactly
+   like the lightbox close button is fixed against its always-dark backdrop. */
+.book-cover__content {
+  position: absolute;
+  inset: 20% 13%;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 0.75rem;
-  padding: 2rem 1.25rem;
+  gap: 0.5rem;
+  overflow: hidden;
+  color: #2a2520;
 }
 
 .book-cover__title {
   font-family: var(--font-serif);
-  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-size: clamp(1.5rem, 6vw, 2.25rem);
   margin: 0;
+  color: inherit;
 }
 
 .book-cover__range {
-  color: var(--color-text-dim);
+  color: inherit;
+  opacity: 0.75;
   margin: 0;
 }
 
@@ -1299,8 +1435,9 @@ mark {
   gap: 0.35rem 1rem;
   margin-top: 0.5rem;
   font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-text-dim);
+  font-size: 0.8125rem;
+  color: inherit;
+  opacity: 0.75;
 }
 
 .book-cover__author {
@@ -1318,10 +1455,10 @@ mark {
 }
 
 .book__ornament {
-  text-align: center;
-  color: var(--color-text-dim);
-  letter-spacing: 0.5em;
-  margin: 0.5rem 0;
+  display: block;
+  width: 240px;
+  height: auto;
+  margin: 0.5rem auto;
 }
 
 .book__instant {
@@ -1372,6 +1509,19 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.instant__illo {
+  display: block;
+  max-height: 9rem;
+  width: auto;
+  margin: 0 auto 0.75rem;
+}
+
+@media (max-height: 700px) {
+  .instant__illo {
+    display: none;
+  }
 }
 
 .instant__photo-picker {
@@ -1425,8 +1575,15 @@ mark {
   font-size: 1rem;
 }
 
-.instant__save {
+.instant__save-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin-top: 0.5rem;
+}
+
+.instant__save {
+  flex: 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1737,10 +1894,14 @@ mark {
   padding: 0.75rem 0;
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .editor__save {
-  width: 100%;
+  flex: 1;
 }
 
 .editor__save-message {
@@ -1752,14 +1913,11 @@ mark {
 
 @media (min-width: 40rem) {
   .editor__save-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
     justify-content: flex-end;
-    gap: 0 1rem;
   }
 
   .editor__save {
+    flex: none;
     width: auto;
     padding: 0 2rem;
   }
@@ -1859,12 +2017,6 @@ mark {
   box-shadow: 0 1px 2px rgba(58, 44, 28, 0.12), 0 12px 28px rgba(58, 44, 28, 0.14);
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
-}
-
-:root[data-theme="manuscript"] .story__flourish {
-  border-top-style: double;
-  border-top-width: 3px;
-  width: 6rem;
 }
 
 :root[data-theme="manuscript"] .editor__save-bar {

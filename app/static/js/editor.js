@@ -8,6 +8,7 @@
   var root = document.getElementById("editor-root");
   var sourceTextarea = document.getElementById("markdown-source");
   var saveButton = document.getElementById("save-story");
+  var saveSpinner = document.getElementById("editor-spinner");
   var saveMessageEl = document.getElementById("editor-save-message");
   var saveButtonDefaultLabel = saveButton.textContent;
 
@@ -630,6 +631,7 @@
     showSaveMessage("");
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";
+    if (saveSpinner) saveSpinner.hidden = false;
     var markdown = editor.getMarkdown();
     var payload = {
       title: title,
@@ -668,6 +670,7 @@
       .catch(function (error) {
         saveButton.disabled = false;
         saveButton.textContent = saveButtonDefaultLabel;
+        if (saveSpinner) saveSpinner.hidden = true;
         showSaveMessage(
           (error && error.message) ||
             "Could not save your story. Please check your connection and try again."

@@ -3,6 +3,8 @@
 {% block body_class %}page-not-found{% endblock %}
 {% block content %}
 <div class="empty-state">
+  <img class="illo empty-state__illo" src="{{ url_for('static', filename='img/tumbleweed.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="900" height="488">
   <p>That page doesn't exist, or it never did.</p>
   <a class="btn btn--primary" href="{{ url_for('pages.timeline') }}">&lsaquo; Back to the timeline</a>
 </div>

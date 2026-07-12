@@ -15,7 +15,11 @@
       <span class="import__file-label" id="import-file-label">Choose a backup .zip</span>
       <input type="file" id="import-file" name="file" class="import__file" accept=".zip,application/zip" required>
     </label>
-    <button type="submit" class="btn btn--primary">Import</button>
+    <div class="import__submit-row">
+      <button type="submit" class="btn btn--primary">Import</button>
+      <img class="lasso-spinner" id="import-spinner" src="{{ url_for('static', filename='img/lasso-ring.png') }}"
+           alt="" width="40" height="40" hidden>
+    </div>
   </form>
   <p class="import__result" id="import-result" hidden></p>
 </div>

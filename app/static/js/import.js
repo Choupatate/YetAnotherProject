@@ -4,6 +4,7 @@
   var fileLabel = document.getElementById("import-file-label");
   var fileLabelDefault = fileLabel ? fileLabel.textContent : "";
   var result = document.getElementById("import-result");
+  var spinner = document.getElementById("import-spinner");
   if (!form) return;
 
   fileInput.addEventListener("change", function () {
@@ -21,6 +22,7 @@
 
     result.hidden = true;
     result.classList.remove("import__result--error");
+    if (spinner) spinner.hidden = false;
 
     fetch("/api/import", { method: "POST", body: formData })
       .then(function (response) {
@@ -36,6 +38,7 @@
       .then(function (res) {
         result.hidden = false;
         if (!res.ok) {
+          if (spinner) spinner.hidden = true;
           result.classList.add("import__result--error");
           result.textContent = (res.data && res.data.error) || "Import failed.";
           return;
@@ -49,6 +52,7 @@
       })
       .catch(function () {
         result.hidden = false;
+        if (spinner) spinner.hidden = true;
         result.classList.add("import__result--error");
         result.textContent = "Could not import. Please check your connection and try again.";
       });

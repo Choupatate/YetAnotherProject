@@ -3,6 +3,8 @@
 {% block body_class %}page-instant{% endblock %}
 {% block content %}
 <form id="instant-form" class="instant">
+  <img class="illo instant__illo" src="{{ url_for('static', filename='img/instant-camera.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="522" height="652">
   <label class="instant__photo-picker" id="instant-photo-picker" for="instant-photo">
     <img class="instant__photo-preview" id="instant-photo-preview" alt="" hidden>
     <span class="instant__photo-label" id="instant-photo-label">Add a photo</span>
@@ -22,7 +24,11 @@
     {% endfor %}
   </div>
   {% endif %}
-  <button type="submit" id="instant-save" class="btn btn--primary instant__save">Save</button>
+  <div class="instant__save-row">
+    <button type="submit" id="instant-save" class="btn btn--primary instant__save">Save</button>
+    <img class="lasso-spinner" id="instant-spinner" src="{{ url_for('static', filename='img/lasso-ring.png') }}"
+         alt="" width="40" height="40" hidden>
+  </div>
 </form>
 {% endblock %}
 {% block scripts %}
