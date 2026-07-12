@@ -832,10 +832,15 @@ The processed assets are already committed under `app/static/img/`:
 | `rope-divider.png` | 1000×144, transparent | flourishes/dividers |
 | `lasso-ring.png` | 320×320, transparent, centered | loading spinner |
 
-Two more images (a leather-journal app icon and a campfire scene for the
-login page and empty timeline) arrive in a follow-up commit with the same
-naming (`login-campfire.jpg`, regenerated `app/static/icons/*`); build the
-shared treatment now and wire those two spots only when the files exist.
+Also committed: `login-campfire.jpg` (856×735) — the login-page
+illustration, reused for the empty-timeline state — and the leather-journal
+app icon regenerated over the old placeholder icons at
+`app/static/icons/icon-512.png`, `icon-192.png`, and
+`apple-touch-icon.png` (same filenames; the manifest and templates need no
+path changes). Wire the login page and empty-timeline placements like every
+other card: the login page shows the campfire card between the subtitle and
+the password field (max-width 20rem), the empty timeline shows it above the
+"No stories yet" line.
 
 ## The paper-card treatment (the key to theming)
 
