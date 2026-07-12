@@ -4,6 +4,8 @@
 {% block content %}
 {% if not stories %}
 <div class="empty-state">
+  <img class="illo empty-state__illo" src="{{ url_for('static', filename='img/login-campfire.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="856" height="735">
   <p>No stories yet — this is where your family's memories will live.</p>
   <a class="btn btn--primary" href="{{ url_for('pages.new_story') }}">+ New story</a>
 </div>

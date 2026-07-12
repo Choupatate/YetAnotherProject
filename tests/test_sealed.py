@@ -15,7 +15,7 @@ def test_sealed_story_page_shows_envelope_not_body(auth_client, stories_dir):
     resp = auth_client.get(f"/story/{story_id}")
     assert resp.status_code == 200
     html = resp.data.decode()
-    assert "sealed__envelope" in html
+    assert "sealed__illo" in html
     assert "A sealed letter" in html
     assert "Secret title" not in html
     assert "secret body" not in html
@@ -40,7 +40,7 @@ def test_unlock_date_in_past_renders_normally(auth_client, stories_dir):
     html = resp.data.decode()
     assert "No longer secret" in html
     assert "now visible" in html
-    assert "sealed__envelope" not in html
+    assert "sealed__illo" not in html
 
 
 def test_timeline_shows_envelope_entry_for_sealed_story(auth_client, stories_dir):

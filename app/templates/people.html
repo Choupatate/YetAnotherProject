@@ -9,6 +9,8 @@
     <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">+ New person</a>
   </div>
   {% if not people %}
+  <img class="illo people__illo" src="{{ url_for('static', filename='img/person-oval.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="600" height="732">
   <p class="people__empty">
     The people who show up again and again — grandparents, godparents, the
     family dog — get a page of their own here.
@@ -21,7 +23,11 @@
         {% if person.photo %}
         <img class="people__portrait" src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt="">
         {% else %}
-        <span class="people__portrait people__portrait--placeholder" aria-hidden="true">{{ person.name[0]|upper }}</span>
+        <span class="people__portrait people__portrait--placeholder">
+          <img class="people__portrait-oval" src="{{ url_for('static', filename='img/person-oval.jpg') }}"
+               alt="" loading="lazy" decoding="async" width="600" height="732">
+          <span class="people__portrait-initial" aria-hidden="true">{{ person.name[0]|upper }}</span>
+        </span>
         {% endif %}
         <span class="people__name">{{ person.name }}</span>
         {% if person.relation %}<span class="people__relation">{{ person.relation }}</span>{% endif %}

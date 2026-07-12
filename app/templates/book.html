@@ -3,21 +3,27 @@
 {% block body_class %}page-book{% endblock %}
 {% block content %}
 <section class="book-cover">
-  <h1 class="book-cover__title">{{ app_title }}</h1>
-  {% if min_year and max_year %}
-  <p class="book-cover__range">
-    {% if min_year == max_year %}Stories from {{ min_year }}{% else %}Stories from {{ min_year }} to {{ max_year }}{% endif %}
-  </p>
-  {% endif %}
-  {% if authors %}
-  <div class="book-cover__authors">
-    {% for a in authors %}
-    <span class="book-cover__author">
-      <span class="book-cover__author-dot" style="--author-color: {{ a.color }}" aria-hidden="true"></span>{{ a.name }}
-    </span>
-    {% endfor %}
+  <div class="book-cover__frame-wrap">
+    <img class="book-cover__frame" src="{{ url_for('static', filename='img/book-frame.jpg') }}"
+         alt="" loading="lazy" decoding="async" width="715" height="897">
+    <div class="book-cover__content">
+      <h1 class="book-cover__title">{{ app_title }}</h1>
+      {% if min_year and max_year %}
+      <p class="book-cover__range">
+        {% if min_year == max_year %}Stories from {{ min_year }}{% else %}Stories from {{ min_year }} to {{ max_year }}{% endif %}
+      </p>
+      {% endif %}
+      {% if authors %}
+      <div class="book-cover__authors">
+        {% for a in authors %}
+        <span class="book-cover__author">
+          <span class="book-cover__author-dot" style="--author-color: {{ a.color }}" aria-hidden="true"></span>{{ a.name }}
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
   </div>
-  {% endif %}
 </section>
 {% for entry in entries %}
 {% set story = entry.story %}
@@ -35,7 +41,8 @@
 </article>
 {% endif %}
 {% if not loop.last %}
-<p class="book__ornament" aria-hidden="true">&middot; &middot; &middot;</p>
+<img class="book__ornament" src="{{ url_for('static', filename='img/rope-divider.png') }}"
+     alt="" loading="lazy" decoding="async" width="1000" height="144">
 {% endif %}
 {% endfor %}
 <button type="button" class="book__print-btn" id="book-print-btn">Print / save as PDF</button>

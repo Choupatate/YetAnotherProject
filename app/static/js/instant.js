@@ -6,6 +6,7 @@
   var lineInput = document.getElementById("instant-line");
   var dateInput = document.getElementById("instant-date");
   var saveButton = document.getElementById("instant-save");
+  var spinner = document.getElementById("instant-spinner");
 
   var authorsRoot = document.getElementById("editor-authors");
   var authorChipsController = window.StorybookAuthorChips.init(authorsRoot);
@@ -57,6 +58,7 @@
     var author = authorChipsController.getSelected() || "";
 
     saveButton.disabled = true;
+    if (spinner) spinner.hidden = false;
 
     fetch("/api/stories", {
       method: "POST",
@@ -97,6 +99,7 @@
       })
       .catch(function (error) {
         saveButton.disabled = false;
+        if (spinner) spinner.hidden = true;
         window.alert(
           (error && error.message) ||
             "Could not save your instant. Please check your connection and try again."

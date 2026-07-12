@@ -6,6 +6,8 @@
   <p class="drafts__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
   <h1 class="drafts__title">Drafts</h1>
   {% if not stories %}
+  <img class="illo drafts__illo" src="{{ url_for('static', filename='img/empty-chest.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="653" height="729">
   <p class="drafts__empty">No drafts right now.</p>
   {% else %}
   <ul class="drafts__list">
