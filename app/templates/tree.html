@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Family tree — {{ app_title }}{% endblock %}
+{% block body_class %}page-tree{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/familychart/family-chart.css') }}">
+{% endblock %}
+{% block content %}
+<div class="tree">
+  <p class="tree__back"><a href="{{ url_for('pages.people_page') }}">&lsaquo; People</a></p>
+  <h1 class="tree__title">Family tree</h1>
+
+  {% if has_family_links %}
+  <div id="FamilyChart" class="tree__chart f3" data-tree-url="{{ url_for('api.api_tree') }}"
+       data-fallback-avatar="{{ url_for('static', filename='img/person-oval.jpg') }}"></div>
+
+  <section class="tree__others">
+    <h2 class="tree__others-heading">Friends &amp; others</h2>
+    <ul class="tree__others-list">
+      {% for other in others %}
+      <li class="tree__others-item">
+        <a href="{{ url_for('pages.person_page', slug=other.slug) }}">{{ other.name }}</a>
+        {% if other.friend_of %}
+        <span class="tree__others-note">friend of
+          {% for f in other.friend_of %}<a href="{{ url_for('pages.person_page', slug=f.slug) }}">{{ f.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <p class="tree__print-note">Open Storybook on a device to explore the interactive family tree.</p>
+  {% else %}
+  <p class="tree__empty">Link two people in the person editor and the tree will grow here.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if has_family_links %}
+<script src="{{ url_for('static', filename='vendor/d3/d3.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/familychart/family-chart.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tree.js') }}"></script>
+{% endif %}
+{% endblock %}

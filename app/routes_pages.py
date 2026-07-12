@@ -301,10 +301,21 @@ def _people_dir():
     return current_app.config["STORIES_DIR"] / "people"
 
 
+def _has_family_links(graph):
+    """True when at least one person has a parent or partner — the shared
+    condition for showing the "Family tree" link on /people and showing the
+    chart (vs. a gentle empty state) on /tree (FEATURES.md F18)."""
+    return any(graph.parents.get(slug) or graph.partners.get(slug) for slug in graph.nodes)
+
+
 @bp.route("/people")
 @login_required
 def people_page():
-    return render_template("people.html", people=people.list_people(_people_dir()))
+    all_people = people.list_people(_people_dir())
+    graph = kinship.build_graph(all_people)
+    return render_template(
+        "people.html", people=all_people, show_tree_link=_has_family_links(graph)
+    )
 
 
 def _person_ref(people_by_slug, slug):
@@ -364,6 +375,35 @@ def person_media(slug, filename):
     if not (person_dir / filename).is_file():
         abort(404)
     return send_from_directory(person_dir, filename)
+
+
+@bp.route("/tree")
+@login_required
+def tree_page():
+    all_people = people.list_people(_people_dir())
+    people_by_slug = {p.slug: p for p in all_people}
+    graph = kinship.build_graph(all_people)
+
+    has_family_links = _has_family_links(graph)
+
+    others = []
+    if has_family_links:
+        for p in all_people:
+            in_family = bool(
+                graph.parents.get(p.slug)
+                or graph.partners.get(p.slug)
+                or kinship.children_of(graph, p.slug)
+            )
+            if in_family:
+                continue
+            friend_refs = [_person_ref(people_by_slug, s) for s in graph.friend_of.get(p.slug, [])]
+            others.append({
+                "slug": p.slug,
+                "name": p.name,
+                "friend_of": [ref for ref in friend_refs if ref],
+            })
+
+    return render_template("tree.html", has_family_links=has_family_links, others=others)
 
 
 def _other_people_refs(exclude_slug=None):

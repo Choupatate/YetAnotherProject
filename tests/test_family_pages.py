@@ -227,3 +227,117 @@ def test_editor_js_and_family_picker_script_present_on_person_editor(auth_client
     people.create_person(_people_dir(stories_dir), "Someone")
     resp = auth_client.get("/new-person")
     assert b'js/editor.js' in resp.data
+
+
+# --- /people discoverability link -------------------------------------------
+
+
+def test_people_page_no_tree_link_when_no_family_links(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get("/people")
+    assert b"Family tree" not in resp.data
+
+
+def test_people_page_shows_tree_link_when_parents_exist(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    resp = auth_client.get("/people")
+    assert b"Family tree" in resp.data
+
+
+def test_people_page_shows_tree_link_when_only_partners_exist(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    a = people.create_person(people_dir, "A")
+    people.create_person(people_dir, "B", partners=[a])
+    resp = auth_client.get("/people")
+    assert b"Family tree" in resp.data
+
+
+def test_people_page_no_tree_link_with_only_friend_of(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    a = people.create_person(people_dir, "A")
+    people.create_person(people_dir, "B", friend_of=[a])
+    resp = auth_client.get("/people")
+    assert b"Family tree" not in resp.data
+
+
+# --- /tree page ---------------------------------------------------------
+
+
+def test_tree_page_requires_auth(client):
+    resp = client.get("/tree")
+    assert resp.status_code == 302
+
+
+def test_tree_page_empty_state_when_no_family_links(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert "Link two people in the person editor" in html
+    assert 'id="FamilyChart"' not in html
+
+
+def test_tree_page_renders_chart_container_when_linked(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert 'id="FamilyChart"' in html
+    assert 'data-tree-url="/api/tree"' in html
+
+
+def test_tree_page_loads_vendored_scripts(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert "vendor/d3/d3.min.js" in html
+    assert "vendor/familychart/family-chart.min.js" in html
+    assert "vendor/familychart/family-chart.css" in html
+    assert "js/tree.js" in html
+
+
+def test_tree_page_no_vendored_scripts_when_empty(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert "family-chart.min.js" not in html
+
+
+def test_tree_page_lists_friend_only_person_in_others(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    jean = people.create_person(people_dir, "Ami Jean", friend_of=[papi])
+
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert "Ami Jean" in html
+    assert "friend of" in html
+    assert f'href="/people/{papi}"' in html
+
+
+def test_tree_page_lists_fully_unlinked_person_in_others(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    people.create_person(people_dir, "Solo Gaston")
+
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert "Solo Gaston" in html
+
+
+def test_tree_page_family_member_not_in_others_list(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    others_section = html[html.find("tree__others") :]
+    assert "Papi" not in others_section
+    assert "Papa" not in others_section

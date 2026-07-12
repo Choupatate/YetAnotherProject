@@ -6,7 +6,12 @@
   <p class="people__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
   <div class="people__header">
     <h1 class="people__title">People</h1>
-    <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">+ New person</a>
+    <div class="people__header-actions">
+      {% if show_tree_link %}
+      <a class="btn" href="{{ url_for('pages.tree_page') }}">Family tree</a>
+      {% endif %}
+      <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">+ New person</a>
+    </div>
   </div>
   {% if not people %}
   <img class="illo people__illo" src="{{ url_for('static', filename='img/person-oval.jpg') }}"
