@@ -2,9 +2,9 @@ import zipfile
 from datetime import date as date_cls
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, url_for
 
-from . import people, storage
+from . import kinship, people, storage
 from .auth import login_required
 
 bp = Blueprint("api", __name__, url_prefix="/api")
@@ -278,6 +278,108 @@ def _person_name(data):
     return (data.get("name") or data.get("title") or "").strip()
 
 
+_FAMILY_FIELD_LABELS = {"parents": "parent", "partners": "partner", "friend_of": "friend"}
+
+
+def _validate_slug_list(data, field_name, valid_slugs, self_slug, max_len=None):
+    """Resolve and validate one of `parents`/`partners`/`friend_of`
+    (FEATURES.md F18): a list of other people's slugs. Returns (list-or-None,
+    error_response). None means the field was absent from the payload
+    ("leave unchanged" on update)."""
+    if field_name not in data:
+        return None, None
+    raw = data.get(field_name)
+    if not isinstance(raw, list):
+        raw = []
+    cleaned = []
+    seen = set()
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        item = item.strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        if self_slug is not None and item == self_slug:
+            label = _FAMILY_FIELD_LABELS[field_name]
+            return None, _error(f"A person cannot be their own {label}.", 400)
+        if item not in valid_slugs:
+            return None, _error(f"Unknown person: {item}.", 400)
+        cleaned.append(item)
+    if max_len is not None and len(cleaned) > max_len:
+        return None, _error(f"A person can have at most {max_len} parents.", 400)
+    return cleaned, None
+
+
+def _validate_gender(data):
+    """Resolve and validate the optional 'gender' field. None means the
+    field was absent ("leave unchanged" on update); "" clears it."""
+    if "gender" not in data:
+        return None, None
+    gender = (data.get("gender") or "").strip()
+    if gender not in ("m", "f", ""):
+        return None, _error("Gender must be 'm', 'f', or empty.", 400)
+    return gender, None
+
+
+def _validate_person_family(data, self_slug):
+    """Resolve and validate parents/partners/friend_of/gender together
+    (FEATURES.md F18). `self_slug` is None on create (a not-yet-existing
+    person can't self-reference or cycle). Returns a dict of the four
+    resolved values (each None if absent from the payload) plus the
+    all-people list and graph already built (so callers can reuse them for
+    partner symmetry), or (None, None, error_response)."""
+    people_dir = _people_dir()
+    all_people = people.list_people(people_dir)
+    valid_slugs = {p.slug for p in all_people}
+
+    parents, error = _validate_slug_list(data, "parents", valid_slugs, self_slug, max_len=2)
+    if error:
+        return None, None, error
+    partners, error = _validate_slug_list(data, "partners", valid_slugs, self_slug)
+    if error:
+        return None, None, error
+    friend_of, error = _validate_slug_list(data, "friend_of", valid_slugs, self_slug)
+    if error:
+        return None, None, error
+    gender, error = _validate_gender(data)
+    if error:
+        return None, None, error
+
+    if parents and self_slug is not None:
+        graph = kinship.build_graph(all_people)
+        for parent_slug in parents:
+            if kinship.would_create_cycle(graph, self_slug, parent_slug):
+                return None, None, _error("That would create a family-tree cycle.", 400)
+
+    fields = {"parents": parents, "partners": partners, "friend_of": friend_of, "gender": gender}
+    return fields, all_people, None
+
+
+def _sync_partner_symmetry(people_dir, slug, old_partners, new_partners):
+    """Partner links are symmetric on disk: when `slug`'s partners change,
+    add/remove the reverse link on the other side too (FEATURES.md F18).
+    The other person's `updated` timestamp changing as a result is
+    expected."""
+    if new_partners is None:
+        return
+    added = set(new_partners) - set(old_partners)
+    removed = set(old_partners) - set(new_partners)
+    for other_slug in added | removed:
+        other = people.get_person(people_dir, other_slug)
+        if other is None:
+            continue
+        other_partners = set(other.partners)
+        if other_slug in added:
+            other_partners.add(slug)
+        else:
+            other_partners.discard(slug)
+        people.update_person(
+            people_dir, other_slug, other.name, relation=other.relation,
+            body=other.body or "", partners=sorted(other_partners),
+        )
+
+
 @bp.route("/people", methods=["POST"])
 @login_required
 def create_person():
@@ -288,7 +390,17 @@ def create_person():
     relation = (data.get("relation") or "").strip() or None
     markdown = data.get("markdown") or ""
 
-    slug = people.create_person(_people_dir(), name, relation=relation, body=markdown)
+    fields, _all_people, error = _validate_person_family(data, self_slug=None)
+    if error:
+        return error
+
+    people_dir = _people_dir()
+    slug = people.create_person(
+        people_dir, name, relation=relation, body=markdown,
+        parents=fields["parents"], partners=fields["partners"],
+        friend_of=fields["friend_of"], gender=fields["gender"],
+    )
+    _sync_partner_symmetry(people_dir, slug, [], fields["partners"] or [])
     return jsonify({"id": slug, "title": name})
 
 
@@ -309,12 +421,25 @@ def update_person(slug):
     if error:
         return error
 
+    fields, all_people, error = _validate_person_family(data, self_slug=slug)
+    if error:
+        return error
+
+    people_dir = _people_dir()
+    existing = people.get_person(people_dir, slug)
+    if existing is None:
+        return _error("Person not found.", 404)
+
     try:
         people.update_person(
-            _people_dir(), slug, name, relation=relation, body=markdown, photo=photo
+            people_dir, slug, name, relation=relation, body=markdown, photo=photo,
+            parents=fields["parents"], partners=fields["partners"],
+            friend_of=fields["friend_of"], gender=fields["gender"],
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)
+
+    _sync_partner_symmetry(people_dir, slug, existing.partners, fields["partners"])
 
     return jsonify({"id": slug})
 
@@ -345,3 +470,47 @@ def upload_person_image(slug):
         )
 
     return jsonify({"filename": filename})
+
+
+@bp.route("/tree")
+@login_required
+def api_tree():
+    """The Layer-2/3 contract for FEATURES.md F18 — the seam future
+    renderers plug into. See README.md for the documented shape."""
+    people_dir = _people_dir()
+    all_people = people.list_people(people_dir)
+    graph = kinship.build_graph(all_people)
+
+    anchor = current_app.config.get("CHILD_SLUG")
+    if anchor not in graph.nodes:
+        anchor = None
+
+    entries = []
+    for p in all_people:
+        in_family = bool(
+            graph.parents.get(p.slug)
+            or graph.partners.get(p.slug)
+            or kinship.children_of(graph, p.slug)
+        )
+        entry = {
+            "id": p.slug,
+            "name": p.name,
+            "gender": p.gender,
+            "photo": (
+                url_for("pages.person_media", slug=p.slug, filename=p.photo)
+                if p.photo else None
+            ),
+            "url": url_for("pages.person_page", slug=p.slug),
+        }
+        if in_family:
+            entry["kinship"] = kinship.kinship_label(graph, anchor, p.slug) if anchor else None
+            entry["rels"] = {
+                "parents": list(graph.parents.get(p.slug, [])),
+                "partners": kinship.partners_of(graph, p.slug),
+                "children": kinship.children_of(graph, p.slug),
+            }
+        else:
+            entry["friend_of"] = list(graph.friend_of.get(p.slug, []))
+        entries.append(entry)
+
+    return jsonify({"anchor": anchor, "people": entries})
