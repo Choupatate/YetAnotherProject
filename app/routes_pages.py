@@ -366,10 +366,18 @@ def person_media(slug, filename):
     return send_from_directory(person_dir, filename)
 
 
+def _other_people_refs(exclude_slug=None):
+    all_people = people.list_people(_people_dir())
+    people_by_slug = {p.slug: p for p in all_people}
+    return [
+        _person_ref(people_by_slug, p.slug) for p in all_people if p.slug != exclude_slug
+    ]
+
+
 @bp.route("/new-person")
 @login_required
 def new_person():
-    return render_template("person_editor.html", person=None)
+    return render_template("person_editor.html", person=None, other_people=_other_people_refs())
 
 
 @bp.route("/edit-person/<slug>")
@@ -378,4 +386,6 @@ def edit_person(slug):
     p = people.get_person(_people_dir(), slug)
     if p is None:
         abort(404)
-    return render_template("person_editor.html", person=p)
+    return render_template(
+        "person_editor.html", person=p, other_people=_other_people_refs(exclude_slug=slug)
+    )

@@ -163,3 +163,67 @@ def test_person_page_relation_wins_over_friend_of(auth_client, stories_dir):
     html = resp.data.decode()
     assert "a family friend" in html
     assert "Friend of" not in html
+
+
+# --- Person editor: Family fieldset ---------------------------------------
+
+
+def test_new_person_editor_no_family_fieldset_when_no_other_people(auth_client):
+    resp = auth_client.get("/new-person")
+    assert b"editor-family" not in resp.data
+
+
+def test_new_person_editor_shows_family_fieldset_when_other_people_exist(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.get("/new-person")
+    html = resp.data.decode()
+    assert 'id="editor-family"' in html
+    assert "Someone" in html
+
+
+def test_edit_person_editor_excludes_self_from_pickers(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    other = people.create_person(people_dir, "Other")
+    slug = people.create_person(people_dir, "Self")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    html = resp.data.decode()
+    assert f'data-person-slug="{other}"' in html
+    assert f'data-person-slug="{slug}"' not in html
+
+
+def test_edit_person_editor_no_fieldset_when_self_only_person(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    assert b"editor-family" not in resp.data
+
+
+def test_edit_person_editor_preselects_existing_parents(auth_client, stories_dir):
+    import re
+
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    slug = people.create_person(people_dir, "Papa", parents=[papi])
+    resp = auth_client.get(f"/edit-person/{slug}")
+    html = resp.data.decode()
+    match = re.search(r'<button[^>]*data-person-slug="%s"[^>]*>' % papi, html)
+    assert match is not None
+    assert 'aria-pressed="true"' in match.group()
+
+
+def test_edit_person_editor_preselects_gender(auth_client, stories_dir):
+    import re
+
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Papa", gender="m")
+    people.create_person(people_dir, "Other")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    html = resp.data.decode()
+    match = re.search(r'<button[^>]*data-gender="m"[^>]*>', html)
+    assert match is not None
+    assert 'aria-pressed="true"' in match.group()
+
+
+def test_editor_js_and_family_picker_script_present_on_person_editor(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.get("/new-person")
+    assert b'js/editor.js' in resp.data
