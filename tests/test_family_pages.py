@@ -223,6 +223,22 @@ def test_edit_person_editor_preselects_gender(auth_client, stories_dir):
     assert 'aria-pressed="true"' in match.group()
 
 
+def test_edit_person_editor_relation_input_empty_not_literal_none(auth_client, stories_dir):
+    """Regression: a person with no relation set must render an empty
+    input value, not the literal text "None" (Jinja stringifies a bare
+    `person.relation` when it's Python None) — otherwise saving the Family
+    fieldset without retyping Relation silently sets relation to "None"
+    and permanently hides the computed kinship label."""
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "No Relation Yet")
+    people.create_person(people_dir, "Other")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    html = resp.data.decode()
+    assert 'id="person-relation"' in html
+    assert 'value="None"' not in html
+    assert 'value=""' in html
+
+
 def test_editor_js_and_family_picker_script_present_on_person_editor(auth_client, stories_dir):
     people.create_person(_people_dir(stories_dir), "Someone")
     resp = auth_client.get("/new-person")

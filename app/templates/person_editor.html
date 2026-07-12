@@ -43,7 +43,7 @@
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Name" value="{{ person.name if person else '' }}" required>
   <input class="editor__relation" id="person-relation" name="relation" type="text"
-         placeholder="Relation (e.g. your grandmother)" value="{{ person.relation if person else '' }}">
+         placeholder="Relation (e.g. your grandmother)" value="{{ (person.relation or '') if person else '' }}">
   {% if other_people %}
   <fieldset class="editor__family" id="editor-family">
     <legend class="editor__family-legend">Family</legend>
