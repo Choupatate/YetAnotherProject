@@ -60,6 +60,7 @@ def create_app(test_config=None):
     authors = _parse_authors(os.environ.get("STORYBOOK_AUTHORS"))
     birthdate = _parse_birthdate(os.environ.get("STORYBOOK_BIRTHDATE"))
     title = os.environ.get("STORYBOOK_TITLE") or "Storybook"
+    child_slug = os.environ.get("STORYBOOK_CHILD") or None
 
     if password and not secret_key and not test_config:
         raise RuntimeError(
@@ -75,6 +76,7 @@ def create_app(test_config=None):
         AUTHORS=authors,
         BIRTHDATE=birthdate,
         TITLE=title,
+        CHILD_SLUG=child_slug,
         PERMANENT_SESSION_LIFETIME=timedelta(days=90),
         MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
         SESSION_COOKIE_HTTPONLY=True,
