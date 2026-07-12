@@ -814,3 +814,87 @@ Décris ta voix en ce moment, les phrases que tu répètes, ton accent à toi.
 Raconte une tradition familiale qu'on est en train d'inventer avec toi.
 Qu'est-ce qu'on voudrait te dire aujourd'hui, si tu pouvais tout comprendre ?
 ```
+
+# F17. Le style du ranch — hand-drawn visual identity
+
+The interface gets a set of hand-engraved western-storybook illustrations
+(generated once, committed as static files — the app never fetches anything).
+The processed assets are already committed under `app/static/img/`:
+
+| file | size | where it goes |
+|---|---|---|
+| `tumbleweed.jpg` | 900×488 | 404 page |
+| `sealed-letter.jpg` | 576×495 | sealed-story page |
+| `empty-chest.jpg` | 653×729 | drafts + archived empty states |
+| `person-oval.jpg` | 600×732 | person placeholder + people empty state |
+| `instant-camera.jpg` | 522×652 | /new-instant decorative accent |
+| `book-frame.jpg` | 715×897 | /book cover ornament |
+| `rope-divider.png` | 1000×144, transparent | flourishes/dividers |
+| `lasso-ring.png` | 320×320, transparent, centered | loading spinner |
+
+Two more images (a leather-journal app icon and a campfire scene for the
+login page and empty timeline) arrive in a follow-up commit with the same
+naming (`login-campfire.jpg`, regenerated `app/static/icons/*`); build the
+shared treatment now and wire those two spots only when the files exist.
+
+## The paper-card treatment (the key to theming)
+
+Every JPEG illustration carries its own cream paper background, so it is
+displayed as a "paper card pinned to the page": a shared `.illo` class —
+background the same cream as the illustrations (sample it from any of the
+JPEGs; they are consistent), padding ~0.75rem, a thin border using the
+light theme's border color regardless of theme, border-radius 4px, a soft
+shadow, and a slight rotation (default -1.2deg; add `.illo--tilt-right`
+with +1deg to alternate). The card stays cream in ALL themes — in dark
+mode it reads as a photograph card in an album, which is the intent. The
+transparent PNGs (`rope-divider.png`, `lasso-ring.png`) are NOT cards —
+they sit directly on the page background in every theme.
+
+Every decorative `<img>` gets `alt=""`, `loading="lazy"`,
+`decoding="async"`, and explicit `width`/`height` attributes (no layout
+shift). Displayed sizes are roughly half the pixel size (they are 2×
+assets). Total added weight per page stays under ~150 KB — each page uses
+at most one or two illustrations.
+
+## Placements
+
+- **404**: tumbleweed card above the existing message, max-width 20rem.
+- **Sealed page**: sealed-letter card replaces the inline envelope SVG,
+  max-width 18rem; keep the title and "opens on" line unchanged.
+- **Drafts / Archived when empty**: chest card, max-width 14rem, above a
+  one-line empty message (add one if missing, e.g. "Nothing here — drafts
+  you start will wait in this chest.").
+- **People**: grid placeholder portraits use `person-oval.jpg` as the tile
+  image with the person's initial rendered on top (absolutely positioned
+  over the oval's center, current font/color); people empty state shows the
+  same oval card with the existing empty text.
+- **/new-instant**: camera, small (max-height 9rem), centered above the
+  photo picker, hidden on viewports under 700px tall so the form stays
+  above the fold — the 20-second flow must not get slower or longer.
+- **/book cover**: `book-frame.jpg` centered on the cover page with the
+  book title, year range, and author legend overlaid INSIDE the frame
+  opening (absolute positioning over the image); frame max-width 24rem on
+  screen. In print (`@media print`) keep it — it prints beautifully — but
+  verify the title stays inside the opening at A4.
+- **Flourishes**: the `· · ·` separator in /book and the `story__flourish`
+  hr on story pages become `rope-divider.png` (`width: 240px` in book,
+  `160px` on story pages, centered; keep an `<hr>`/role for semantics).
+- **Spinner**: `.lasso-spinner` = `lasso-ring.png` at 40×40, CSS
+  `animation: spin 1.4s linear infinite`. Under
+  `prefers-reduced-motion: reduce`, no rotation — pulse opacity instead.
+  Show it: on /new-instant next to the disabled Save while uploading, on
+  /import while the restore request runs, and in the editor save bar while
+  saving. Never block input with it; it is an indicator only.
+
+## Rules
+
+No new dependencies. No external requests (re-verify after — the images
+are local static files). The story/instant/person markdown format is
+untouched — this feature is chrome only. `pytest` green; update any test
+that asserts on the sealed page's SVG or the flourish markup.
+
+Definition of done: phone-width pass of 404, sealed, drafts (empty),
+people (with and without portraits), /new-instant, /book (screen + printed
+PDF), a story page, in all three themes — paper cards read as cards on
+dark; transparent rope elements show no cream box; no horizontal scroll;
+no cumulative layout shift when images load; zero external requests.
