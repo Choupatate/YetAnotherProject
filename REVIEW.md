@@ -390,3 +390,121 @@ Definition of done for the batch: all of R4.1–R4.8 plus R3.1–R3.2 fixed;
 zero external requests re-verified; bare pytest green; a fresh 390px pass
 shows no horizontal scroll on any page and no interactive element under
 44px effective hit area outside vendor editor UI.
+
+---
+
+# Review round 5 — F18 live review + the ranch tree restyle
+
+Reviewed the F18 implementation live (2026-07-13): 454 tests green; a
+seeded three-generation family produced correct kinship labels for every
+case including "your uncle's wife"; cycle and >2-parents writes rejected
+with clear 400s; partner symmetry verified on disk (declaring a partner on
+one side wrote the reverse link into the other person's index.md, and the
+other person's body text survived the rewrite); the Family section renders
+with JavaScript disabled; branch expand and re-root via the mini-tree
+work; zero external requests through login, tree render, pan, and re-root
+in all three themes. No defects found — F18 is accepted as implemented.
+
+One styling round follows. The current tree cards inherit
+`--color-bg-raised`, which is correct but plain; F17 established that
+illustrations live on cream paper cards in *all* themes (`.illo`). The
+tree should speak that same language: each person a little paper name-tag
+pinned to the board, connected by saddle-stitch lines. Prototyped live
+against the running app; the CSS below is verified working at 390px in
+light and dark.
+
+## R5.1 Paper name-tag cards (all themes)
+
+In `main.css`, replace the theme-following card face with the F17 paper
+treatment — cream in every theme, warm-ink border and text:
+
+```css
+.page-tree .f3 div.card-inner {
+  background: #f7f1e2;
+  border: 1.5px solid #8a7a5f;
+  border-radius: 0.45rem;
+  box-shadow: 0 2px 4px rgba(40, 30, 15, 0.28);
+}
+.page-tree .f3 .f3-card-name { color: #2c261e; }
+```
+
+Keep the existing flex layout/padding/width rules on `.card-inner`; only
+the face changes. Drop the now-redundant `--female-color`/`--male-color`/
+`--background-color` overrides if nothing else consumes them (check the
+mini-tree markers first — they must stay gold `var(--color-accent)`).
+`!important` should not be needed since `.page-tree .f3 div.card-inner`
+already out-specifies the vendor stylesheet — add it only where the
+cascade demands.
+
+## R5.2 The anchor's gold brand
+
+The main card (the child) gets the gold double ring instead of the plain
+2px accent border:
+
+```css
+.page-tree .f3 div.card-main .card-inner {
+  border: 2px solid #b3801f;
+  box-shadow: 0 0 0 3px rgba(179, 128, 31, 0.28),
+              0 2px 5px rgba(40, 30, 15, 0.32);
+}
+```
+
+Note the fixed gold `#b3801f` rather than `var(--color-accent)`: the card
+face is now cream in every theme, so the ring must stay legible against
+cream, not against the theme background.
+
+## R5.3 Sepia portrait rings
+
+```css
+.page-tree .f3 .f3-card-avatar {
+  border: 1.5px solid #8a7a5f;
+  background: #efe6cf;
+}
+```
+
+(Existing size/border-radius/object-fit rules stay.) The background shows
+through the transparent edges of the person-oval placeholder and while a
+real photo loads.
+
+## R5.4 Saddle-stitch connectors
+
+```css
+.page-tree .f3 .link {
+  stroke: #8a7a5f;
+  stroke-width: 1.6px;
+  stroke-dasharray: 7 4;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+[data-theme="dark"] .page-tree .f3 .link { stroke: #a08b66; }
+```
+
+Replaces the current `stroke: var(--color-accent); opacity: 0.75`. The
+dashed round-capped line reads as stitching on leather — subtle, and it
+keeps the solid gold reserved for the anchor's ring and the mini-tree
+markers. The `[data-theme="dark"]` selector must also cover the
+OS-dark-no-stored-theme case the same way existing dark rules in main.css
+do (match whatever pattern main.css already uses for dark overrides).
+
+## R5.5 Tighter chart frame on phones
+
+The 70vh chart leaves a lot of dead paper around a small family at 390px.
+Reduce to `height: 58vh; min-height: 22rem;` at the base and keep/restore
+`height: 70vh` behind `@media (min-width: 700px)`. Panning and pinch-zoom
+still give room to explore; the Friends & others list comes up a scroll
+sooner.
+
+## R5.6 Rope divider under the tree title
+
+`/tree` is the only major page without an F17 flourish. In `tree.html`,
+under `.tree__title`, add the same rope-divider image markup used under
+story titles (same class, same explicit width/height and lazy loading so
+CLS stays zero). It should appear whether or not the chart has links.
+
+Definition of done for the round: at 390px in light, dark, and manuscript,
+tree cards are cream paper tags with warm-ink text; the anchor card wears
+the gold double ring; connectors are dashed warm-brown stitches in every
+theme; the mini-tree markers are still gold and still expand/re-root;
+person pages and the editor are unchanged; zero external requests
+re-verified on /tree including pan and re-root; bare pytest green; no
+horizontal scroll.
