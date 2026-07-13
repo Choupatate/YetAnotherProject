@@ -8,6 +8,7 @@
 <div class="tree">
   <p class="tree__back"><a href="{{ url_for('pages.people_page') }}">&lsaquo; People</a></p>
   <h1 class="tree__title">Family tree</h1>
+  <hr class="story__flourish tree__flourish" aria-hidden="true">
 
   {% if has_family_links %}
   <div id="FamilyChart" class="tree__chart f3" data-tree-url="{{ url_for('api.api_tree') }}"
@@ -30,6 +31,8 @@
 
   <p class="tree__print-note">Open Storybook on a device to explore the interactive family tree.</p>
   {% else %}
+  <img class="illo tree__illo" src="{{ url_for('static', filename='img/tree-sapling.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="760" height="739">
   <p class="tree__empty">Link two people in the person editor and the tree will grow here.</p>
   {% endif %}
 </div>

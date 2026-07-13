@@ -2201,15 +2201,51 @@ mark {
   margin: 0.5rem 0 1rem;
 }
 
+.tree__flourish {
+  margin: 0 auto 1.25rem;
+}
+
+.tree__illo {
+  max-width: 16rem;
+  width: 100%;
+  height: auto;
+  margin: 1.5rem auto 0;
+}
+
+/* The chart sits on the ranch survey map (R5.7): dark leather by default
+   (matching the token blocks' dark-first cascade), parchment in the light
+   and manuscript themes. Both JPEGs are pre-faded — no filters on top. */
 .tree__chart {
   width: 100%;
-  height: 70vh;
-  min-height: 24rem;
+  height: 58vh;
+  min-height: 22rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   overflow: hidden;
-  background: var(--color-bg);
+  background-color: #211b15;
+  background-image: url("../img/tree-map-dark.jpg");
+  background-size: cover;
+  background-position: center;
   color: var(--color-text-dim);
+}
+
+@media (min-width: 700px) {
+  .tree__chart {
+    height: 70vh;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .tree__chart {
+    background-color: #f4ecdb;
+    background-image: url("../img/tree-map.jpg");
+  }
+}
+
+:root[data-theme="light"] .tree__chart,
+:root[data-theme="manuscript"] .tree__chart {
+  background-color: #f4ecdb;
+  background-image: url("../img/tree-map.jpg");
 }
 
 .tree__empty {
@@ -2263,29 +2299,52 @@ mark {
   display: none;
 }
 
+/* The vendor stylesheet paints card faces from these variables (and it
+   loads after main.css, so plain background overrides lose). Point them
+   at the fixed paper values — cream cards in every theme (R5.1). */
 .page-tree .f3 {
-  --female-color: var(--color-bg-raised);
-  --male-color: var(--color-bg-raised);
-  --genderless-color: var(--color-bg-raised);
-  --background-color: var(--color-bg-raised);
-  --text-color: var(--color-text);
+  --female-color: #f7f1e2;
+  --male-color: #f7f1e2;
+  --genderless-color: #f7f1e2;
+  --background-color: #f7f1e2;
+  --text-color: #2c261e;
   font-family: var(--font-sans);
 }
 
+/* Paper name-tag cards (R5.1): cream in every theme, like the F17 paper
+   cards — on dark they read as tags pinned to the leather map. */
 .page-tree .f3 div.card-inner {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   width: 10rem;
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  position: relative;
+  background: #f7f1e2;
+  border: 1.5px solid #8a7a5f;
+  border-radius: 0.45rem;
   outline: none !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 4px rgba(40, 30, 15, 0.28);
 }
 
+/* The anchor's gold brand ring (R5.2) — fixed gold, legible against the
+   always-cream card face rather than the theme background. */
 .page-tree .f3 div.card-main .card-inner {
-  border: 2px solid var(--color-accent);
+  border: 2px solid #b3801f;
+  box-shadow: 0 0 0 3px rgba(179, 128, 31, 0.28),
+              0 2px 5px rgba(40, 30, 15, 0.32);
+}
+
+/* The anchor's brand stamp (R5.9), breaking the card's top-right corner.
+   It follows whichever card becomes .card-main on re-rooting. */
+.page-tree .f3 div.card-main .card-inner::after {
+  content: "";
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
+  background: url("../img/brand-star.png") center / contain no-repeat;
 }
 
 .page-tree .f3 .f3-card-avatar {
@@ -2294,20 +2353,38 @@ mark {
   border-radius: 50%;
   object-fit: cover;
   flex: none;
+  border: 1.5px solid #8a7a5f;
+  background: #efe6cf;
 }
 
 .page-tree .f3 .f3-card-name {
   font-family: var(--font-serif);
   font-size: 0.875rem;
-  color: var(--color-text);
+  color: #2c261e;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* Saddle-stitch connectors (R5.4): dark-first like the theme tokens,
+   lifted slightly lighter on the dark leather map. */
 .page-tree .f3 .link {
-  stroke: var(--color-accent);
-  opacity: 0.75;
+  stroke: #a08b66;
+  stroke-width: 1.6px;
+  stroke-dasharray: 7 4;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .page-tree .f3 .link {
+    stroke: #8a7a5f;
+  }
+}
+
+:root[data-theme="light"] .page-tree .f3 .link,
+:root[data-theme="manuscript"] .page-tree .f3 .link {
+  stroke: #8a7a5f;
 }
 
 .page-tree .f3 .mini-tree rect.card-male,
