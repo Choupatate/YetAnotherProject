@@ -508,3 +508,71 @@ theme; the mini-tree markers are still gold and still expand/re-root;
 person pages and the editor are unchanged; zero external requests
 re-verified on /tree including pan and re-root; bare pytest green; no
 horizontal scroll.
+
+## R5.7 The ranch survey map behind the tree
+
+Two processed assets are committed: `app/static/img/tree-map.jpg`
+(900×900, faded parchment survey map) and `tree-map-dark.jpg` (900×900,
+the same map remapped into dark leather tones). They are the chart's
+background — the family literally laid out over the ranch map:
+
+```css
+.page-tree .tree__chart {
+  background-color: #f4ecdb;
+  background-image: url("../img/tree-map.jpg");
+  background-size: cover;
+  background-position: center;
+}
+```
+
+with the dark variant (`background-color: #211b15; background-image:
+url("../img/tree-map-dark.jpg")`) behind the same dark-theme selector
+pattern main.css already uses, and the light map also serving the
+manuscript theme. Both files are pre-faded so nothing on them competes
+with cards or links — do not add opacity or filters on top. The
+`background-color` stays as the fallback while the JPEG loads. These are
+CSS backgrounds on a chart container, NOT `.illo` paper cards, and they
+replace R5.5's plain background only — R5.5's height rules still apply.
+
+## R5.8 The sapling empty state
+
+`app/static/img/tree-sapling.jpg` (760×739) is committed. On /tree when
+`has_family_links` is false, show it as a standard `.illo` paper card
+(max-width 16rem, centered) above the existing "Link two people…" line —
+same `alt=""`, `loading="lazy"`, `decoding="async"`, explicit
+width/height treatment as every other illustration. The empty state and
+the chart are mutually exclusive, so the page never loads both the map
+and the sapling.
+
+## R5.9 The anchor's brand stamp
+
+`app/static/img/brand-star.png` (240×240, transparent, content-centered)
+is committed — a rope-circled star cattle brand. It marks the anchor's
+card only, as a small stamp breaking the card's top-right corner,
+CSS-only (no tree.js change):
+
+```css
+.page-tree .f3 div.card-inner { position: relative; }
+.page-tree .f3 div.card-main .card-inner::after {
+  content: "";
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
+  background: url("../img/brand-star.png") center / contain no-repeat;
+}
+```
+
+No `<img>` means no alt-text concern (it is pure decoration), and cards
+for everyone else are untouched. Verify the stamp survives pan/zoom and
+re-rooting (it follows whichever card becomes `.card-main`).
+
+Definition of done additions for R5.7–R5.9: the map shows behind the
+chart in all three themes (parchment in light/manuscript, leather in
+dark) with cards and stitched links clearly legible over it; the sapling
+card shows on /tree only when no family links exist; the brand stamp
+sits on the anchor card's corner and moves with re-rooting; total image
+weight added per /tree load stays under 150 KB (map + brand ≈ 70–95 KB);
+zero external requests re-verified; existing R5.1–R5.6 definition of done
+unchanged.
