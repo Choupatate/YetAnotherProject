@@ -340,6 +340,117 @@ def test_api_tree_includes_photo_focus(auth_client, stories_dir):
     assert entry["photo_focus"] == "15% 25%"
 
 
+# --- photo_sepia (manual tone percentage) -----------------------------------
+
+
+def test_is_valid_photo_sepia_accepts_0_to_100():
+    assert people.is_valid_photo_sepia(0)
+    assert people.is_valid_photo_sepia(100)
+    assert people.is_valid_photo_sepia(30)
+
+
+def test_is_valid_photo_sepia_rejects_out_of_range_and_wrong_type():
+    assert not people.is_valid_photo_sepia(-1)
+    assert not people.is_valid_photo_sepia(101)
+    assert not people.is_valid_photo_sepia("30")
+    assert not people.is_valid_photo_sepia(30.5)
+    assert not people.is_valid_photo_sepia(True)
+    assert not people.is_valid_photo_sepia(None)
+
+
+def test_person_without_photo_has_no_sepia_default(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia is None
+
+
+def test_malformed_photo_sepia_on_disk_falls_back_to_default(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    index_path = people_dir / slug / "index.md"
+    text = index_path.read_text(encoding="utf-8")
+    text = re.sub(r"photo_sepia: \d+", "photo_sepia: not-a-number", text)
+    index_path.write_text(text, encoding="utf-8")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
+
+
+def test_update_person_photo_sepia_zero_is_not_treated_as_unset(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=0)
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 0
+
+
+def test_update_person_photo_sepia_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=77)
+    people.update_person(people_dir, slug, "Someone")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 77
+
+
+def test_update_person_api_sets_photo_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": 65})
+    assert resp.status_code == 200
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 65
+
+
+def test_update_person_api_photo_sepia_zero_is_accepted(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": 0})
+    assert resp.status_code == 200
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 0
+
+
+def test_update_person_api_invalid_photo_sepia_returns_400(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": 150})
+    assert resp.status_code == 400
+
+
+def test_update_person_api_non_numeric_photo_sepia_returns_400(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": "abc"})
+    assert resp.status_code == 400
+
+
+def test_api_tree_includes_photo_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=42)
+    resp = auth_client.get("/api/tree")
+    entry = next(e for e in resp.get_json()["people"] if e["id"] == slug)
+    assert entry["photo_sepia"] == 42
+
+
+def test_people_page_portrait_uses_photo_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=42)
+    resp = auth_client.get("/people")
+    assert "--photo-sepia: 42%" in resp.data.decode()
+
+
+def test_people_page_portrait_default_sepia_when_only_photo_set(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    resp = auth_client.get("/people")
+    assert f"--photo-sepia: {people.DEFAULT_PHOTO_SEPIA}%" in resp.data.decode()
+
+
 # --- API: person image upload -----------------------------------------------
 
 
