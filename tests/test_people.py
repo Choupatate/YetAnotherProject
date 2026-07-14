@@ -1,5 +1,6 @@
 """Tests for FEATURES.md F14: people (the cast of the book)."""
 
+import re
 from io import BytesIO
 
 from PIL import Image
@@ -339,6 +340,117 @@ def test_api_tree_includes_photo_focus(auth_client, stories_dir):
     assert entry["photo_focus"] == "15% 25%"
 
 
+# --- photo_sepia (manual tone percentage) -----------------------------------
+
+
+def test_is_valid_photo_sepia_accepts_0_to_100():
+    assert people.is_valid_photo_sepia(0)
+    assert people.is_valid_photo_sepia(100)
+    assert people.is_valid_photo_sepia(30)
+
+
+def test_is_valid_photo_sepia_rejects_out_of_range_and_wrong_type():
+    assert not people.is_valid_photo_sepia(-1)
+    assert not people.is_valid_photo_sepia(101)
+    assert not people.is_valid_photo_sepia("30")
+    assert not people.is_valid_photo_sepia(30.5)
+    assert not people.is_valid_photo_sepia(True)
+    assert not people.is_valid_photo_sepia(None)
+
+
+def test_person_without_photo_has_no_sepia_default(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia is None
+
+
+def test_malformed_photo_sepia_on_disk_falls_back_to_default(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    index_path = people_dir / slug / "index.md"
+    text = index_path.read_text(encoding="utf-8")
+    text = re.sub(r"photo_sepia: \d+", "photo_sepia: not-a-number", text)
+    index_path.write_text(text, encoding="utf-8")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
+
+
+def test_update_person_photo_sepia_zero_is_not_treated_as_unset(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=0)
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 0
+
+
+def test_update_person_photo_sepia_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=77)
+    people.update_person(people_dir, slug, "Someone")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 77
+
+
+def test_update_person_api_sets_photo_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": 65})
+    assert resp.status_code == 200
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 65
+
+
+def test_update_person_api_photo_sepia_zero_is_accepted(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": 0})
+    assert resp.status_code == 200
+    p = people.get_person(people_dir, slug)
+    assert p.photo_sepia == 0
+
+
+def test_update_person_api_invalid_photo_sepia_returns_400(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": 150})
+    assert resp.status_code == 400
+
+
+def test_update_person_api_non_numeric_photo_sepia_returns_400(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_sepia": "abc"})
+    assert resp.status_code == 400
+
+
+def test_api_tree_includes_photo_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=42)
+    resp = auth_client.get("/api/tree")
+    entry = next(e for e in resp.get_json()["people"] if e["id"] == slug)
+    assert entry["photo_sepia"] == 42
+
+
+def test_people_page_portrait_uses_photo_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg", photo_sepia=42)
+    resp = auth_client.get("/people")
+    assert "--photo-sepia: 42%" in resp.data.decode()
+
+
+def test_people_page_portrait_default_sepia_when_only_photo_set(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo="photo-001.jpg")
+    resp = auth_client.get("/people")
+    assert f"--photo-sepia: {people.DEFAULT_PHOTO_SEPIA}%" in resp.data.decode()
+
+
 # --- API: person image upload -----------------------------------------------
 
 
@@ -353,7 +465,10 @@ def test_upload_person_image_returns_filename(auth_client, stories_dir):
     assert resp.get_json()["filename"] == "photo-001.jpg"
 
 
-def test_first_uploaded_image_becomes_photo(auth_client, stories_dir):
+def test_body_image_upload_does_not_set_photo(auth_client, stories_dir):
+    """Body-inserted images (the WYSIWYG editor's "Insert image" button)
+    never become the cover photo — only the dedicated /photo endpoint does
+    (FEATURES.md F18 photo styling round)."""
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
     auth_client.post(
         f"/api/people/{slug}/images",
@@ -361,23 +476,57 @@ def test_first_uploaded_image_becomes_photo(auth_client, stories_dir):
         content_type="multipart/form-data",
     )
     p = people.get_person(_people_dir(stories_dir), slug)
-    assert p.photo == "photo-001.jpg"
+    assert p.photo is None
 
 
-def test_second_uploaded_image_does_not_replace_photo(auth_client, stories_dir):
+# --- API: dedicated cover-photo upload --------------------------------------
+
+
+def test_upload_person_photo_sets_photo_and_defaults(auth_client, stories_dir):
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
-    auth_client.post(
-        f"/api/people/{slug}/images",
+    resp = auth_client.post(
+        f"/api/people/{slug}/photo",
         data={"file": (_jpeg_bytes(), "photo.jpg")},
         content_type="multipart/form-data",
     )
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["filename"] == "photo-001.jpg"
+    assert body["photo_focus"] == "50% 50%"
+    assert body["photo_sepia"] == people.DEFAULT_PHOTO_SEPIA
+    p = people.get_person(_people_dir(stories_dir), slug)
+    assert p.photo == "photo-001.jpg"
+    assert p.photo_focus is None
+    assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
+
+
+def test_second_photo_upload_replaces_and_resets_focus_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Photo Person")
     auth_client.post(
-        f"/api/people/{slug}/images",
+        f"/api/people/{slug}/photo",
+        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        content_type="multipart/form-data",
+    )
+    people.update_person(people_dir, slug, "Photo Person", photo_focus="10% 90%", photo_sepia=80)
+    auth_client.post(
+        f"/api/people/{slug}/photo",
         data={"file": (_jpeg_bytes(), "photo2.jpg")},
         content_type="multipart/form-data",
     )
-    p = people.get_person(_people_dir(stories_dir), slug)
-    assert p.photo == "photo-001.jpg"
+    p = people.get_person(people_dir, slug)
+    assert p.photo == "photo-002.jpg"
+    assert p.photo_focus is None
+    assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
+
+
+def test_upload_person_photo_nonexistent_person_returns_404(auth_client):
+    resp = auth_client.post(
+        "/api/people/nobody/photo",
+        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 404
 
 
 def test_upload_person_image_nonexistent_person_returns_404(auth_client):
@@ -510,25 +659,35 @@ def test_edit_person_page_missing_404(auth_client):
     assert resp.status_code == 404
 
 
-def test_edit_person_page_shows_photo_focus_picker_when_photo_set(auth_client, stories_dir):
+def test_edit_person_page_shows_photo_panel_with_crop_and_sepia_when_photo_set(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     slug = people.create_person(people_dir, "Grandma Rose")
     people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="30% 40%")
     resp = auth_client.get(f"/edit-person/{slug}")
     html = resp.data.decode()
-    assert 'id="editor-photo-focus"' in html
-    assert 'data-value="30% 40%"' in html
+    assert 'id="editor-photo"' in html
+    assert "object-position: 30% 40%" in html
+    assert 'id="editor-photo-sepia-range"' in html
+    assert 'id="editor-photo-sepia-number"' in html
+    assert "Change photo" in html
+    assert re.search(r'id="editor-photo-placeholder"\s+hidden', html)
 
 
-def test_edit_person_page_no_photo_focus_picker_without_photo(auth_client, stories_dir):
+def test_edit_person_page_photo_panel_placeholder_without_photo(auth_client, stories_dir):
     slug = people.create_person(_people_dir(stories_dir), "Grandma Rose")
     resp = auth_client.get(f"/edit-person/{slug}")
-    assert 'id="editor-photo-focus"' not in resp.data.decode()
+    html = resp.data.decode()
+    assert 'id="editor-photo"' in html
+    assert "No photo yet" in html
+    assert "Add a photo" in html
+    assert re.search(r'id="editor-photo-sepia-group"\s+hidden', html)
 
 
-def test_new_person_page_no_photo_focus_picker(auth_client):
+def test_new_person_page_photo_panel_placeholder(auth_client):
     resp = auth_client.get("/new-person")
-    assert 'id="editor-photo-focus"' not in resp.data.decode()
+    html = resp.data.decode()
+    assert 'id="editor-photo"' in html
+    assert "No photo yet" in html
 
 
 def test_people_page_requires_auth(client):

@@ -88,7 +88,7 @@ def test_person_page_family_thumb_uses_portrait_when_available(auth_client, stor
     Image.new("RGB", (10, 10)).save(buf, format="JPEG")
     buf.seek(0)
     auth_client.post(
-        f"/api/people/{papi}/images",
+        f"/api/people/{papi}/photo",
         data={"file": (buf, "photo.jpg")},
         content_type="multipart/form-data",
     )

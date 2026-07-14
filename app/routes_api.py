@@ -284,6 +284,24 @@ def _validate_person_photo_focus(data):
     return focus, None
 
 
+def _validate_person_photo_sepia(data):
+    """Resolve and validate the optional 'photo_sepia' field: a 0-100
+    percentage. None means the field was absent ("leave unchanged" on
+    update); there is no "clear" value — 0 is a legitimate, meaningful
+    setting (no sepia at all), so it must not be treated as absent."""
+    if "photo_sepia" not in data:
+        return None, None
+    value = data.get("photo_sepia")
+    if isinstance(value, str):
+        try:
+            value = int(value)
+        except ValueError:
+            return None, _error("Photo sepia must be a number from 0 to 100.", 400)
+    if not people.is_valid_photo_sepia(value):
+        return None, _error("Photo sepia must be a whole number from 0 to 100.", 400)
+    return value, None
+
+
 def _person_name(data):
     """The person's name, sent as `name` per the documented API — also
     accepts `title`, since the shared editor.js (FEATURES.md F14: "do not
@@ -439,6 +457,10 @@ def update_person(slug):
     if error:
         return error
 
+    photo_sepia, error = _validate_person_photo_sepia(data)
+    if error:
+        return error
+
     fields, all_people, error = _validate_person_family(data, self_slug=slug)
     if error:
         return error
@@ -453,7 +475,7 @@ def update_person(slug):
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
-            photo_focus=photo_focus,
+            photo_focus=photo_focus, photo_sepia=photo_sepia,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)
@@ -466,6 +488,10 @@ def update_person(slug):
 @bp.route("/people/<slug>/images", methods=["POST"])
 @login_required
 def upload_person_image(slug):
+    """Images inserted into the body text via the WYSIWYG editor. These are
+    always just body images — they never become the person's cover photo;
+    that is the dedicated /photo endpoint's job only (FEATURES.md F18 photo
+    styling round)."""
     if not storage.is_valid_story_id(slug):
         return _error("Person not found.", 404)
     person_dir = _people_dir() / slug
@@ -481,14 +507,43 @@ def upload_person_image(slug):
     except Exception:
         return _error("Could not process image.", 400)
 
-    existing = people.get_person(_people_dir(), slug)
-    if existing is not None and not existing.photo:
-        people.update_person(
-            _people_dir(), slug, existing.name, relation=existing.relation,
-            body=existing.body or "", photo=filename,
-        )
-
     return jsonify({"filename": filename})
+
+
+@bp.route("/people/<slug>/photo", methods=["POST"])
+@login_required
+def upload_person_photo(slug):
+    """The dedicated cover-photo upload (FEATURES.md F18 photo styling
+    round): uploads and resizes the file exactly like the body-image
+    endpoint, then sets it as the person's photo and resets photo_focus and
+    photo_sepia to their defaults, since a brand-new photo needs a fresh
+    crop and tone rather than inheriting the previous photo's."""
+    if not storage.is_valid_story_id(slug):
+        return _error("Person not found.", 404)
+    existing = people.get_person(_people_dir(), slug)
+    if existing is None:
+        return _error("Person not found.", 404)
+
+    file_storage = request.files.get("file")
+    if file_storage is None or not file_storage.filename:
+        return _error("No image file provided.", 400)
+
+    try:
+        filename = storage.save_image_to(_people_dir() / slug, file_storage)
+    except Exception:
+        return _error("Could not process image.", 400)
+
+    people.update_person(
+        _people_dir(), slug, existing.name, relation=existing.relation,
+        body=existing.body or "", photo=filename, photo_focus="",
+        photo_sepia=people.DEFAULT_PHOTO_SEPIA,
+    )
+
+    return jsonify({
+        "filename": filename,
+        "photo_focus": "50% 50%",
+        "photo_sepia": people.DEFAULT_PHOTO_SEPIA,
+    })
 
 
 @bp.route("/tree")
@@ -520,6 +575,7 @@ def api_tree():
                 if p.photo else None
             ),
             "photo_focus": p.photo_focus,
+            "photo_sepia": p.photo_sepia,
             "url": url_for("pages.person_page", slug=p.slug),
         }
         if in_family:

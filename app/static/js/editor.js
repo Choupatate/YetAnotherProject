@@ -143,34 +143,122 @@
     });
   });
 
-  // --- Photo focus point (crop, part of the F18 family-photo styling round) --
-  var photoFocusRoot = document.getElementById("editor-photo-focus");
-  var photoFocusImg = photoFocusRoot ? photoFocusRoot.querySelector(".editor__photo-focus-img") : null;
-  var photoFocusMarker = photoFocusRoot ? photoFocusRoot.querySelector(".editor__photo-focus-marker") : null;
-  var photoFocusValue = photoFocusRoot ? photoFocusRoot.dataset.value : null;
+  // --- Dedicated photo panel: upload -> crop -> sepia tone (people only) -----
+  var photoRoot = document.getElementById("editor-photo");
+  var photoPreview = document.getElementById("editor-photo-preview");
+  var photoPlaceholder = document.getElementById("editor-photo-placeholder");
+  var photoImg = document.getElementById("editor-photo-img");
+  var photoMarker = document.getElementById("editor-photo-marker");
+  var photoFileInput = document.getElementById("editor-photo-file");
+  var photoUploadLabel = document.getElementById("editor-photo-upload-label");
+  var photoMessageEl = document.getElementById("editor-photo-message");
+  var photoSepiaGroup = document.getElementById("editor-photo-sepia-group");
+  var photoSepiaRange = document.getElementById("editor-photo-sepia-range");
+  var photoSepiaNumber = document.getElementById("editor-photo-sepia-number");
+  var photoUrlTemplate = form.dataset.photoUrlTemplate || "";
+  var mediaUrlTemplate = form.dataset.mediaUrlTemplate || "";
+
+  var hasPhoto = !!(photoImg && !photoImg.hidden);
+  var photoFocusValue = photoImg ? photoImg.style.objectPosition || "50% 50%" : "50% 50%";
+
+  function showPhotoMessage(text) {
+    if (!photoMessageEl) return;
+    photoMessageEl.textContent = text || "";
+    photoMessageEl.hidden = !text;
+  }
 
   function setPhotoFocus(xPct, yPct) {
     xPct = Math.max(0, Math.min(100, xPct));
     yPct = Math.max(0, Math.min(100, yPct));
     photoFocusValue = Math.round(xPct) + "% " + Math.round(yPct) + "%";
-    if (photoFocusImg) photoFocusImg.style.objectPosition = photoFocusValue;
-    if (photoFocusMarker) {
-      photoFocusMarker.style.left = xPct + "%";
-      photoFocusMarker.style.top = yPct + "%";
+    if (photoImg) photoImg.style.objectPosition = photoFocusValue;
+    if (photoMarker) {
+      photoMarker.style.left = xPct + "%";
+      photoMarker.style.top = yPct + "%";
     }
   }
 
-  if (photoFocusRoot) {
+  function setPhotoSepia(value) {
+    value = Math.max(0, Math.min(100, Math.round(value)));
+    if (photoImg) photoImg.style.setProperty("--photo-sepia", value + "%");
+    if (photoSepiaRange) photoSepiaRange.value = value;
+    if (photoSepiaNumber) photoSepiaNumber.value = value;
+  }
+
+  if (photoImg) {
     var initialFocus = (photoFocusValue || "50% 50%").split(" ");
     setPhotoFocus(parseFloat(initialFocus[0]) || 50, parseFloat(initialFocus[1]) || 50);
+  }
 
-    photoFocusRoot.addEventListener("click", function (event) {
-      var rect = photoFocusRoot.getBoundingClientRect();
+  if (photoPreview) {
+    photoPreview.addEventListener("click", function (event) {
+      if (!hasPhoto) return;
+      var rect = photoPreview.getBoundingClientRect();
       setPhotoFocus(
         ((event.clientX - rect.left) / rect.width) * 100,
         ((event.clientY - rect.top) / rect.height) * 100
       );
       markDirty();
+    });
+  }
+
+  if (photoSepiaRange) {
+    photoSepiaRange.addEventListener("input", function () {
+      setPhotoSepia(photoSepiaRange.value);
+      markDirty();
+    });
+  }
+
+  if (photoSepiaNumber) {
+    photoSepiaNumber.addEventListener("input", function () {
+      if (photoSepiaNumber.value === "") return;
+      setPhotoSepia(photoSepiaNumber.value);
+      markDirty();
+    });
+  }
+
+  function revealPhoto(mediaUrl) {
+    hasPhoto = true;
+    if (photoPlaceholder) photoPlaceholder.hidden = true;
+    if (photoImg) {
+      photoImg.src = mediaUrl;
+      photoImg.hidden = false;
+    }
+    if (photoMarker) photoMarker.hidden = false;
+    if (photoSepiaGroup) photoSepiaGroup.hidden = false;
+    if (photoUploadLabel) photoUploadLabel.textContent = "Change photo";
+    setPhotoFocus(50, 50);
+    setPhotoSepia(30);
+  }
+
+  if (photoFileInput && photoUrlTemplate) {
+    photoFileInput.addEventListener("change", function () {
+      var file = photoFileInput.files[0];
+      if (!file) return;
+      showPhotoMessage("");
+      if (photoUploadLabel) photoUploadLabel.setAttribute("aria-disabled", "true");
+      ensureStoryId()
+        .then(function (id) {
+          var formData = new FormData();
+          formData.append("file", file);
+          return fetch(fillUrlTemplate(photoUrlTemplate, id), {
+            method: "POST",
+            body: formData,
+          }).then(handleJsonResponse);
+        })
+        .then(function (data) {
+          var mediaUrl = mediaUrlTemplate
+            .replace("__ID__", storyId)
+            .replace("__FILENAME__", data.filename);
+          revealPhoto(mediaUrl);
+        })
+        .catch(function (error) {
+          showPhotoMessage(error.message || "Could not upload that photo.");
+        })
+        .then(function () {
+          photoFileInput.value = "";
+          if (photoUploadLabel) photoUploadLabel.removeAttribute("aria-disabled");
+        });
     });
   }
 
@@ -181,8 +269,9 @@
       payload.friend_of = friendOfPicker.getSelected();
       payload.gender = getGender();
     }
-    if (photoFocusRoot) {
+    if (hasPhoto) {
       payload.photo_focus = photoFocusValue;
+      payload.photo_sepia = photoSepiaRange ? parseInt(photoSepiaRange.value, 10) : 30;
     }
   }
 
@@ -707,9 +796,12 @@
       friendOfPicker.setSelected(draftData.friend_of || []);
       setGender(draftData.gender || "");
     }
-    if (photoFocusRoot && draftData.photo_focus) {
+    if (hasPhoto && draftData.photo_focus) {
       var restoredFocus = draftData.photo_focus.split(" ");
       setPhotoFocus(parseFloat(restoredFocus[0]) || 50, parseFloat(restoredFocus[1]) || 50);
+    }
+    if (hasPhoto && draftData.photo_sepia !== undefined) {
+      setPhotoSepia(draftData.photo_sepia);
     }
     markDirty();
   }

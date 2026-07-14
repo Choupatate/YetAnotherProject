@@ -302,7 +302,7 @@ def test_api_tree_photo_resolves_to_person_media_url(auth_client, stories_dir):
     Image.new("RGB", (10, 10)).save(buf, format="JPEG")
     buf.seek(0)
     auth_client.post(
-        f"/api/people/{slug}/images",
+        f"/api/people/{slug}/photo",
         data={"file": (buf, "photo.jpg")},
         content_type="multipart/form-data",
     )

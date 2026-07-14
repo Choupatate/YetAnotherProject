@@ -39,24 +39,46 @@
       data-create-url="{{ url_for('api.create_person') }}"
       data-update-url-template="{{ url_for('api.update_person', slug='__ID__') }}"
       data-image-url-template="{{ url_for('api.upload_person_image', slug='__ID__') }}"
+      data-photo-url-template="{{ url_for('api.upload_person_photo', slug='__ID__') }}"
+      data-media-url-template="{{ url_for('pages.person_media', slug='__ID__', filename='__FILENAME__') }}"
       data-redirect-template="{{ url_for('pages.person_page', slug='__ID__') }}"
       data-edit-url-template="{{ url_for('pages.edit_person', slug='__ID__') }}">
   <input class="editor__title" id="story-title" name="title" type="text"
          placeholder="Name" value="{{ person.name if person else '' }}" required>
   <input class="editor__relation" id="person-relation" name="relation" type="text"
          placeholder="Relation (e.g. your grandmother)" value="{{ (person.relation or '') if person else '' }}">
-  {% if person and person.photo %}
-  <div class="editor__photo-focus-group">
-    <p class="editor__family-label">Photo focus (tap the photo to move it)</p>
-    <div class="editor__photo-focus" id="editor-photo-focus"
-         data-value="{{ person.photo_focus or '50% 50%' }}">
-      <img class="editor__photo-focus-img"
-           src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt=""
-           style="object-position: {{ person.photo_focus or '50% 50%' }};">
-      <span class="editor__photo-focus-marker" aria-hidden="true"></span>
+
+  <div class="editor__photo" id="editor-photo">
+    <p class="editor__family-label">Photo</p>
+    <div class="editor__photo-preview" id="editor-photo-preview">
+      <span class="editor__photo-placeholder" id="editor-photo-placeholder"
+            {% if person and person.photo %}hidden{% endif %}>No photo yet</span>
+      <img class="editor__photo-preview-img" id="editor-photo-img" alt=""
+           {% if person and person.photo %}
+           src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}"
+           style="object-position: {{ person.photo_focus or '50% 50%' }}; --photo-sepia: {{ person.photo_sepia }}%;"
+           {% else %}
+           hidden
+           {% endif %}>
+      <span class="editor__photo-focus-marker" id="editor-photo-marker" aria-hidden="true"
+            {% if not (person and person.photo) %}hidden{% endif %}></span>
+    </div>
+    <input type="file" accept="image/*" id="editor-photo-file" class="editor__photo-file-input">
+    <label for="editor-photo-file" class="btn editor__photo-upload-btn" id="editor-photo-upload-label">{% if person and person.photo %}Change photo{% else %}Add a photo{% endif %}</label>
+    <p class="editor__save-message" id="editor-photo-message" hidden></p>
+    <div class="editor__photo-sepia-group" id="editor-photo-sepia-group"
+         {% if not (person and person.photo) %}hidden{% endif %}>
+      <label class="editor__family-label" for="editor-photo-sepia-range">Sepia tone</label>
+      <div class="editor__photo-sepia-controls">
+        <input type="range" min="0" max="100" id="editor-photo-sepia-range"
+               value="{% if person and person.photo %}{{ person.photo_sepia }}{% else %}30{% endif %}">
+        <input type="number" min="0" max="100" id="editor-photo-sepia-number"
+               value="{% if person and person.photo %}{{ person.photo_sepia }}{% else %}30{% endif %}">
+        <span aria-hidden="true">%</span>
+      </div>
     </div>
   </div>
-  {% endif %}
+
   {% if other_people %}
   <fieldset class="editor__family" id="editor-family">
     <legend class="editor__family-legend">Family</legend>
