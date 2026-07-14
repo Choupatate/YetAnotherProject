@@ -19,6 +19,13 @@ def _jpeg_bytes():
     return buf
 
 
+def _heic_bytes():
+    buf = BytesIO()
+    Image.new("RGB", (100, 100), color="green").save(buf, format="HEIF", quality=80)
+    buf.seek(0)
+    return buf
+
+
 # --- app/people.py storage layer -------------------------------------------
 
 
@@ -377,6 +384,25 @@ def test_upload_person_image_returns_filename(auth_client, stories_dir):
     )
     assert resp.status_code == 200
     assert resp.get_json()["filename"] == "photo-001.jpg"
+
+
+def test_upload_person_image_converts_heic_to_jpeg(auth_client, stories_dir):
+    """The editor's crop tool can't decode HEIC/HEIF in the browser at all,
+    so it routes HEIC files through this endpoint first to get a
+    browser-viewable JPEG before opening the cropper. Locks down that this
+    endpoint's HEIC support (FEATURES.md F11) still converts correctly."""
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Photo Person")
+    resp = auth_client.post(
+        f"/api/people/{slug}/images",
+        data={"file": (_heic_bytes(), "photo.heic")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200
+    filename = resp.get_json()["filename"]
+    assert filename.endswith(".jpg")
+    saved = Image.open(people_dir / slug / filename)
+    assert saved.format == "JPEG"
 
 
 def test_body_image_upload_does_not_set_photo(auth_client, stories_dir):
