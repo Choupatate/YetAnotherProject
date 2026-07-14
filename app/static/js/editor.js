@@ -343,22 +343,71 @@
     cropperStage.addEventListener("pointercancel", endPointer);
   }
 
-  function openCropper(file) {
-    if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
-    cropObjectUrl = URL.createObjectURL(file);
+  function isHeicFile(file) {
+    var type = (file.type || "").toLowerCase();
+    if (type === "image/heic" || type === "image/heif") return true;
+    return /\.(heic|heif)$/i.test(file.name || "");
+  }
+
+  function openCropperFromUrl(url) {
     cropperImg.onload = function () {
       stageSize = cropperStage.clientWidth;
       naturalW = cropperImg.naturalWidth;
       naturalH = cropperImg.naturalHeight;
-      fitScale = Math.max(stageSize / naturalW, stageSize / naturalH);
       panX = 0;
       panY = 0;
+      if (!naturalW || !naturalH || !stageSize) {
+        showPhotoMessage("Could not read that photo. Try a different one.");
+        closeCropper();
+        return;
+      }
+      fitScale = Math.max(stageSize / naturalW, stageSize / naturalH);
       setZoom(0);
     };
-    cropperImg.src = cropObjectUrl;
+    cropperImg.onerror = function () {
+      showPhotoMessage("Could not read that photo. Try a different one.");
+      closeCropper();
+    };
+    cropperImg.src = url;
     if (photoPreview) photoPreview.hidden = true;
     if (photoPlaceholder) photoPlaceholder.hidden = true;
     if (cropperRoot) cropperRoot.hidden = false;
+  }
+
+  function openCropper(file) {
+    if (cropObjectUrl) {
+      URL.revokeObjectURL(cropObjectUrl);
+      cropObjectUrl = null;
+    }
+    if (isHeicFile(file)) {
+      // Browsers (Chrome on Android included) cannot decode HEIC/HEIF in an
+      // <img> or canvas at all, so a HEIC photo can't be cropped in the
+      // browser directly. Route it through the server's existing
+      // Pillow/pillow-heif conversion (the same one F11 body-image uploads
+      // already use) first, then crop the resulting JPEG.
+      showPhotoMessage("Converting photo…");
+      ensureStoryId()
+        .then(function (id) {
+          var formData = new FormData();
+          formData.append("file", file);
+          return fetch(fillUrlTemplate(imageUrlTemplate, id), {
+            method: "POST",
+            body: formData,
+          }).then(handleJsonResponse);
+        })
+        .then(function (data) {
+          showPhotoMessage("");
+          openCropperFromUrl(
+            mediaUrlTemplate.replace("__ID__", storyId).replace("__FILENAME__", data.filename)
+          );
+        })
+        .catch(function (error) {
+          showPhotoMessage(error.message || "Could not read that photo.");
+        });
+      return;
+    }
+    cropObjectUrl = URL.createObjectURL(file);
+    openCropperFromUrl(cropObjectUrl);
   }
 
   function closeCropper() {
@@ -379,19 +428,30 @@
   }
 
   function rasterizeCrop() {
-    var canvas = document.createElement("canvas");
-    canvas.width = OUTPUT_SIZE;
-    canvas.height = OUTPUT_SIZE;
-    var ctx = canvas.getContext("2d");
-    var k = OUTPUT_SIZE / stageSize;
-    var scale = currentScale();
-    var dispW = naturalW * scale;
-    var dispH = naturalH * scale;
-    var left = stageSize / 2 - dispW / 2 + panX;
-    var top = stageSize / 2 - dispH / 2 + panY;
-    ctx.drawImage(cropperImg, left * k, top * k, dispW * k, dispH * k);
-    return new Promise(function (resolve) {
-      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    return new Promise(function (resolve, reject) {
+      var canvas = document.createElement("canvas");
+      canvas.width = OUTPUT_SIZE;
+      canvas.height = OUTPUT_SIZE;
+      var ctx = canvas.getContext("2d");
+      var k = OUTPUT_SIZE / stageSize;
+      var scale = currentScale();
+      var dispW = naturalW * scale;
+      var dispH = naturalH * scale;
+      var left = stageSize / 2 - dispW / 2 + panX;
+      var top = stageSize / 2 - dispH / 2 + panY;
+      try {
+        ctx.drawImage(cropperImg, left * k, top * k, dispW * k, dispH * k);
+      } catch (e) {
+        reject(new Error("Could not process that photo. Try a different one."));
+        return;
+      }
+      canvas.toBlob(function (blob) {
+        if (!blob) {
+          reject(new Error("Could not process that photo. Try a different one."));
+          return;
+        }
+        resolve(blob);
+      }, "image/jpeg", 0.92);
     });
   }
 
