@@ -510,6 +510,27 @@ def test_edit_person_page_missing_404(auth_client):
     assert resp.status_code == 404
 
 
+def test_edit_person_page_shows_photo_focus_picker_when_photo_set(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="30% 40%")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    html = resp.data.decode()
+    assert 'id="editor-photo-focus"' in html
+    assert 'data-value="30% 40%"' in html
+
+
+def test_edit_person_page_no_photo_focus_picker_without_photo(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Grandma Rose")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    assert 'id="editor-photo-focus"' not in resp.data.decode()
+
+
+def test_new_person_page_no_photo_focus_picker(auth_client):
+    resp = auth_client.get("/new-person")
+    assert 'id="editor-photo-focus"' not in resp.data.decode()
+
+
 def test_people_page_requires_auth(client):
     resp = client.get("/people")
     assert resp.status_code == 302
