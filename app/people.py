@@ -17,6 +17,8 @@ from . import storage
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PHOTO_SEPIA = 30
+
 
 @dataclass
 class Person:
@@ -27,6 +29,7 @@ class Person:
     relation: Optional[str] = None
     photo: Optional[str] = None
     photo_focus: Optional[str] = None
+    photo_sepia: Optional[int] = None
     body: Optional[str] = None
     parents: list = None
     partners: list = None
@@ -69,6 +72,20 @@ def _parse_photo_focus(value) -> Optional[str]:
     return value if is_valid_photo_focus(value) else None
 
 
+def is_valid_photo_sepia(value) -> bool:
+    """A photo_sepia is a whole-number percentage, 0-100 (bool is not an int
+    here even though it subclasses one — a stray `true`/`false` in the
+    frontmatter should not silently become 0 or 1)."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 100
+
+
+def _parse_photo_sepia(value) -> Optional[int]:
+    """Malformed values silently drop to None (files outlive edits); the
+    caller applies DEFAULT_PHOTO_SEPIA when a photo exists but this is
+    unset."""
+    return value if is_valid_photo_sepia(value) else None
+
+
 def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Optional[Person]:
     metadata = post.metadata
     name = metadata.get("name")
@@ -83,14 +100,19 @@ def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Option
     gender = metadata.get("gender") or None
     if gender not in ("m", "f", None):
         gender = None
+    photo = metadata.get("photo") or None
+    photo_sepia = _parse_photo_sepia(metadata.get("photo_sepia"))
+    if photo and photo_sepia is None:
+        photo_sepia = DEFAULT_PHOTO_SEPIA
     return Person(
         slug=slug,
         name=name,
         created=created,
         updated=updated,
         relation=metadata.get("relation") or None,
-        photo=metadata.get("photo") or None,
+        photo=photo,
         photo_focus=_parse_photo_focus(metadata.get("photo_focus")),
+        photo_sepia=photo_sepia,
         body=post.content if include_body else None,
         parents=_parse_slug_list(metadata.get("parents")),
         partners=_parse_slug_list(metadata.get("partners")),
@@ -149,7 +171,7 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
                   relation: Optional[str], photo: Optional[str], body: str,
                   parents: Optional[list] = None, partners: Optional[list] = None,
                   friend_of: Optional[list] = None, gender: Optional[str] = None,
-                  photo_focus: Optional[str] = None) -> None:
+                  photo_focus: Optional[str] = None, photo_sepia: Optional[int] = None) -> None:
     post = frontmatter.Post(body)
     post["name"] = name
     post["created"] = created.isoformat()
@@ -160,6 +182,8 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
         post["photo"] = photo
     if photo_focus:
         post["photo_focus"] = photo_focus
+    if photo and photo_sepia is not None:
+        post["photo_sepia"] = photo_sepia
     if parents:
         post["parents"] = list(parents)
     if partners:
@@ -202,12 +226,14 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
                    body: str = "", photo: Optional[str] = None,
                    parents: Optional[list] = None, partners: Optional[list] = None,
                    friend_of: Optional[list] = None, gender: Optional[str] = None,
-                   photo_focus: Optional[str] = None) -> None:
+                   photo_focus: Optional[str] = None, photo_sepia: Optional[int] = None) -> None:
     """Update an existing person's content in place. The slug never changes.
 
     `photo` of None means "leave unchanged"; an empty string clears it.
     `parents`/`partners`/`friend_of`/`gender`/`photo_focus` of None means
-    "leave unchanged"; an empty string clears `photo_focus`.
+    "leave unchanged"; an empty string clears `photo_focus`. `photo_sepia`
+    of None means "leave unchanged" — pass an explicit int (including 0)
+    to set it.
     """
     if not storage.is_valid_story_id(slug):
         raise storage.InvalidStoryId(slug)
@@ -219,6 +245,8 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
         photo = existing.photo
     if photo_focus is None:
         photo_focus = existing.photo_focus
+    if photo_sepia is None:
+        photo_sepia = existing.photo_sepia
     if parents is None:
         parents = existing.parents
     if partners is None:
@@ -229,4 +257,4 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
         gender = existing.gender
     _write_index(people_dir, slug, name, created, datetime.now(), relation, photo, body,
                  parents=parents, partners=partners, friend_of=friend_of, gender=gender,
-                 photo_focus=photo_focus)
+                 photo_focus=photo_focus, photo_sepia=photo_sepia)

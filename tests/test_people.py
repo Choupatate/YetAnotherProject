@@ -353,7 +353,10 @@ def test_upload_person_image_returns_filename(auth_client, stories_dir):
     assert resp.get_json()["filename"] == "photo-001.jpg"
 
 
-def test_first_uploaded_image_becomes_photo(auth_client, stories_dir):
+def test_body_image_upload_does_not_set_photo(auth_client, stories_dir):
+    """Body-inserted images (the WYSIWYG editor's "Insert image" button)
+    never become the cover photo — only the dedicated /photo endpoint does
+    (FEATURES.md F18 photo styling round)."""
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
     auth_client.post(
         f"/api/people/{slug}/images",
@@ -361,23 +364,57 @@ def test_first_uploaded_image_becomes_photo(auth_client, stories_dir):
         content_type="multipart/form-data",
     )
     p = people.get_person(_people_dir(stories_dir), slug)
-    assert p.photo == "photo-001.jpg"
+    assert p.photo is None
 
 
-def test_second_uploaded_image_does_not_replace_photo(auth_client, stories_dir):
+# --- API: dedicated cover-photo upload --------------------------------------
+
+
+def test_upload_person_photo_sets_photo_and_defaults(auth_client, stories_dir):
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
-    auth_client.post(
-        f"/api/people/{slug}/images",
+    resp = auth_client.post(
+        f"/api/people/{slug}/photo",
         data={"file": (_jpeg_bytes(), "photo.jpg")},
         content_type="multipart/form-data",
     )
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["filename"] == "photo-001.jpg"
+    assert body["photo_focus"] == "50% 50%"
+    assert body["photo_sepia"] == people.DEFAULT_PHOTO_SEPIA
+    p = people.get_person(_people_dir(stories_dir), slug)
+    assert p.photo == "photo-001.jpg"
+    assert p.photo_focus is None
+    assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
+
+
+def test_second_photo_upload_replaces_and_resets_focus_sepia(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Photo Person")
     auth_client.post(
-        f"/api/people/{slug}/images",
+        f"/api/people/{slug}/photo",
+        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        content_type="multipart/form-data",
+    )
+    people.update_person(people_dir, slug, "Photo Person", photo_focus="10% 90%", photo_sepia=80)
+    auth_client.post(
+        f"/api/people/{slug}/photo",
         data={"file": (_jpeg_bytes(), "photo2.jpg")},
         content_type="multipart/form-data",
     )
-    p = people.get_person(_people_dir(stories_dir), slug)
-    assert p.photo == "photo-001.jpg"
+    p = people.get_person(people_dir, slug)
+    assert p.photo == "photo-002.jpg"
+    assert p.photo_focus is None
+    assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
+
+
+def test_upload_person_photo_nonexistent_person_returns_404(auth_client):
+    resp = auth_client.post(
+        "/api/people/nobody/photo",
+        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 404
 
 
 def test_upload_person_image_nonexistent_person_returns_404(auth_client):
