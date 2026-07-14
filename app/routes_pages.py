@@ -319,14 +319,14 @@ def people_page():
 
 
 def _person_ref(people_by_slug, slug):
-    """A lightweight {slug, name, photo_url, photo_focus} dict for linking
+    """A lightweight {slug, name, photo_url, photo_sepia} dict for linking
     to another person in a template — None when the slug isn't a real
     person."""
     p = people_by_slug.get(slug)
     if p is None:
         return None
     photo_url = url_for("pages.person_media", slug=p.slug, filename=p.photo) if p.photo else None
-    return {"slug": p.slug, "name": p.name, "photo_url": photo_url, "photo_focus": p.photo_focus}
+    return {"slug": p.slug, "name": p.name, "photo_url": photo_url, "photo_sepia": p.photo_sepia}
 
 
 @bp.route("/people/<slug>")

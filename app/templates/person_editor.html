@@ -14,7 +14,7 @@
             aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
       {% if other.photo_url %}
       <img class="family-chip__thumb" src="{{ other.photo_url }}" alt="" loading="lazy" decoding="async"
-           style="object-position: {{ other.photo_focus or '50% 50%' }};">
+           style="--photo-sepia: {{ other.photo_sepia }}%;">
       {% else %}
       <span class="family-chip__thumb family-chip__thumb--placeholder" aria-hidden="true">{{ other.name[0]|upper }}</span>
       {% endif %}
@@ -50,22 +50,38 @@
 
   <div class="editor__photo" id="editor-photo">
     <p class="editor__family-label">Photo</p>
-    <div class="editor__photo-preview" id="editor-photo-preview">
-      <span class="editor__photo-placeholder" id="editor-photo-placeholder"
-            {% if person and person.photo %}hidden{% endif %}>No photo yet</span>
+
+    <div class="editor__photo-preview" id="editor-photo-preview" {% if not (person and person.photo) %}hidden{% endif %}>
       <img class="editor__photo-preview-img" id="editor-photo-img" alt=""
            {% if person and person.photo %}
            src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}"
-           style="object-position: {{ person.photo_focus or '50% 50%' }}; --photo-sepia: {{ person.photo_sepia }}%;"
-           {% else %}
-           hidden
+           style="--photo-sepia: {{ person.photo_sepia }}%;"
            {% endif %}>
-      <span class="editor__photo-focus-marker" id="editor-photo-marker" aria-hidden="true"
-            {% if not (person and person.photo) %}hidden{% endif %}></span>
     </div>
+    <span class="editor__photo-placeholder" id="editor-photo-placeholder"
+          {% if person and person.photo %}hidden{% endif %}>No photo yet</span>
+
     <input type="file" accept="image/*" id="editor-photo-file" class="editor__photo-file-input">
     <label for="editor-photo-file" class="btn editor__photo-upload-btn" id="editor-photo-upload-label">{% if person and person.photo %}Change photo{% else %}Add a photo{% endif %}</label>
     <p class="editor__save-message" id="editor-photo-message" hidden></p>
+
+    <div class="editor__photo-cropper" id="editor-photo-cropper" hidden>
+      <div class="editor__photo-cropper-stage" id="editor-photo-cropper-stage">
+        <img class="editor__photo-cropper-img" id="editor-photo-cropper-img" alt="" draggable="false">
+        <div class="editor__photo-cropper-ring" aria-hidden="true"></div>
+      </div>
+      <div class="editor__photo-zoom-controls">
+        <button type="button" class="editor__photo-zoom-btn" id="editor-photo-zoom-out" aria-label="Zoom out">&minus;</button>
+        <input type="range" min="0" max="100" value="0" id="editor-photo-zoom-range" aria-label="Zoom">
+        <button type="button" class="editor__photo-zoom-btn" id="editor-photo-zoom-in" aria-label="Zoom in">+</button>
+      </div>
+      <p class="editor__photo-cropper-hint">Drag the photo to reposition it.</p>
+      <div class="editor__photo-cropper-actions">
+        <button type="button" class="btn" id="editor-photo-crop-cancel">Cancel</button>
+        <button type="button" class="btn btn--primary" id="editor-photo-crop-confirm">Use this photo</button>
+      </div>
+    </div>
+
     <div class="editor__photo-sepia-group" id="editor-photo-sepia-group"
          {% if not (person and person.photo) %}hidden{% endif %}>
       <label class="editor__family-label" for="editor-photo-sepia-range">Sepia tone</label>

@@ -12,7 +12,7 @@
       <a class="person-family__link" href="{{ url_for('pages.person_page', slug=ref.slug) }}">
         {% if ref.photo_url %}
         <img class="person-family__thumb" src="{{ ref.photo_url }}" alt="" loading="lazy" decoding="async"
-             style="object-position: {{ ref.photo_focus or '50% 50%' }}; --photo-sepia: {{ ref.photo_sepia }}%;">
+             style="--photo-sepia: {{ ref.photo_sepia }}%;">
         {% else %}
         <span class="person-family__thumb person-family__thumb--placeholder" aria-hidden="true">{{ ref.name[0]|upper }}</span>
         {% endif %}
@@ -42,7 +42,7 @@
   </header>
   {% if person.photo %}
   <img class="story__cover" src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt=""
-       style="object-position: {{ person.photo_focus or '50% 50%' }}; --photo-sepia: {{ person.photo_sepia }}%;">
+       style="--photo-sepia: {{ person.photo_sepia }}%;">
   {% endif %}
   <div class="story__body">
     {{ body_html|safe }}

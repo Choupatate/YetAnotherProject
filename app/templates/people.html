@@ -27,7 +27,7 @@
       <a class="people__card-link" href="{{ url_for('pages.person_page', slug=person.slug) }}">
         {% if person.photo %}
         <img class="people__portrait" src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt=""
-             style="object-position: {{ person.photo_focus or '50% 50%' }}; --photo-sepia: {{ person.photo_sepia }}%;">
+             style="--photo-sepia: {{ person.photo_sepia }}%;">
         {% else %}
         <span class="people__portrait people__portrait--placeholder">
           <img class="people__portrait-oval" src="{{ url_for('static', filename='img/person-oval.jpg') }}"

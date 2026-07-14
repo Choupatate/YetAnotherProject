@@ -24,7 +24,7 @@
         label: person.name,
         avatar: person.photo || fallbackAvatar,
         avatarIsPhoto: !!person.photo,
-        avatarFocus: person.photo_focus || "50% 50%",
+        avatarSepia: person.photo_sepia,
         gender: toGender(person.gender),
       },
       rels: {
@@ -56,10 +56,10 @@
       function cardInnerHtml(node) {
         var d = node.data.data;
         var avatarClass = "f3-card-avatar" + (d.avatarIsPhoto ? " f3-card-avatar--photo" : "");
+        var avatarStyle = d.avatarIsPhoto ? ' style="--photo-sepia: ' + d.avatarSepia + '%;"' : "";
         return (
           '<div class="card-inner">' +
-          '<img class="' + avatarClass + '" src="' + escapeHtml(d.avatar) + '" alt=""' +
-          ' style="object-position: ' + escapeHtml(d.avatarFocus) + ';">' +
+          '<img class="' + avatarClass + '" src="' + escapeHtml(d.avatar) + '" alt=""' + avatarStyle + '>' +
           '<div class="f3-card-name">' + escapeHtml(d.label) + "</div>" +
           "</div>"
         );

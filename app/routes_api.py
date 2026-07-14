@@ -270,20 +270,6 @@ def _validate_person_photo(data, slug):
     return photo, None
 
 
-def _validate_person_photo_focus(data):
-    """Resolve and validate the optional 'photo_focus' field (FEATURES.md
-    F18 photo styling): a CSS object-position pair 'X% Y%'. None means the
-    field was absent ("leave unchanged" on update); "" clears it."""
-    if "photo_focus" not in data:
-        return None, None
-    focus = data.get("photo_focus")
-    if not focus:
-        return "", None
-    if not people.is_valid_photo_focus(focus):
-        return None, _error("Invalid photo focus point.", 400)
-    return focus, None
-
-
 def _validate_person_photo_sepia(data):
     """Resolve and validate the optional 'photo_sepia' field: a 0-100
     percentage. None means the field was absent ("leave unchanged" on
@@ -453,10 +439,6 @@ def update_person(slug):
     if error:
         return error
 
-    photo_focus, error = _validate_person_photo_focus(data)
-    if error:
-        return error
-
     photo_sepia, error = _validate_person_photo_sepia(data)
     if error:
         return error
@@ -475,7 +457,7 @@ def update_person(slug):
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
-            photo_focus=photo_focus, photo_sepia=photo_sepia,
+            photo_sepia=photo_sepia,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)
@@ -515,9 +497,12 @@ def upload_person_image(slug):
 def upload_person_photo(slug):
     """The dedicated cover-photo upload (FEATURES.md F18 photo styling
     round): uploads and resizes the file exactly like the body-image
-    endpoint, then sets it as the person's photo and resets photo_focus and
-    photo_sepia to their defaults, since a brand-new photo needs a fresh
-    crop and tone rather than inheriting the previous photo's."""
+    endpoint, then sets it as the person's photo and resets photo_sepia to
+    its default, since a brand-new photo needs a fresh tone rather than
+    inheriting the previous photo's. The uploaded file is expected to
+    already be cropped client-side (the editor's pan/zoom crop tool bakes
+    the crop into the image before it ever reaches this endpoint) — the
+    server does not perform or store any separate crop/focus data."""
     if not storage.is_valid_story_id(slug):
         return _error("Person not found.", 404)
     existing = people.get_person(_people_dir(), slug)
@@ -535,13 +520,12 @@ def upload_person_photo(slug):
 
     people.update_person(
         _people_dir(), slug, existing.name, relation=existing.relation,
-        body=existing.body or "", photo=filename, photo_focus="",
+        body=existing.body or "", photo=filename,
         photo_sepia=people.DEFAULT_PHOTO_SEPIA,
     )
 
     return jsonify({
         "filename": filename,
-        "photo_focus": "50% 50%",
         "photo_sepia": people.DEFAULT_PHOTO_SEPIA,
     })
 
@@ -574,7 +558,6 @@ def api_tree():
                 url_for("pages.person_media", slug=p.slug, filename=p.photo)
                 if p.photo else None
             ),
-            "photo_focus": p.photo_focus,
             "photo_sepia": p.photo_sepia,
             "url": url_for("pages.person_page", slug=p.slug),
         }

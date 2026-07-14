@@ -1884,7 +1884,6 @@ img.person-family__thumb {
   aspect-ratio: 1 / 1;
   border-radius: 0.75rem;
   overflow: hidden;
-  cursor: crosshair;
   border: 1px dashed var(--color-border);
   background: var(--color-bg-raised);
   display: flex;
@@ -1907,16 +1906,79 @@ img.person-family__thumb {
   pointer-events: none;
 }
 
-.editor__photo-focus-marker {
+.editor__photo-cropper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 16rem;
+}
+
+.editor__photo-cropper-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: #000;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.editor__photo-cropper-stage:active {
+  cursor: grabbing;
+}
+
+.editor__photo-cropper-img {
   position: absolute;
-  width: 1.5rem;
-  height: 1.5rem;
-  margin-left: -0.75rem;
-  margin-top: -0.75rem;
-  border-radius: 50%;
-  border: 2px solid var(--color-accent-text);
-  box-shadow: 0 0 0 2px var(--color-accent), 0 1px 4px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+}
+
+.editor__photo-cropper-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid #8a7a5f;
+  box-shadow: 0 0 0 9999px rgba(20, 18, 16, 0.6);
+  pointer-events: none;
+}
+
+.editor__photo-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.editor__photo-zoom-controls input[type="range"] {
+  flex: 1;
+}
+
+.editor__photo-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editor__photo-cropper-hint {
+  margin: 0;
+  color: var(--color-text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.editor__photo-cropper-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .editor__photo-file-input {
