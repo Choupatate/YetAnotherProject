@@ -270,6 +270,20 @@ def _validate_person_photo(data, slug):
     return photo, None
 
 
+def _validate_person_photo_focus(data):
+    """Resolve and validate the optional 'photo_focus' field (FEATURES.md
+    F18 photo styling): a CSS object-position pair 'X% Y%'. None means the
+    field was absent ("leave unchanged" on update); "" clears it."""
+    if "photo_focus" not in data:
+        return None, None
+    focus = data.get("photo_focus")
+    if not focus:
+        return "", None
+    if not people.is_valid_photo_focus(focus):
+        return None, _error("Invalid photo focus point.", 400)
+    return focus, None
+
+
 def _person_name(data):
     """The person's name, sent as `name` per the documented API — also
     accepts `title`, since the shared editor.js (FEATURES.md F14: "do not
@@ -421,6 +435,10 @@ def update_person(slug):
     if error:
         return error
 
+    photo_focus, error = _validate_person_photo_focus(data)
+    if error:
+        return error
+
     fields, all_people, error = _validate_person_family(data, self_slug=slug)
     if error:
         return error
@@ -435,6 +453,7 @@ def update_person(slug):
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
+            photo_focus=photo_focus,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)
@@ -500,6 +519,7 @@ def api_tree():
                 url_for("pages.person_media", slug=p.slug, filename=p.photo)
                 if p.photo else None
             ),
+            "photo_focus": p.photo_focus,
             "url": url_for("pages.person_page", slug=p.slug),
         }
         if in_family:

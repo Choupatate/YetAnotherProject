@@ -145,6 +145,14 @@ unless you deliberately link it. People don't show up on the timeline or
 in `/book` — this is a reference page, not another kind of memory — and,
 like stories, there's no way to delete one once added.
 
+A portrait can optionally record `photo_focus`, a CSS `object-position`
+pair like `"30% 40%"` — set it by tapping the photo preview in the person
+editor to move the crop point without re-uploading, useful when a face
+isn't centered in the source photo. Every place a portrait renders (the
+people grid, the person page, family thumbnails, the tree) also applies a
+subtle sepia filter so real photos read as part of the same hand-drawn,
+paper-and-ink book as the illustrations, instead of clashing with it.
+
 ### The family tree
 
 Person pages can optionally record `parents` (up to two), `partners`
@@ -173,6 +181,7 @@ the vendored chart on `/tree` is just today's consumer:
       "name": "Papi Georges",
       "gender": "m",
       "photo": "/people/papi-georges/media/photo-001.jpg",
+      "photo_focus": "50% 30%",
       "url": "/people/papi-georges",
       "kinship": "your grandfather",
       "rels": { "parents": [], "partners": ["mamie-lise"], "children": ["papa"] }
@@ -182,6 +191,7 @@ the vendored chart on `/tree` is just today's consumer:
       "name": "Ami Jean",
       "gender": null,
       "photo": null,
+      "photo_focus": null,
       "url": "/people/ami-jean",
       "friend_of": ["papa"]
     }
