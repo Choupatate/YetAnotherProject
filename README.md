@@ -145,13 +145,19 @@ unless you deliberately link it. People don't show up on the timeline or
 in `/book` — this is a reference page, not another kind of memory — and,
 like stories, there's no way to delete one once added.
 
-A portrait can optionally record `photo_focus`, a CSS `object-position`
-pair like `"30% 40%"` — set it by tapping the photo preview in the person
-editor to move the crop point without re-uploading, useful when a face
-isn't centered in the source photo. Every place a portrait renders (the
-people grid, the person page, family thumbnails, the tree) also applies a
-subtle sepia filter so real photos read as part of the same hand-drawn,
+A portrait's crop is baked into the uploaded image itself: the person
+editor's dedicated Photo panel lets you pan and zoom the source photo
+against an oval guide (drag to pan, works with touch; a slider and +/-
+buttons to zoom) before it's ever uploaded, so there's no separate stored
+focus point to keep in sync across the very differently-shaped places a
+portrait renders. A portrait can also optionally record `photo_sepia`
+(0-100, defaults to 30 whenever a photo exists), a manually-set sepia tone
+percentage — drag the slider or type a number in the same panel — applied
+everywhere the portrait renders (the people grid, the person page, family
+thumbnails, the tree) so real photos read as part of the same hand-drawn,
 paper-and-ink book as the illustrations, instead of clashing with it.
+Uploading a new photo always resets the tone back to the default, since a
+new photo needs a fresh one.
 
 ### The family tree
 
@@ -181,7 +187,7 @@ the vendored chart on `/tree` is just today's consumer:
       "name": "Papi Georges",
       "gender": "m",
       "photo": "/people/papi-georges/media/photo-001.jpg",
-      "photo_focus": "50% 30%",
+      "photo_sepia": 30,
       "url": "/people/papi-georges",
       "kinship": "your grandfather",
       "rels": { "parents": [], "partners": ["mamie-lise"], "children": ["papa"] }
@@ -191,7 +197,7 @@ the vendored chart on `/tree` is just today's consumer:
       "name": "Ami Jean",
       "gender": null,
       "photo": null,
-      "photo_focus": null,
+      "photo_sepia": null,
       "url": "/people/ami-jean",
       "friend_of": ["papa"]
     }
