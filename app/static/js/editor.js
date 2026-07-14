@@ -292,7 +292,13 @@
   if (cropperStage) {
     cropperStage.addEventListener("pointerdown", function (event) {
       activePointers[event.pointerId] = { x: event.clientX, y: event.clientY };
-      cropperStage.setPointerCapture(event.pointerId);
+      try {
+        cropperStage.setPointerCapture(event.pointerId);
+      } catch (e) {
+        // Capture is a robustness nicety (keeps the drag tracking even if
+        // the finger slides outside the stage); its absence shouldn't stop
+        // the drag from working.
+      }
       var ids = Object.keys(activePointers);
       if (ids.length === 1) {
         beginDragFrom(event.clientX, event.clientY);
