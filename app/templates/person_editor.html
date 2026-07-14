@@ -13,7 +13,8 @@
     <button type="button" class="editor__author-chip family-chip" data-person-slug="{{ other.slug }}"
             aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
       {% if other.photo_url %}
-      <img class="family-chip__thumb" src="{{ other.photo_url }}" alt="" loading="lazy" decoding="async">
+      <img class="family-chip__thumb" src="{{ other.photo_url }}" alt="" loading="lazy" decoding="async"
+           style="object-position: {{ other.photo_focus or '50% 50%' }};">
       {% else %}
       <span class="family-chip__thumb family-chip__thumb--placeholder" aria-hidden="true">{{ other.name[0]|upper }}</span>
       {% endif %}

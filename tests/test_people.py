@@ -465,6 +465,30 @@ def test_person_page_missing_404(auth_client):
     assert resp.status_code == 404
 
 
+def test_people_page_portrait_uses_photo_focus(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="20% 70%")
+    resp = auth_client.get("/people")
+    assert "object-position: 20% 70%" in resp.data.decode()
+
+
+def test_people_page_portrait_defaults_focus_when_unset(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg")
+    resp = auth_client.get("/people")
+    assert "object-position: 50% 50%" in resp.data.decode()
+
+
+def test_person_page_cover_uses_photo_focus(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="10% 90%")
+    resp = auth_client.get(f"/people/{slug}")
+    assert "object-position: 10% 90%" in resp.data.decode()
+
+
 def test_new_person_page_renders(auth_client):
     resp = auth_client.get("/new-person")
     assert resp.status_code == 200
