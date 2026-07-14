@@ -576,6 +576,24 @@ def test_new_person_page_photo_panel_placeholder(auth_client):
     assert "No photo yet" in html
 
 
+def test_person_editor_photo_panel_has_cropper_markup(auth_client):
+    """The pan/zoom crop overlay markup is present (hidden) regardless of
+    whether a photo exists yet — it activates on file pick, not page load."""
+    resp = auth_client.get("/new-person")
+    html = resp.data.decode()
+    assert 'id="editor-photo-cropper"' in html
+    assert re.search(r'id="editor-photo-cropper"\s+hidden', html)
+    assert 'id="editor-photo-cropper-stage"' in html
+    assert 'id="editor-photo-cropper-img"' in html
+    assert 'id="editor-photo-zoom-range"' in html
+    assert 'id="editor-photo-zoom-out"' in html
+    assert 'id="editor-photo-zoom-in"' in html
+    assert 'id="editor-photo-crop-cancel"' in html
+    assert 'id="editor-photo-crop-confirm"' in html
+    assert "object-position" not in html
+    assert "photo_focus" not in html
+
+
 def test_people_page_requires_auth(client):
     resp = client.get("/people")
     assert resp.status_code == 302

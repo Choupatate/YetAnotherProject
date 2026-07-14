@@ -143,12 +143,12 @@
     });
   });
 
-  // --- Dedicated photo panel: upload -> crop -> sepia tone (people only) -----
-  var photoRoot = document.getElementById("editor-photo");
+  // --- Dedicated photo panel: upload -> pan/zoom crop -> sepia tone ----------
+  // (people only). The crop is rasterized client-side and uploaded as the
+  // final image — there is no separate stored focus point.
   var photoPreview = document.getElementById("editor-photo-preview");
   var photoPlaceholder = document.getElementById("editor-photo-placeholder");
   var photoImg = document.getElementById("editor-photo-img");
-  var photoMarker = document.getElementById("editor-photo-marker");
   var photoFileInput = document.getElementById("editor-photo-file");
   var photoUploadLabel = document.getElementById("editor-photo-upload-label");
   var photoMessageEl = document.getElementById("editor-photo-message");
@@ -158,8 +158,7 @@
   var photoUrlTemplate = form.dataset.photoUrlTemplate || "";
   var mediaUrlTemplate = form.dataset.mediaUrlTemplate || "";
 
-  var hasPhoto = !!(photoImg && !photoImg.hidden);
-  var photoFocusValue = photoImg ? photoImg.style.objectPosition || "50% 50%" : "50% 50%";
+  var hasPhoto = !!(photoPreview && !photoPreview.hidden);
 
   function showPhotoMessage(text) {
     if (!photoMessageEl) return;
@@ -167,39 +166,11 @@
     photoMessageEl.hidden = !text;
   }
 
-  function setPhotoFocus(xPct, yPct) {
-    xPct = Math.max(0, Math.min(100, xPct));
-    yPct = Math.max(0, Math.min(100, yPct));
-    photoFocusValue = Math.round(xPct) + "% " + Math.round(yPct) + "%";
-    if (photoImg) photoImg.style.objectPosition = photoFocusValue;
-    if (photoMarker) {
-      photoMarker.style.left = xPct + "%";
-      photoMarker.style.top = yPct + "%";
-    }
-  }
-
   function setPhotoSepia(value) {
     value = Math.max(0, Math.min(100, Math.round(value)));
     if (photoImg) photoImg.style.setProperty("--photo-sepia", value + "%");
     if (photoSepiaRange) photoSepiaRange.value = value;
     if (photoSepiaNumber) photoSepiaNumber.value = value;
-  }
-
-  if (photoImg) {
-    var initialFocus = (photoFocusValue || "50% 50%").split(" ");
-    setPhotoFocus(parseFloat(initialFocus[0]) || 50, parseFloat(initialFocus[1]) || 50);
-  }
-
-  if (photoPreview) {
-    photoPreview.addEventListener("click", function (event) {
-      if (!hasPhoto) return;
-      var rect = photoPreview.getBoundingClientRect();
-      setPhotoFocus(
-        ((event.clientX - rect.left) / rect.width) * 100,
-        ((event.clientY - rect.top) / rect.height) * 100
-      );
-      markDirty();
-    });
   }
 
   if (photoSepiaRange) {
@@ -220,15 +191,235 @@
   function revealPhoto(mediaUrl) {
     hasPhoto = true;
     if (photoPlaceholder) photoPlaceholder.hidden = true;
-    if (photoImg) {
-      photoImg.src = mediaUrl;
-      photoImg.hidden = false;
-    }
-    if (photoMarker) photoMarker.hidden = false;
+    if (photoPreview) photoPreview.hidden = false;
+    if (photoImg) photoImg.src = mediaUrl;
     if (photoSepiaGroup) photoSepiaGroup.hidden = false;
     if (photoUploadLabel) photoUploadLabel.textContent = "Change photo";
-    setPhotoFocus(50, 50);
     setPhotoSepia(30);
+  }
+
+  // --- Pan/zoom crop overlay -------------------------------------------------
+  var cropperRoot = document.getElementById("editor-photo-cropper");
+  var cropperStage = document.getElementById("editor-photo-cropper-stage");
+  var cropperImg = document.getElementById("editor-photo-cropper-img");
+  var zoomRange = document.getElementById("editor-photo-zoom-range");
+  var zoomOutBtn = document.getElementById("editor-photo-zoom-out");
+  var zoomInBtn = document.getElementById("editor-photo-zoom-in");
+  var cropCancelBtn = document.getElementById("editor-photo-crop-cancel");
+  var cropConfirmBtn = document.getElementById("editor-photo-crop-confirm");
+
+  var MAX_ZOOM_MULT = 3; // how far past "fits the frame" the slider can zoom
+  var OUTPUT_SIZE = 900; // final square crop resolution, in px
+
+  var cropObjectUrl = null;
+  var stageSize = 0;
+  var naturalW = 0;
+  var naturalH = 0;
+  var fitScale = 1;
+  var zoomPct = 0;
+  var panX = 0;
+  var panY = 0;
+  var dragging = false;
+  var dragStartX = 0;
+  var dragStartY = 0;
+  var panStartX = 0;
+  var panStartY = 0;
+  var activePointers = {};
+  var pinchStartDist = null;
+  var pinchStartZoom = 0;
+
+  function currentScale() {
+    return fitScale * (1 + (MAX_ZOOM_MULT - 1) * (zoomPct / 100));
+  }
+
+  function clampPan() {
+    var scale = currentScale();
+    var dispW = naturalW * scale;
+    var dispH = naturalH * scale;
+    var maxX = Math.max(0, (dispW - stageSize) / 2);
+    var maxY = Math.max(0, (dispH - stageSize) / 2);
+    panX = Math.max(-maxX, Math.min(maxX, panX));
+    panY = Math.max(-maxY, Math.min(maxY, panY));
+  }
+
+  function updateCropTransform() {
+    var scale = currentScale();
+    var dispW = naturalW * scale;
+    var dispH = naturalH * scale;
+    cropperImg.style.width = dispW + "px";
+    cropperImg.style.height = dispH + "px";
+    cropperImg.style.left = (stageSize / 2 - dispW / 2 + panX) + "px";
+    cropperImg.style.top = (stageSize / 2 - dispH / 2 + panY) + "px";
+  }
+
+  function setZoom(value) {
+    zoomPct = Math.max(0, Math.min(100, value));
+    if (zoomRange) zoomRange.value = zoomPct;
+    clampPan();
+    updateCropTransform();
+  }
+
+  if (zoomRange) {
+    zoomRange.addEventListener("input", function () {
+      setZoom(parseFloat(zoomRange.value));
+    });
+  }
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener("click", function () {
+      setZoom(zoomPct - 10);
+    });
+  }
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener("click", function () {
+      setZoom(zoomPct + 10);
+    });
+  }
+
+  function pointerDistance(a, b) {
+    var dx = a.x - b.x;
+    var dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function beginDragFrom(x, y) {
+    dragging = true;
+    dragStartX = x;
+    dragStartY = y;
+    panStartX = panX;
+    panStartY = panY;
+  }
+
+  if (cropperStage) {
+    cropperStage.addEventListener("pointerdown", function (event) {
+      activePointers[event.pointerId] = { x: event.clientX, y: event.clientY };
+      cropperStage.setPointerCapture(event.pointerId);
+      var ids = Object.keys(activePointers);
+      if (ids.length === 1) {
+        beginDragFrom(event.clientX, event.clientY);
+      } else if (ids.length === 2) {
+        dragging = false;
+        var pts = ids.map(function (id) { return activePointers[id]; });
+        pinchStartDist = pointerDistance(pts[0], pts[1]);
+        pinchStartZoom = zoomPct;
+      }
+      event.preventDefault();
+    });
+
+    cropperStage.addEventListener("pointermove", function (event) {
+      if (!(event.pointerId in activePointers)) return;
+      activePointers[event.pointerId] = { x: event.clientX, y: event.clientY };
+      var ids = Object.keys(activePointers);
+      if (ids.length === 2 && pinchStartDist) {
+        var pts = ids.map(function (id) { return activePointers[id]; });
+        var dist = pointerDistance(pts[0], pts[1]);
+        var ratio = dist / pinchStartDist;
+        setZoom(pinchStartZoom + (ratio - 1) * 100);
+      } else if (dragging) {
+        panX = panStartX + (event.clientX - dragStartX);
+        panY = panStartY + (event.clientY - dragStartY);
+        clampPan();
+        updateCropTransform();
+      }
+    });
+
+    function endPointer(event) {
+      delete activePointers[event.pointerId];
+      var ids = Object.keys(activePointers);
+      if (ids.length < 2) pinchStartDist = null;
+      if (ids.length === 1) {
+        var pt = activePointers[ids[0]];
+        beginDragFrom(pt.x, pt.y);
+      } else if (ids.length === 0) {
+        dragging = false;
+      }
+    }
+    cropperStage.addEventListener("pointerup", endPointer);
+    cropperStage.addEventListener("pointercancel", endPointer);
+  }
+
+  function openCropper(file) {
+    if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+    cropObjectUrl = URL.createObjectURL(file);
+    cropperImg.onload = function () {
+      stageSize = cropperStage.clientWidth;
+      naturalW = cropperImg.naturalWidth;
+      naturalH = cropperImg.naturalHeight;
+      fitScale = Math.max(stageSize / naturalW, stageSize / naturalH);
+      panX = 0;
+      panY = 0;
+      setZoom(0);
+    };
+    cropperImg.src = cropObjectUrl;
+    if (photoPreview) photoPreview.hidden = true;
+    if (photoPlaceholder) photoPlaceholder.hidden = true;
+    if (cropperRoot) cropperRoot.hidden = false;
+  }
+
+  function closeCropper() {
+    if (cropperRoot) cropperRoot.hidden = true;
+    if (photoPreview) photoPreview.hidden = !hasPhoto;
+    if (photoPlaceholder) photoPlaceholder.hidden = hasPhoto;
+    if (cropObjectUrl) {
+      URL.revokeObjectURL(cropObjectUrl);
+      cropObjectUrl = null;
+    }
+  }
+
+  if (cropCancelBtn) {
+    cropCancelBtn.addEventListener("click", function () {
+      if (photoFileInput) photoFileInput.value = "";
+      closeCropper();
+    });
+  }
+
+  function rasterizeCrop() {
+    var canvas = document.createElement("canvas");
+    canvas.width = OUTPUT_SIZE;
+    canvas.height = OUTPUT_SIZE;
+    var ctx = canvas.getContext("2d");
+    var k = OUTPUT_SIZE / stageSize;
+    var scale = currentScale();
+    var dispW = naturalW * scale;
+    var dispH = naturalH * scale;
+    var left = stageSize / 2 - dispW / 2 + panX;
+    var top = stageSize / 2 - dispH / 2 + panY;
+    ctx.drawImage(cropperImg, left * k, top * k, dispW * k, dispH * k);
+    return new Promise(function (resolve) {
+      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    });
+  }
+
+  if (cropConfirmBtn) {
+    cropConfirmBtn.addEventListener("click", function () {
+      showPhotoMessage("");
+      cropConfirmBtn.disabled = true;
+      rasterizeCrop()
+        .then(function (blob) {
+          return ensureStoryId().then(function (id) {
+            var formData = new FormData();
+            formData.append("file", blob, "photo.jpg");
+            return fetch(fillUrlTemplate(photoUrlTemplate, id), {
+              method: "POST",
+              body: formData,
+            }).then(handleJsonResponse);
+          });
+        })
+        .then(function (data) {
+          var mediaUrl = mediaUrlTemplate
+            .replace("__ID__", storyId)
+            .replace("__FILENAME__", data.filename);
+          revealPhoto(mediaUrl);
+          if (photoFileInput) photoFileInput.value = "";
+          closeCropper();
+          markDirty();
+        })
+        .catch(function (error) {
+          showPhotoMessage(error.message || "Could not upload that photo.");
+        })
+        .then(function () {
+          cropConfirmBtn.disabled = false;
+        });
+    });
   }
 
   if (photoFileInput && photoUrlTemplate) {
@@ -236,29 +427,7 @@
       var file = photoFileInput.files[0];
       if (!file) return;
       showPhotoMessage("");
-      if (photoUploadLabel) photoUploadLabel.setAttribute("aria-disabled", "true");
-      ensureStoryId()
-        .then(function (id) {
-          var formData = new FormData();
-          formData.append("file", file);
-          return fetch(fillUrlTemplate(photoUrlTemplate, id), {
-            method: "POST",
-            body: formData,
-          }).then(handleJsonResponse);
-        })
-        .then(function (data) {
-          var mediaUrl = mediaUrlTemplate
-            .replace("__ID__", storyId)
-            .replace("__FILENAME__", data.filename);
-          revealPhoto(mediaUrl);
-        })
-        .catch(function (error) {
-          showPhotoMessage(error.message || "Could not upload that photo.");
-        })
-        .then(function () {
-          photoFileInput.value = "";
-          if (photoUploadLabel) photoUploadLabel.removeAttribute("aria-disabled");
-        });
+      openCropper(file);
     });
   }
 
@@ -270,7 +439,6 @@
       payload.gender = getGender();
     }
     if (hasPhoto) {
-      payload.photo_focus = photoFocusValue;
       payload.photo_sepia = photoSepiaRange ? parseInt(photoSepiaRange.value, 10) : 30;
     }
   }
@@ -795,10 +963,6 @@
       partnersPicker.setSelected(draftData.partners || []);
       friendOfPicker.setSelected(draftData.friend_of || []);
       setGender(draftData.gender || "");
-    }
-    if (hasPhoto && draftData.photo_focus) {
-      var restoredFocus = draftData.photo_focus.split(" ");
-      setPhotoFocus(parseFloat(restoredFocus[0]) || 50, parseFloat(restoredFocus[1]) || 50);
     }
     if (hasPhoto && draftData.photo_sepia !== undefined) {
       setPhotoSepia(draftData.photo_sepia);
