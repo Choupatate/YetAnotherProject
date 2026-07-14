@@ -253,6 +253,92 @@ def test_update_person_unauthenticated_redirects(client, stories_dir):
     assert resp.status_code == 302
 
 
+# --- photo_focus (crop focus point) -----------------------------------------
+
+
+def test_is_valid_photo_focus_accepts_percentage_pairs():
+    assert people.is_valid_photo_focus("50% 50%")
+    assert people.is_valid_photo_focus("0% 100%")
+
+
+def test_is_valid_photo_focus_rejects_malformed_values():
+    assert not people.is_valid_photo_focus("center center")
+    assert not people.is_valid_photo_focus("150% 50%")
+    assert not people.is_valid_photo_focus("50%,50%")
+    assert not people.is_valid_photo_focus(None)
+    assert not people.is_valid_photo_focus(42)
+
+
+def test_update_person_sets_photo_focus(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo_focus="30% 40%")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_focus == "30% 40%"
+
+
+def test_update_person_photo_focus_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo_focus="30% 40%")
+    people.update_person(people_dir, slug, "Someone")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_focus == "30% 40%"
+
+
+def test_update_person_photo_focus_empty_string_clears(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo_focus="30% 40%")
+    people.update_person(people_dir, slug, "Someone", photo_focus="")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_focus is None
+
+
+def test_malformed_photo_focus_on_disk_parses_to_none(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    index_path = people_dir / slug / "index.md"
+    text = index_path.read_text(encoding="utf-8")
+    text = text.replace("---\n", "---\nphoto_focus: not-a-position\n", 1)
+    index_path.write_text(text, encoding="utf-8")
+    p = people.get_person(people_dir, slug)
+    assert p.photo_focus is None
+
+
+def test_update_person_api_sets_photo_focus(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_focus": "20% 80%"})
+    assert resp.status_code == 200
+    p = people.get_person(_people_dir(stories_dir), slug)
+    assert p.photo_focus == "20% 80%"
+
+
+def test_update_person_api_invalid_photo_focus_returns_400(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "photo_focus": "not valid"})
+    assert resp.status_code == 400
+
+
+def test_update_person_api_photo_focus_absent_leaves_unchanged(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo_focus="10% 10%")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone"})
+    assert resp.status_code == 200
+    p = people.get_person(people_dir, slug)
+    assert p.photo_focus == "10% 10%"
+
+
+def test_api_tree_includes_photo_focus(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    people.update_person(people_dir, slug, "Someone", photo_focus="15% 25%")
+    resp = auth_client.get("/api/tree")
+    entry = next(e for e in resp.get_json()["people"] if e["id"] == slug)
+    assert entry["photo_focus"] == "15% 25%"
+
+
 # --- API: person image upload -----------------------------------------------
 
 
@@ -379,6 +465,30 @@ def test_person_page_missing_404(auth_client):
     assert resp.status_code == 404
 
 
+def test_people_page_portrait_uses_photo_focus(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="20% 70%")
+    resp = auth_client.get("/people")
+    assert "object-position: 20% 70%" in resp.data.decode()
+
+
+def test_people_page_portrait_defaults_focus_when_unset(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg")
+    resp = auth_client.get("/people")
+    assert "object-position: 50% 50%" in resp.data.decode()
+
+
+def test_person_page_cover_uses_photo_focus(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="10% 90%")
+    resp = auth_client.get(f"/people/{slug}")
+    assert "object-position: 10% 90%" in resp.data.decode()
+
+
 def test_new_person_page_renders(auth_client):
     resp = auth_client.get("/new-person")
     assert resp.status_code == 200
@@ -398,6 +508,27 @@ def test_edit_person_page_renders(auth_client, stories_dir):
 def test_edit_person_page_missing_404(auth_client):
     resp = auth_client.get("/edit-person/nobody")
     assert resp.status_code == 404
+
+
+def test_edit_person_page_shows_photo_focus_picker_when_photo_set(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Grandma Rose")
+    people.update_person(people_dir, slug, "Grandma Rose", photo="photo-001.jpg", photo_focus="30% 40%")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    html = resp.data.decode()
+    assert 'id="editor-photo-focus"' in html
+    assert 'data-value="30% 40%"' in html
+
+
+def test_edit_person_page_no_photo_focus_picker_without_photo(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Grandma Rose")
+    resp = auth_client.get(f"/edit-person/{slug}")
+    assert 'id="editor-photo-focus"' not in resp.data.decode()
+
+
+def test_new_person_page_no_photo_focus_picker(auth_client):
+    resp = auth_client.get("/new-person")
+    assert 'id="editor-photo-focus"' not in resp.data.decode()
 
 
 def test_people_page_requires_auth(client):

@@ -98,6 +98,14 @@ input, textarea, select {
   --color-border: #2c2822;
   --color-error: #e0796a;
 
+  /* A subtle sepia tint applied to real uploaded portraits (not the F17
+     illustrations) so photos read as part of the same hand-drawn,
+     paper-and-ink book instead of clashing with it. sepia()'s amount is
+     the "how much" knob: it blends toward sepia proportionally to each
+     pixel's own color, so a dark photo stays dark and a bright one stays
+     bright — the same fixed value naturally reads differently per photo. */
+  --photo-filter: sepia(0.28) saturate(0.85) contrast(1.03) brightness(0.97);
+
   --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
@@ -115,6 +123,7 @@ input, textarea, select {
     --color-highlight-bg: rgba(169, 112, 28, 0.18);
     --color-border: #e2d9c8;
     --color-error: #a3372a;
+    --photo-filter: sepia(0.22) saturate(0.9) contrast(1.02);
 
     color-scheme: light;
   }
@@ -130,6 +139,7 @@ input, textarea, select {
   --color-highlight-bg: rgba(169, 112, 28, 0.18);
   --color-border: #e2d9c8;
   --color-error: #a3372a;
+  --photo-filter: sepia(0.22) saturate(0.9) contrast(1.02);
 
   color-scheme: light;
 }
@@ -144,6 +154,7 @@ input, textarea, select {
   --color-highlight-bg: rgba(217, 164, 65, 0.22);
   --color-border: #2c2822;
   --color-error: #e0796a;
+  --photo-filter: sepia(0.28) saturate(0.85) contrast(1.03) brightness(0.97);
 
   color-scheme: dark;
 }
@@ -161,6 +172,7 @@ input, textarea, select {
   --color-border: #cdba90;
   --color-error: #96382a;
   --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.35 0 0 0 0 0.28 0 0 0 0 0.18 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --photo-filter: sepia(0.4) saturate(0.8) contrast(1.05) brightness(1.02);
 
   color-scheme: light;
 }
@@ -909,6 +921,10 @@ mark {
   object-fit: cover;
 }
 
+img.people__portrait {
+  filter: var(--photo-filter);
+}
+
 .people__portrait--placeholder {
   position: relative;
   display: block;
@@ -1119,6 +1135,10 @@ mark {
   cursor: zoom-in;
 }
 
+.page-person .story__cover {
+  filter: var(--photo-filter);
+}
+
 .story__body {
   font-family: var(--font-serif);
   font-size: 1.125rem;
@@ -1265,6 +1285,10 @@ mark {
   border-radius: 50%;
   object-fit: cover;
   flex: none;
+}
+
+img.person-family__thumb {
+  filter: var(--photo-filter);
 }
 
 .person-family__thumb--placeholder {
@@ -1858,6 +1882,45 @@ mark {
   background: var(--author-color, var(--color-accent));
 }
 
+.editor__photo-focus-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 1rem 0;
+}
+
+.editor__photo-focus {
+  position: relative;
+  width: 100%;
+  max-width: 16rem;
+  aspect-ratio: 1 / 1;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  cursor: crosshair;
+  border: 1px solid var(--color-border);
+}
+
+.editor__photo-focus-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: var(--photo-filter);
+  pointer-events: none;
+}
+
+.editor__photo-focus-marker {
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-left: -0.75rem;
+  margin-top: -0.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent-text);
+  box-shadow: 0 0 0 2px var(--color-accent), 0 1px 4px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
 .editor__family {
   margin: 0;
   padding: 0;
@@ -1901,6 +1964,10 @@ mark {
   border-radius: 50%;
   object-fit: cover;
   flex: none;
+}
+
+img.family-chip__thumb {
+  filter: var(--photo-filter);
 }
 
 .family-chip__thumb--placeholder {
@@ -2355,6 +2422,10 @@ mark {
   flex: none;
   border: 1.5px solid #8a7a5f;
   background: #efe6cf;
+}
+
+.page-tree .f3 .f3-card-avatar--photo {
+  filter: var(--photo-filter);
 }
 
 .page-tree .f3 .f3-card-name {

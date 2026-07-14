@@ -143,12 +143,47 @@
     });
   });
 
+  // --- Photo focus point (crop, part of the F18 family-photo styling round) --
+  var photoFocusRoot = document.getElementById("editor-photo-focus");
+  var photoFocusImg = photoFocusRoot ? photoFocusRoot.querySelector(".editor__photo-focus-img") : null;
+  var photoFocusMarker = photoFocusRoot ? photoFocusRoot.querySelector(".editor__photo-focus-marker") : null;
+  var photoFocusValue = photoFocusRoot ? photoFocusRoot.dataset.value : null;
+
+  function setPhotoFocus(xPct, yPct) {
+    xPct = Math.max(0, Math.min(100, xPct));
+    yPct = Math.max(0, Math.min(100, yPct));
+    photoFocusValue = Math.round(xPct) + "% " + Math.round(yPct) + "%";
+    if (photoFocusImg) photoFocusImg.style.objectPosition = photoFocusValue;
+    if (photoFocusMarker) {
+      photoFocusMarker.style.left = xPct + "%";
+      photoFocusMarker.style.top = yPct + "%";
+    }
+  }
+
+  if (photoFocusRoot) {
+    var initialFocus = (photoFocusValue || "50% 50%").split(" ");
+    setPhotoFocus(parseFloat(initialFocus[0]) || 50, parseFloat(initialFocus[1]) || 50);
+
+    photoFocusRoot.addEventListener("click", function (event) {
+      var rect = photoFocusRoot.getBoundingClientRect();
+      setPhotoFocus(
+        ((event.clientX - rect.left) / rect.width) * 100,
+        ((event.clientY - rect.top) / rect.height) * 100
+      );
+      markDirty();
+    });
+  }
+
   function addFamilyFields(payload) {
-    if (!familyRoot) return;
-    payload.parents = parentsPicker.getSelected();
-    payload.partners = partnersPicker.getSelected();
-    payload.friend_of = friendOfPicker.getSelected();
-    payload.gender = getGender();
+    if (familyRoot) {
+      payload.parents = parentsPicker.getSelected();
+      payload.partners = partnersPicker.getSelected();
+      payload.friend_of = friendOfPicker.getSelected();
+      payload.gender = getGender();
+    }
+    if (photoFocusRoot) {
+      payload.photo_focus = photoFocusValue;
+    }
   }
 
   // --- Writing prompt cycling (F16) — never inserted into the story itself.
@@ -671,6 +706,10 @@
       partnersPicker.setSelected(draftData.partners || []);
       friendOfPicker.setSelected(draftData.friend_of || []);
       setGender(draftData.gender || "");
+    }
+    if (photoFocusRoot && draftData.photo_focus) {
+      var restoredFocus = draftData.photo_focus.split(" ");
+      setPhotoFocus(parseFloat(restoredFocus[0]) || 50, parseFloat(restoredFocus[1]) || 50);
     }
     markDirty();
   }

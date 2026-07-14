@@ -13,7 +13,8 @@
     <button type="button" class="editor__author-chip family-chip" data-person-slug="{{ other.slug }}"
             aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
       {% if other.photo_url %}
-      <img class="family-chip__thumb" src="{{ other.photo_url }}" alt="" loading="lazy" decoding="async">
+      <img class="family-chip__thumb" src="{{ other.photo_url }}" alt="" loading="lazy" decoding="async"
+           style="object-position: {{ other.photo_focus or '50% 50%' }};">
       {% else %}
       <span class="family-chip__thumb family-chip__thumb--placeholder" aria-hidden="true">{{ other.name[0]|upper }}</span>
       {% endif %}
@@ -44,6 +45,18 @@
          placeholder="Name" value="{{ person.name if person else '' }}" required>
   <input class="editor__relation" id="person-relation" name="relation" type="text"
          placeholder="Relation (e.g. your grandmother)" value="{{ (person.relation or '') if person else '' }}">
+  {% if person and person.photo %}
+  <div class="editor__photo-focus-group">
+    <p class="editor__family-label">Photo focus (tap the photo to move it)</p>
+    <div class="editor__photo-focus" id="editor-photo-focus"
+         data-value="{{ person.photo_focus or '50% 50%' }}">
+      <img class="editor__photo-focus-img"
+           src="{{ url_for('pages.person_media', slug=person.slug, filename=person.photo) }}" alt=""
+           style="object-position: {{ person.photo_focus or '50% 50%' }};">
+      <span class="editor__photo-focus-marker" aria-hidden="true"></span>
+    </div>
+  </div>
+  {% endif %}
   {% if other_people %}
   <fieldset class="editor__family" id="editor-family">
     <legend class="editor__family-legend">Family</legend>
