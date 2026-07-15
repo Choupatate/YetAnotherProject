@@ -222,24 +222,24 @@
         window.location.href = urlById[node.data.id];
       }
 
-      // The survey grid lives INSIDE the chart's pan/zoom group so it
+      // The survey map lives INSIDE the chart's pan/zoom group so it
       // translates and scales in lockstep with the tree (a CSS background
-      // on the container stays put while the chart moves). The pattern is
-      // procedural — seamless by construction. To use a hand-made texture
-      // instead, drop a seamless tile into the pattern as
-      // <image href="..." width="160" height="160"/>.
+      // on the container stays put while the chart moves). The pattern
+      // holds one seamless raster tile per theme — CSS displays the right
+      // one — at 1024 chart units per tile (1:1 pixels at zoom 1).
       function installMapBackground() {
         var svg = container.querySelector("svg.main_svg");
         var view = svg && svg.querySelector("g.view");
         if (!view || svg.querySelector("#tree-map-grid")) return;
         svg.insertAdjacentHTML(
           "afterbegin",
-          '<defs><pattern id="tree-map-grid" patternUnits="userSpaceOnUse" width="160" height="160">' +
-            '<path class="tree-map-minor" d="M40 0V160M80 0V160M120 0V160M0 40H160M0 80H160M0 120H160"/>' +
-            // Major lines sit on the tile edges; each edge is drawn by both
-            // neighboring tiles, whose clipped halves add up to a full stroke.
-            '<path class="tree-map-major" d="M0 0V160M160 0V160M0 0H160M0 160H160"/>' +
-            '<path class="tree-map-cross" d="M74 80H86M80 74V86"/>' +
+          '<defs><pattern id="tree-map-grid" patternUnits="userSpaceOnUse" width="1024" height="1024">' +
+            '<image class="tree-map-img tree-map-img--dark" href="' +
+            escapeHtml(container.dataset.mapTileDark) +
+            '" width="1024" height="1024"/>' +
+            '<image class="tree-map-img tree-map-img--light" href="' +
+            escapeHtml(container.dataset.mapTile) +
+            '" width="1024" height="1024"/>' +
             "</pattern></defs>"
         );
         var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");

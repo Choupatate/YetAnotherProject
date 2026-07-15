@@ -13,7 +13,9 @@
   {% if has_family_links %}
   <nav class="tree__views" id="tree-views" hidden aria-label="Family tree views"></nav>
   <div id="FamilyChart" class="tree__chart f3" data-tree-url="{{ url_for('api.api_tree') }}"
-       data-fallback-avatar="{{ url_for('static', filename='img/person-oval.jpg') }}"></div>
+       data-fallback-avatar="{{ url_for('static', filename='img/person-oval.jpg') }}"
+       data-map-tile="{{ url_for('static', filename='img/tree-map-tile.jpg') }}"
+       data-map-tile-dark="{{ url_for('static', filename='img/tree-map-tile-dark.jpg') }}"></div>
 
   <section class="tree__others">
     <h2 class="tree__others-heading">Friends &amp; others</h2>

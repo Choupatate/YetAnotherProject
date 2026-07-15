@@ -2412,52 +2412,30 @@ img.family-chip__thumb {
   background-color: #f4ecdb;
 }
 
-/* Survey-grid strokes for the in-SVG map pattern: faint cream on the
-   dark leather, umber on parchment. The strokes scale with zoom — like
-   ink on the map, not a screen overlay. */
-.page-tree .f3 .tree-map-minor,
-.page-tree .f3 .tree-map-major,
-.page-tree .f3 .tree-map-cross {
-  fill: none;
-  stroke: rgba(236, 224, 200, 0.06);
-  stroke-width: 1;
-}
-
-.page-tree .f3 .tree-map-major {
-  stroke: rgba(236, 224, 200, 0.11);
-  stroke-width: 1.5;
-}
-
-.page-tree .f3 .tree-map-cross {
-  stroke: rgba(236, 224, 200, 0.16);
-  stroke-width: 1.2;
+/* The in-SVG map pattern carries two seamless tiles (dark leather /
+   parchment); show the one matching the theme, dark-first like the
+   container base color. */
+.page-tree .f3 .tree-map-img--light {
+  display: none;
 }
 
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme]) .page-tree .f3 .tree-map-minor {
-    stroke: rgba(92, 74, 51, 0.1);
+  :root:not([data-theme]) .page-tree .f3 .tree-map-img--dark {
+    display: none;
   }
-  :root:not([data-theme]) .page-tree .f3 .tree-map-major {
-    stroke: rgba(92, 74, 51, 0.16);
-  }
-  :root:not([data-theme]) .page-tree .f3 .tree-map-cross {
-    stroke: rgba(92, 74, 51, 0.22);
+  :root:not([data-theme]) .page-tree .f3 .tree-map-img--light {
+    display: inline;
   }
 }
 
-:root[data-theme="light"] .page-tree .f3 .tree-map-minor,
-:root[data-theme="manuscript"] .page-tree .f3 .tree-map-minor {
-  stroke: rgba(92, 74, 51, 0.1);
+:root[data-theme="light"] .page-tree .f3 .tree-map-img--dark,
+:root[data-theme="manuscript"] .page-tree .f3 .tree-map-img--dark {
+  display: none;
 }
 
-:root[data-theme="light"] .page-tree .f3 .tree-map-major,
-:root[data-theme="manuscript"] .page-tree .f3 .tree-map-major {
-  stroke: rgba(92, 74, 51, 0.16);
-}
-
-:root[data-theme="light"] .page-tree .f3 .tree-map-cross,
-:root[data-theme="manuscript"] .page-tree .f3 .tree-map-cross {
-  stroke: rgba(92, 74, 51, 0.22);
+:root[data-theme="light"] .page-tree .f3 .tree-map-img--light,
+:root[data-theme="manuscript"] .page-tree .f3 .tree-map-img--light {
+  display: inline;
 }
 
 /* View scopes: Direct line / Grandparents' branch / … / Whole family,

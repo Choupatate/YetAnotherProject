@@ -1083,18 +1083,20 @@ from the ancestor levels that actually exist for the focus person:
 - The toolbar is hidden when the focus has no recorded ancestors, and
   hidden in print with the chart.
 
-### The moving survey grid (added after dogfooding)
+### The moving survey map (added after dogfooding)
 
 The R5.7 map background was a static CSS JPEG on the container, so it
-stayed put while the chart panned underneath. Replaced by a procedural
-SVG `<pattern>` (minor/major survey lines + center crosses, seamless by
-construction) filling a large rect injected as the first child of the
+stayed put while the chart panned underneath. Replaced by an SVG
+`<pattern>` filling a large rect injected as the first child of the
 chart's `g.view` pan/zoom group — it translates and scales in lockstep
-with the tree. Stroke colors are themed in main.css (`tree-map-minor/
-major/cross`); the container keeps only the base leather/parchment
-color. `tree-map.jpg` / `tree-map-dark.jpg` are no longer referenced.
-A hand-made seamless raster tile can replace the procedural content by
-dropping an `<image>` into the same pattern.
+with the tree. The pattern holds two seamless 1024px raster tiles
+(`tree-map-tile-dark.jpg` dark leather, `tree-map-tile.jpg` parchment;
+image-model art post-processed to tile: vignette flattened, edges
+torus-blended along the measured 128px grid period, ornament patched
+out); CSS shows the tile matching the theme (`tree-map-img--dark/
+light`), the container keeps only the base leather/parchment color.
+The old full-bleed `tree-map.jpg` / `tree-map-dark.jpg` are no longer
+referenced.
 
 ## Tests
 
