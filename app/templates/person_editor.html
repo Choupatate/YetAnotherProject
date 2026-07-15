@@ -113,6 +113,9 @@
       </div>
     </div>
   </fieldset>
+  {% else %}
+  <p class="editor__family-hint">Add another person and you'll be able to link parents, a
+    partner, and gender here — those pickers need someone else to point at.</p>
   {% endif %}
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ person.body if person else '' }}</textarea>

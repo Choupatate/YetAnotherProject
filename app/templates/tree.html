@@ -11,8 +11,11 @@
   <hr class="story__flourish tree__flourish" aria-hidden="true">
 
   {% if has_family_links %}
+  <nav class="tree__views" id="tree-views" hidden aria-label="Family tree views"></nav>
   <div id="FamilyChart" class="tree__chart f3" data-tree-url="{{ url_for('api.api_tree') }}"
-       data-fallback-avatar="{{ url_for('static', filename='img/person-oval.jpg') }}"></div>
+       data-fallback-avatar="{{ url_for('static', filename='img/person-oval.jpg') }}"
+       data-map-tile="{{ url_for('static', filename='img/tree-map-tile.jpg') }}"
+       data-map-tile-dark="{{ url_for('static', filename='img/tree-map-tile-dark.jpg') }}"></div>
 
   <section class="tree__others">
     <h2 class="tree__others-heading">Friends &amp; others</h2>
@@ -41,6 +44,7 @@
 {% if has_family_links %}
 <script src="{{ url_for('static', filename='vendor/d3/d3.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/familychart/family-chart.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tree-logic.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tree.js') }}"></script>
 {% endif %}
 {% endblock %}

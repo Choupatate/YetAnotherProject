@@ -1061,6 +1061,121 @@ tree editing — the pickers are the entire editing surface.
   list plus a note to use the app for the interactive tree (a dedicated
   print layout is a future feature — do not attempt it here).
 
+### View scopes (added after dogfooding)
+
+The hourglass layout only ever shows the main person's direct line, so
+collateral relatives (aunts, uncles, cousins) become visible by rooting
+the layout at an ancestor. A toolbar above the chart, built by tree.js
+from the ancestor levels that actually exist for the focus person:
+
+- **Direct line** — main = focus (the original behavior).
+- **Grandparents' branch**, **Great-grandparents' branch**, … — one
+  button per intermediate ancestor level; rooting at a grandparent shows
+  aunts/uncles (their children) and cousins (their grandchildren).
+- **Whole family** — rooted at the focus's deepest ancestor.
+- When a level has several couples (paternal vs maternal side), "via
+  Rose & Jean" chips pick the branch; couples are grouped by partner
+  links, first couple is the default.
+- The focus person keeps a thin gold ring (`card-inner--focus`) in
+  rooted views so they stay findable; the full brand stays on
+  `card-main` (the current root). The mini-tree control now moves the
+  focus and resets to Direct line.
+- The toolbar is hidden when the focus has no recorded ancestors, and
+  hidden in print with the chart.
+
+### The moving survey map (added after dogfooding)
+
+The R5.7 map background was a static CSS JPEG on the container, so it
+stayed put while the chart panned underneath. Replaced by an SVG
+`<pattern>` filling a large rect injected as the first child of the
+chart's `g.view` pan/zoom group — it translates and scales in lockstep
+with the tree. The pattern holds two seamless 1024px raster tiles
+(`tree-map-tile-dark.jpg` dark leather, `tree-map-tile.jpg` parchment;
+image-model art post-processed to tile: vignette flattened, edges
+torus-blended along the measured 128px grid period, ornament patched
+out); CSS shows the tile matching the theme (`tree-map-img--dark/
+light`), the container keeps only the base leather/parchment color.
+The old full-bleed `tree-map.jpg` / `tree-map-dark.jpg` are no longer
+referenced.
+
+### Second dogfooding round: editor hint, recenter, kinship on cards,
+### honest branch depth, remembered view
+
+- **Empty-editor hint.** When `/new-person` or `/edit-person/<slug>`
+  has no `other_people` yet, the Family fieldset used to simply not
+  render — someone filling in their very first person had no clue it
+  existed. `person_editor.html` now renders `<p class="editor__family-hint">`
+  in its place: "Add another person and you'll be able to link parents,
+  a partner, and gender here…". The hint's class deliberately avoids the
+  literal substring `editor-family` so it doesn't trip the existing
+  "fieldset absent" tests, which assert that exact string is nowhere in
+  the response.
+- **Recenter button.** `family-chart` auto-fits the tree to the viewport
+  on every `updateTree()` (a d3-zoom transform on `#f3Canvas`, exposed
+  as `canvas.__zoomObj`), but a reader who pans/zooms away has no way
+  back short of reloading. `tree.js` snapshots that transform via
+  `d3.zoomTransform(canvas)` ~650ms after each render settles (matching
+  `setTransitionTime(600)`) and a pinned `.tree__recenter-btn` in the
+  chart's corner re-applies it with `canvas.__zoomObj.transform`.
+- **Kinship labels on cards.** `/api/tree` already computed
+  `kinship` per person (F18 Layer 2); it just wasn't surfaced in the
+  chart. Cards now show it in small caps under the name
+  (`.f3-card-kinship`, with a `title` attribute so a long label like
+  "your great-great-grandmother" is still readable via hover/long-press
+  when the 12rem card truncates it). Card width bumped 10rem → 12rem so
+  the common cases ("your grandfather", "your cousin") fit without
+  truncating.
+- **Honest branch depth ("Whole family" bug fix).** The view-scope
+  toolbar's level buttons used to re-root at `levels[lv-1][0]` — the
+  first ancestor at that depth from ANY branch, regardless of which
+  branch the reader had already drilled into. Clicking "Whole family"
+  while looking at the maternal grandparents could silently jump to an
+  unrelated paternal great-grandmother. Fixed by tracking a `chain[]` of
+  the ancestor selected at each depth (extended via
+  `TreeLogic.chainToLevel`, which walks the first parent one generation
+  at a time from whichever root is already selected) — level buttons now
+  extend the CURRENT branch, and a branch that runs out of recorded
+  ancestors just stops there instead of jumping elsewhere. `viewLevel`
+  is always derived from `chain.length`, so the toolbar's pressed state
+  reflects what's actually on screen (if "Whole family" only reaches
+  depth 2 on this branch, the depth-2 button shows pressed, not
+  "Whole family"). The pure chain/level logic (`ancestorLevels`,
+  `coupleGroups`, `levelLabel`, `chainToLevel`) was extracted out of
+  `tree.js` into `app/static/js/tree-logic.js`, a dependency-free
+  UMD module, specifically so it could be unit-tested (see Tests below)
+  — this is also what made the original arbitrary-pick bug easy to spot
+  and fix with confidence.
+- **Remembered view.** The chosen `{focusId, chain}` is saved to
+  `localStorage["storybook-tree-view"]` on every view change and
+  restored on the next `/tree` visit (only when `focusId` still matches
+  and every chain entry still resolves to a real person — a deleted
+  person or a changed `STORYBOOK_CHILD` just falls back to Direct line).
+  Silently no-ops when localStorage is unavailable (private browsing,
+  quota) — nothing else depends on it.
+- **Still open, deliberately not attempted:** the hourglass renderer can
+  only show one root at a time, so two branches at the same depth
+  (paternal vs. maternal grandparents) still can't appear together in a
+  single "Whole family" view — only reachable one at a time via the
+  branch chips. Fixing that needs a different chart layout entirely and
+  is out of scope here. A dedicated print/PDF layout for the tree itself
+  is also still out of scope (see the original Layer 3 section above);
+  print continues to show only the "Friends & others" list and a note.
+
+### Tests (second round)
+
+`tests/js/tree_logic_test.mjs` — plain Node, no framework or npm
+dependency, exercises `tree-logic.js`'s pure functions against a small
+fixture family (three generations plus one paternal-only
+great-grandmother), including the specific regression case: switching to
+a branch with no recorded parents and then clicking "Whole family" must
+stay on that branch rather than jumping to the other side's deeper
+ancestor. Wired into the pytest suite via `tests/test_tree_logic_js.py`,
+which shells out to `node` and skips (not fails) if it isn't on `PATH` —
+GitHub's `ubuntu-latest` runners ship Node by default, so this still
+runs in CI without adding a Node setup step. Server-rendered pieces
+(the empty-editor hint, `tree-logic.js` load order) are covered in
+`tests/test_family_pages.py` the normal way.
+
 ## Tests
 
 Kinship label table (the fixture family), cycle rejection, partner

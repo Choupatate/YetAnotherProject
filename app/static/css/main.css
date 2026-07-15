@@ -2079,6 +2079,16 @@ img.family-chip__thumb {
   font-size: 0.75rem;
 }
 
+.editor__family-hint {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 0.4rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text-dim);
+}
+
 .editor__gender-segmented {
   display: flex;
   gap: 0.5rem;
@@ -2380,8 +2390,12 @@ img.family-chip__thumb {
 
 /* The chart sits on the ranch survey map (R5.7): dark leather by default
    (matching the token blocks' dark-first cascade), parchment in the light
-   and manuscript themes. Both JPEGs are pre-faded — no filters on top. */
+   and manuscript themes. The container carries only the base tone — the
+   grid itself is an SVG pattern injected inside the chart's pan/zoom
+   group (tree.js), so it moves and scales with the tree instead of
+   sitting still behind it like the old JPEG background did. */
 .tree__chart {
+  position: relative;
   width: 100%;
   height: 58vh;
   min-height: 22rem;
@@ -2389,10 +2403,43 @@ img.family-chip__thumb {
   border-radius: 0.5rem;
   overflow: hidden;
   background-color: #211b15;
-  background-image: url("../img/tree-map-dark.jpg");
-  background-size: cover;
-  background-position: center;
   color: var(--color-text-dim);
+}
+
+/* Pinned over the top-right corner of the map (tree.js), so a reader who
+   has panned/zoomed away can get back without reloading the page. */
+.tree__recenter-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(236, 224, 200, 0.35);
+  background: rgba(33, 27, 21, 0.72);
+  color: #f4ecdb;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .tree__recenter-btn {
+    border-color: rgba(92, 74, 51, 0.3);
+    background: rgba(244, 236, 219, 0.78);
+    color: #2c261e;
+  }
+}
+
+:root[data-theme="light"] .tree__recenter-btn,
+:root[data-theme="manuscript"] .tree__recenter-btn {
+  border-color: rgba(92, 74, 51, 0.3);
+  background: rgba(244, 236, 219, 0.78);
+  color: #2c261e;
 }
 
 @media (min-width: 700px) {
@@ -2404,14 +2451,79 @@ img.family-chip__thumb {
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) .tree__chart {
     background-color: #f4ecdb;
-    background-image: url("../img/tree-map.jpg");
   }
 }
 
 :root[data-theme="light"] .tree__chart,
 :root[data-theme="manuscript"] .tree__chart {
   background-color: #f4ecdb;
-  background-image: url("../img/tree-map.jpg");
+}
+
+/* The in-SVG map pattern carries two seamless tiles (dark leather /
+   parchment); show the one matching the theme, dark-first like the
+   container base color. */
+.page-tree .f3 .tree-map-img--light {
+  display: none;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .page-tree .f3 .tree-map-img--dark {
+    display: none;
+  }
+  :root:not([data-theme]) .page-tree .f3 .tree-map-img--light {
+    display: inline;
+  }
+}
+
+:root[data-theme="light"] .page-tree .f3 .tree-map-img--dark,
+:root[data-theme="manuscript"] .page-tree .f3 .tree-map-img--dark {
+  display: none;
+}
+
+:root[data-theme="light"] .page-tree .f3 .tree-map-img--light,
+:root[data-theme="manuscript"] .page-tree .f3 .tree-map-img--light {
+  display: inline;
+}
+
+/* View scopes: Direct line / Grandparents' branch / … / Whole family,
+   built by tree.js from the ancestor levels that actually exist. */
+.tree__views {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.tree__views-row,
+.tree__views-branches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tree__view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.tree__view-btn[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.tree__views-branches .tree__view-btn {
+  min-height: 36px;
+  font-size: 0.8125rem;
 }
 
 .tree__empty {
@@ -2483,7 +2595,7 @@ img.family-chip__thumb {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 10rem;
+  width: 12rem;
   padding: 0.4rem 0.6rem;
   position: relative;
   background: #f7f1e2;
@@ -2491,6 +2603,15 @@ img.family-chip__thumb {
   border-radius: 0.45rem;
   outline: none !important;
   box-shadow: 0 2px 4px rgba(40, 30, 15, 0.28);
+}
+
+/* In rooted views (Grandparents' branch, Whole family) the gold brand
+   follows the new root card, so the focus person gets this thinner gold
+   ring to stay findable. Applied by tree.js's card HTML creator. */
+.page-tree .f3 .card-inner--focus {
+  border-color: #b3801f;
+  box-shadow: 0 0 0 2px rgba(179, 128, 31, 0.22),
+              0 2px 4px rgba(40, 30, 15, 0.28);
 }
 
 /* The anchor's gold brand ring (R5.2) — fixed gold, legible against the
@@ -2527,10 +2648,31 @@ img.family-chip__thumb {
   filter: sepia(var(--photo-sepia, 30%)) saturate(0.88) contrast(1.02) brightness(0.98);
 }
 
+.page-tree .f3 .f3-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
 .page-tree .f3 .f3-card-name {
   font-family: var(--font-serif);
   font-size: 0.875rem;
   color: #2c261e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The computed kinship label ("your uncle"), only present when
+   STORYBOOK_CHILD is configured and the person is reachable from it —
+   see kinship_label() in app/kinship.py. */
+.page-tree .f3 .f3-card-kinship {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a7a5f;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2609,6 +2751,7 @@ img.family-chip__thumb {
   .theme-toggle,
   .book__print-btn,
   .tree__back,
+  .tree__views,
   .tree__chart,
   button,
   .btn {

@@ -173,6 +173,20 @@ def test_new_person_editor_no_family_fieldset_when_no_other_people(auth_client):
     assert b"editor-family" not in resp.data
 
 
+def test_new_person_editor_shows_hint_when_no_other_people(auth_client):
+    resp = auth_client.get("/new-person")
+    html = resp.data.decode()
+    assert "editor__family-hint" in html
+    assert "Add another person" in html
+
+
+def test_new_person_editor_no_hint_when_other_people_exist(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Someone")
+    resp = auth_client.get("/new-person")
+    html = resp.data.decode()
+    assert "editor__family-hint" not in html
+
+
 def test_new_person_editor_shows_family_fieldset_when_other_people_exist(auth_client, stories_dir):
     people.create_person(_people_dir(stories_dir), "Someone")
     resp = auth_client.get("/new-person")
@@ -313,7 +327,10 @@ def test_tree_page_loads_vendored_scripts(auth_client, stories_dir):
     assert "vendor/d3/d3.min.js" in html
     assert "vendor/familychart/family-chart.min.js" in html
     assert "vendor/familychart/family-chart.css" in html
+    assert "js/tree-logic.js" in html
     assert "js/tree.js" in html
+    # tree-logic.js (pure helpers) must load before tree.js (which uses it)
+    assert html.index("js/tree-logic.js") < html.index("js/tree.js")
 
 
 def test_tree_page_no_vendored_scripts_when_empty(auth_client, stories_dir):
@@ -321,6 +338,22 @@ def test_tree_page_no_vendored_scripts_when_empty(auth_client, stories_dir):
     resp = auth_client.get("/tree")
     html = resp.data.decode()
     assert "family-chart.min.js" not in html
+
+
+def test_tree_page_has_views_toolbar_container_when_linked(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert 'id="tree-views"' in html
+
+
+def test_tree_page_no_views_toolbar_when_empty(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert 'id="tree-views"' not in html
 
 
 def test_tree_page_lists_friend_only_person_in_others(auth_client, stories_dir):
