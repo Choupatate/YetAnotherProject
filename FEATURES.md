@@ -1061,6 +1061,41 @@ tree editing — the pickers are the entire editing surface.
   list plus a note to use the app for the interactive tree (a dedicated
   print layout is a future feature — do not attempt it here).
 
+### View scopes (added after dogfooding)
+
+The hourglass layout only ever shows the main person's direct line, so
+collateral relatives (aunts, uncles, cousins) become visible by rooting
+the layout at an ancestor. A toolbar above the chart, built by tree.js
+from the ancestor levels that actually exist for the focus person:
+
+- **Direct line** — main = focus (the original behavior).
+- **Grandparents' branch**, **Great-grandparents' branch**, … — one
+  button per intermediate ancestor level; rooting at a grandparent shows
+  aunts/uncles (their children) and cousins (their grandchildren).
+- **Whole family** — rooted at the focus's deepest ancestor.
+- When a level has several couples (paternal vs maternal side), "via
+  Rose & Jean" chips pick the branch; couples are grouped by partner
+  links, first couple is the default.
+- The focus person keeps a thin gold ring (`card-inner--focus`) in
+  rooted views so they stay findable; the full brand stays on
+  `card-main` (the current root). The mini-tree control now moves the
+  focus and resets to Direct line.
+- The toolbar is hidden when the focus has no recorded ancestors, and
+  hidden in print with the chart.
+
+### The moving survey grid (added after dogfooding)
+
+The R5.7 map background was a static CSS JPEG on the container, so it
+stayed put while the chart panned underneath. Replaced by a procedural
+SVG `<pattern>` (minor/major survey lines + center crosses, seamless by
+construction) filling a large rect injected as the first child of the
+chart's `g.view` pan/zoom group — it translates and scales in lockstep
+with the tree. Stroke colors are themed in main.css (`tree-map-minor/
+major/cross`); the container keeps only the base leather/parchment
+color. `tree-map.jpg` / `tree-map-dark.jpg` are no longer referenced.
+A hand-made seamless raster tile can replace the procedural content by
+dropping an `<image>` into the same pattern.
+
 ## Tests
 
 Kinship label table (the fixture family), cycle rejection, partner

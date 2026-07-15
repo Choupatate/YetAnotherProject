@@ -323,6 +323,22 @@ def test_tree_page_no_vendored_scripts_when_empty(auth_client, stories_dir):
     assert "family-chart.min.js" not in html
 
 
+def test_tree_page_has_views_toolbar_container_when_linked(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi")
+    people.create_person(people_dir, "Papa", parents=[papi])
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert 'id="tree-views"' in html
+
+
+def test_tree_page_no_views_toolbar_when_empty(auth_client, stories_dir):
+    people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    assert 'id="tree-views"' not in html
+
+
 def test_tree_page_lists_friend_only_person_in_others(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi")
