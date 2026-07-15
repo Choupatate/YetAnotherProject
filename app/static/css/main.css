@@ -2079,6 +2079,16 @@ img.family-chip__thumb {
   font-size: 0.75rem;
 }
 
+.editor__family-hint {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 0.4rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text-dim);
+}
+
 .editor__gender-segmented {
   display: flex;
   gap: 0.5rem;
@@ -2385,6 +2395,7 @@ img.family-chip__thumb {
    group (tree.js), so it moves and scales with the tree instead of
    sitting still behind it like the old JPEG background did. */
 .tree__chart {
+  position: relative;
   width: 100%;
   height: 58vh;
   min-height: 22rem;
@@ -2393,6 +2404,42 @@ img.family-chip__thumb {
   overflow: hidden;
   background-color: #211b15;
   color: var(--color-text-dim);
+}
+
+/* Pinned over the top-right corner of the map (tree.js), so a reader who
+   has panned/zoomed away can get back without reloading the page. */
+.tree__recenter-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(236, 224, 200, 0.35);
+  background: rgba(33, 27, 21, 0.72);
+  color: #f4ecdb;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .tree__recenter-btn {
+    border-color: rgba(92, 74, 51, 0.3);
+    background: rgba(244, 236, 219, 0.78);
+    color: #2c261e;
+  }
+}
+
+:root[data-theme="light"] .tree__recenter-btn,
+:root[data-theme="manuscript"] .tree__recenter-btn {
+  border-color: rgba(92, 74, 51, 0.3);
+  background: rgba(244, 236, 219, 0.78);
+  color: #2c261e;
 }
 
 @media (min-width: 700px) {
@@ -2548,7 +2595,7 @@ img.family-chip__thumb {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 10rem;
+  width: 12rem;
   padding: 0.4rem 0.6rem;
   position: relative;
   background: #f7f1e2;
@@ -2601,10 +2648,31 @@ img.family-chip__thumb {
   filter: sepia(var(--photo-sepia, 30%)) saturate(0.88) contrast(1.02) brightness(0.98);
 }
 
+.page-tree .f3 .f3-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
 .page-tree .f3 .f3-card-name {
   font-family: var(--font-serif);
   font-size: 0.875rem;
   color: #2c261e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The computed kinship label ("your uncle"), only present when
+   STORYBOOK_CHILD is configured and the person is reachable from it —
+   see kinship_label() in app/kinship.py. */
+.page-tree .f3 .f3-card-kinship {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a7a5f;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

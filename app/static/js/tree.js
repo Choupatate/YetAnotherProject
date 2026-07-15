@@ -1,10 +1,11 @@
 (function () {
   var container = document.getElementById("FamilyChart");
-  if (!container || !window.f3) return;
+  if (!container || !window.f3 || !window.TreeLogic) return;
 
   var viewsNav = document.getElementById("tree-views");
   var treeUrl = container.dataset.treeUrl;
   var fallbackAvatar = container.dataset.fallbackAvatar;
+  var STORAGE_KEY = "storybook-tree-view";
 
   function escapeHtml(value) {
     var div = document.createElement("div");
@@ -27,6 +28,7 @@
         avatarIsPhoto: !!person.photo,
         avatarSepia: person.photo_sepia,
         gender: toGender(person.gender),
+        kinship: person.kinship || null,
       },
       rels: {
         parents: (person.rels && person.rels.parents) || [],
@@ -59,6 +61,9 @@
         parentsOf[p.id] = p.rels.parents || [];
         partnersOf[p.id] = p.rels.partners || [];
       });
+      var exists = function (id) {
+        return urlById.hasOwnProperty(id);
+      };
 
       // The person the tree is ABOUT. Views re-root the chart layout at
       // one of their ancestors (the hourglass layout can only show
@@ -68,57 +73,51 @@
         payload.anchor && urlById.hasOwnProperty(payload.anchor)
           ? payload.anchor
           : familyPeople[0].id;
-      var viewLevel = 0; // 0 = direct line; n = rooted n generations above focus
+
+      // `chain[i]` is the ancestor selected i+1 generations above focus.
+      // Going deeper extends whichever branch is already chosen instead
+      // of jumping to an arbitrary ancestor at the new depth; a branch
+      // chip overwrites the chain from that level down.
+      var chain = [];
+      var viewLevel = 0;
       var viewRootId = focusId;
 
-      // levels[0] = focus's parents, levels[1] = grandparents, ...
-      function ancestorLevels(id) {
-        var levels = [];
-        var seen = {};
-        seen[id] = true;
-        var current = [id];
-        for (;;) {
-          var next = [];
-          current.forEach(function (childId) {
-            (parentsOf[childId] || []).forEach(function (parentId) {
-              if (!seen[parentId] && urlById.hasOwnProperty(parentId)) {
-                seen[parentId] = true;
-                next.push(parentId);
-              }
-            });
-          });
-          if (!next.length) return levels;
-          levels.push(next);
-          current = next;
+      function restoreSavedView() {
+        var raw;
+        try {
+          raw = window.localStorage.getItem(STORAGE_KEY);
+        } catch (e) {
+          return;
         }
+        if (!raw) return;
+        var saved;
+        try {
+          saved = JSON.parse(raw);
+        } catch (e) {
+          return;
+        }
+        if (!saved || saved.focusId !== focusId || !Array.isArray(saved.chain)) return;
+        var restored = [];
+        for (var i = 0; i < saved.chain.length; i++) {
+          if (!exists(saved.chain[i])) break;
+          restored.push(saved.chain[i]);
+        }
+        if (!restored.length) return;
+        chain = restored;
+        viewLevel = chain.length;
+        viewRootId = chain[chain.length - 1];
       }
 
-      // Ancestors at one level, grouped into couples so the paternal and
-      // maternal sides each get a single "via Rose & Jean" chip.
-      function coupleGroups(ids) {
-        var groups = [];
-        var used = {};
-        ids.forEach(function (id) {
-          if (used[id]) return;
-          used[id] = true;
-          var group = [id];
-          (partnersOf[id] || []).forEach(function (partnerId) {
-            if (!used[partnerId] && ids.indexOf(partnerId) !== -1) {
-              used[partnerId] = true;
-              group.push(partnerId);
-            }
-          });
-          groups.push(group);
-        });
-        return groups;
-      }
-
-      function levelLabel(level, deepest) {
-        if (level === 0) return "Direct line";
-        if (level >= deepest) return "Whole family";
-        var label = "grandparents";
-        for (var i = 0; i < level - 2; i++) label = "great-" + label;
-        return label.charAt(0).toUpperCase() + label.slice(1) + "’ branch";
+      function saveView() {
+        try {
+          window.localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ focusId: focusId, chain: chain })
+          );
+        } catch (e) {
+          // localStorage unavailable (private mode, quota) — view choice
+          // just won't be remembered next visit; nothing else depends on it.
+        }
       }
 
       function makeButton(label, pressed, onClick) {
@@ -133,7 +132,7 @@
 
       function renderToolbar() {
         if (!viewsNav) return;
-        var levels = ancestorLevels(focusId);
+        var levels = window.TreeLogic.ancestorLevels(focusId, parentsOf, exists);
         viewsNav.innerHTML = "";
         if (!levels.length) {
           viewsNav.hidden = true;
@@ -145,23 +144,27 @@
         row.className = "tree__views-row";
         row.appendChild(
           makeButton("Direct line", viewLevel === 0, function () {
-            setView(0, focusId);
+            goToLevel(0);
           })
         );
         var deepest = levels.length;
         for (var lv = deepest === 1 ? 1 : 2; lv <= deepest; lv++) {
           (function (lv) {
             row.appendChild(
-              makeButton(levelLabel(lv, deepest), viewLevel === lv, function () {
-                setView(lv, levels[lv - 1][0]);
-              })
+              makeButton(
+                window.TreeLogic.levelLabel(lv, deepest),
+                viewLevel === lv,
+                function () {
+                  goToLevel(lv);
+                }
+              )
             );
           })(lv);
         }
         viewsNav.appendChild(row);
 
         if (viewLevel > 0) {
-          var groups = coupleGroups(levels[viewLevel - 1] || []);
+          var groups = window.TreeLogic.coupleGroups(levels[viewLevel - 1] || [], partnersOf);
           if (groups.length > 1) {
             var branches = document.createElement("div");
             branches.className = "tree__views-branches";
@@ -176,7 +179,7 @@
               var pressed = group.indexOf(viewRootId) !== -1;
               branches.appendChild(
                 makeButton(label, pressed, function () {
-                  setView(viewLevel, group[0]);
+                  setView(chain.slice(0, viewLevel - 1).concat([group[0]]));
                 })
               );
             });
@@ -185,12 +188,28 @@
         }
       }
 
-      function setView(level, rootId) {
-        viewLevel = level;
-        viewRootId = rootId;
-        chart.updateMainId(rootId);
+      // Level-button clicks: extend/truncate the chain, preferring the
+      // branch already selected rather than an arbitrary ancestor at that
+      // depth. `viewLevel` ends up at whatever depth was actually reached,
+      // so "Whole family" on a branch that runs out of paper trail early
+      // just settles at that branch's deepest recorded ancestor instead
+      // of silently jumping to an unrelated one.
+      function goToLevel(lv) {
+        setView(window.TreeLogic.chainToLevel(chain, lv, focusId, parentsOf, exists));
+      }
+
+      // The chain is the single source of truth for both the current root
+      // and the current depth — level and rootId are always derived from
+      // it, never reconstructed separately, so they can't drift apart.
+      function setView(newChain) {
+        chain = newChain;
+        viewLevel = chain.length;
+        viewRootId = chain.length ? chain[chain.length - 1] : focusId;
+        chart.updateMainId(viewRootId);
         chart.updateTree({});
         renderToolbar();
+        saveView();
+        captureFitTransform();
       }
 
       function cardInnerHtml(node) {
@@ -201,10 +220,16 @@
         var innerClass = "card-inner" + (isFocus ? " card-inner--focus" : "");
         var avatarClass = "f3-card-avatar" + (d.avatarIsPhoto ? " f3-card-avatar--photo" : "");
         var avatarStyle = d.avatarIsPhoto ? ' style="--photo-sepia: ' + d.avatarSepia + '%;"' : "";
+        var kinshipHtml = d.kinship
+          ? '<div class="f3-card-kinship" title="' + escapeHtml(d.kinship) + '">' + escapeHtml(d.kinship) + "</div>"
+          : "";
         return (
           '<div class="' + innerClass + '">' +
           '<img class="' + avatarClass + '" src="' + escapeHtml(d.avatar) + '" alt=""' + avatarStyle + '>' +
+          '<div class="f3-card-text">' +
           '<div class="f3-card-name">' + escapeHtml(d.label) + "</div>" +
+          kinshipHtml +
+          "</div>" +
           "</div>"
         );
       }
@@ -216,7 +241,7 @@
         // the card navigate to the person's page instead.
         if (event.target.closest(".mini-tree")) {
           focusId = node.data.id;
-          setView(0, focusId);
+          setView([]);
           return;
         }
         window.location.href = urlById[node.data.id];
@@ -252,6 +277,42 @@
         view.insertBefore(rect, view.firstChild);
       }
 
+      // Recenter: family-chart auto-fits the tree to the viewport on every
+      // updateTree() call, via a d3-zoom transform applied to #f3Canvas.
+      // We snapshot that transform each time it settles (setTransitionTime
+      // is 600ms) and offer it back so a reader who has panned/zoomed off
+      // into the leather can get back without a page reload.
+      var lastFitTransform = null;
+      var fitCaptureTimer = null;
+
+      function captureFitTransform() {
+        var canvas = container.querySelector("#f3Canvas");
+        if (!canvas || !window.d3) return;
+        if (fitCaptureTimer) window.clearTimeout(fitCaptureTimer);
+        fitCaptureTimer = window.setTimeout(function () {
+          lastFitTransform = window.d3.zoomTransform(canvas);
+        }, 650);
+      }
+
+      function recenter() {
+        var canvas = container.querySelector("#f3Canvas");
+        if (!canvas || !canvas.__zoomObj || !lastFitTransform || !window.d3) return;
+        window.d3.select(canvas).call(canvas.__zoomObj.transform, lastFitTransform);
+      }
+
+      function installRecenterButton() {
+        if (container.querySelector(".tree__recenter-btn")) return;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tree__recenter-btn";
+        btn.textContent = "Recenter";
+        btn.setAttribute("aria-label", "Recenter the family tree");
+        btn.addEventListener("click", recenter);
+        container.appendChild(btn);
+      }
+
+      restoreSavedView();
+
       var chart = window.f3
         .createChart("#FamilyChart", familyPeople.map(toDatum))
         .setTransitionTime(600)
@@ -264,10 +325,12 @@
         .setCardInnerHtmlCreator(cardInnerHtml)
         .setOnCardClick(onCardClick);
 
-      chart.updateMainId(focusId);
+      chart.updateMainId(viewRootId);
       chart.updateTree({ initial: true });
       renderToolbar();
       installMapBackground();
+      installRecenterButton();
+      captureFitTransform();
     })
     .catch(function () {
       container.textContent = "Could not load the family tree.";
