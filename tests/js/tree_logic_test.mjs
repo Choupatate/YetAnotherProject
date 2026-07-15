@@ -133,4 +133,62 @@ check("chainToLevel: level 0 is always the empty chain", () => {
   assert.deepEqual(TreeLogic.chainToLevel(["papa"], 0, "milo", parentsOf, exists), []);
 });
 
+check("levelLabel: level 1 has its own label, distinct from level 2", () => {
+  assert.equal(TreeLogic.levelLabel(1, 3), "Parents’ branch");
+  assert.notEqual(TreeLogic.levelLabel(1, 3), TreeLogic.levelLabel(2, 3));
+});
+
+check("ancestorPath: focusId maps to itself as the empty chain", () => {
+  assert.deepEqual(TreeLogic.ancestorPath("milo", "milo", parentsOf, exists), []);
+});
+
+check("ancestorPath: finds the real chain to an ancestor on the paternal side", () => {
+  assert.deepEqual(TreeLogic.ancestorPath("milo", "papi-jean", parentsOf, exists), ["papa", "papi-jean"]);
+});
+
+check("ancestorPath: finds the real chain to an ancestor on the maternal side", () => {
+  // This is the branch-chip bug: switching to a maternal ancestor from a
+  // paternal one must rebuild the WHOLE chain, not just swap the last
+  // entry onto the still-paternal "papa".
+  assert.deepEqual(TreeLogic.ancestorPath("milo", "papi-paul", parentsOf, exists), ["maman", "papi-paul"]);
+});
+
+check("ancestorPath: walks through multiple generations", () => {
+  assert.deepEqual(TreeLogic.ancestorPath("milo", "odette", parentsOf, exists), ["papa", "papi-jean", "odette"]);
+});
+
+check("ancestorPath: null when the target isn't actually an ancestor", () => {
+  assert.equal(TreeLogic.ancestorPath("milo", "cousin-theo", parentsOf, exists), null);
+});
+
+check("isValidChain: a real ancestor chain is valid", () => {
+  assert.equal(TreeLogic.isValidChain(["papa", "papi-jean"], "milo", parentsOf, exists), true);
+});
+
+check("isValidChain: the empty chain is trivially valid", () => {
+  assert.equal(TreeLogic.isValidChain([], "milo", parentsOf, exists), true);
+});
+
+check("isValidChain: false when a link isn't actually parent/child", () => {
+  // papi-paul is maman's parent, not papa's — this is exactly the shape
+  // a stale localStorage chain could have after a parent link is edited.
+  assert.equal(TreeLogic.isValidChain(["papa", "papi-paul"], "milo", parentsOf, exists), false);
+});
+
+check("isValidChain: false when an entry no longer exists", () => {
+  assert.equal(TreeLogic.isValidChain(["papa", "ghost"], "milo", parentsOf, exists), false);
+});
+
+check("ancestorLevels: the same ancestor can appear at two depths (pedigree collapse)", () => {
+  // child's two parents are p1 and p2; p1's parent is g, and p2's
+  // parent is y, who is ALSO g's child — so g is both child's
+  // grandparent (via p1) and great-grandparent (via p2 -> y). A global
+  // "seen" set would drop the second occurrence; both must show up.
+  const collapseParentsOf = { child: ["p1", "p2"], p1: ["g"], p2: ["y"], y: ["g"] };
+  const collapseExists = (id) => ["child", "p1", "p2", "g", "y"].includes(id);
+  const levels = TreeLogic.ancestorLevels("child", collapseParentsOf, collapseExists);
+  assert.ok(levels[1].indexOf("g") !== -1, "g should appear as a grandparent");
+  assert.ok(levels[2].indexOf("g") !== -1, "g should ALSO appear as a great-grandparent");
+});
+
 console.log(`\n${passed} passed`);

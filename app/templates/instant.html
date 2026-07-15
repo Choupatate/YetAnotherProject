@@ -32,6 +32,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/safe-storage.js') }}"></script>
 <script src="{{ url_for('static', filename='js/author-chips.js') }}"></script>
 <script src="{{ url_for('static', filename='js/instant.js') }}"></script>
 {% endblock %}

@@ -1,6 +1,6 @@
 (function () {
   var container = document.getElementById("FamilyChart");
-  if (!container || !window.f3 || !window.TreeLogic) return;
+  if (!container || !window.f3 || !window.TreeLogic || !window.SafeStorage) return;
 
   var viewsNav = document.getElementById("tree-views");
   var treeUrl = container.dataset.treeUrl;
@@ -10,7 +10,10 @@
   function escapeHtml(value) {
     var div = document.createElement("div");
     div.textContent = value || "";
-    return div.innerHTML;
+    // The textContent->innerHTML round-trip escapes &, <, > but never a
+    // literal quote, which isn't safe inside the double-quoted title=/
+    // href= attributes this is used for below.
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function toGender(value) {
@@ -83,47 +86,27 @@
       var viewRootId = focusId;
 
       function restoreSavedView() {
-        var raw;
-        try {
-          raw = window.localStorage.getItem(STORAGE_KEY);
-        } catch (e) {
-          return;
-        }
-        if (!raw) return;
-        var saved;
-        try {
-          saved = JSON.parse(raw);
-        } catch (e) {
-          return;
-        }
+        var saved = window.SafeStorage.getJSON(STORAGE_KEY);
         if (!saved || saved.focusId !== focusId || !Array.isArray(saved.chain)) return;
-        var restored = [];
-        for (var i = 0; i < saved.chain.length; i++) {
-          if (!exists(saved.chain[i])) break;
-          restored.push(saved.chain[i]);
-        }
-        if (!restored.length) return;
-        chain = restored;
+        if (!saved.chain.length) return;
+        // Every entry must still be a real link in the CURRENT parent
+        // graph, not just a person who still exists — a parent link
+        // edited between visits falls back to Direct line entirely
+        // rather than restoring a truncated, possibly-disconnected chain.
+        if (!window.TreeLogic.isValidChain(saved.chain, focusId, parentsOf, exists)) return;
+        chain = saved.chain.slice();
         viewLevel = chain.length;
         viewRootId = chain[chain.length - 1];
       }
 
       function saveView() {
-        try {
-          window.localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({ focusId: focusId, chain: chain })
-          );
-        } catch (e) {
-          // localStorage unavailable (private mode, quota) — view choice
-          // just won't be remembered next visit; nothing else depends on it.
-        }
+        window.SafeStorage.setJSON(STORAGE_KEY, { focusId: focusId, chain: chain });
       }
 
       function makeButton(label, pressed, onClick) {
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "tree__view-btn";
+        btn.className = "btn tree__view-btn";
         btn.textContent = label;
         btn.setAttribute("aria-pressed", pressed ? "true" : "false");
         btn.addEventListener("click", onClick);
@@ -132,6 +115,11 @@
 
       function renderToolbar() {
         if (!viewsNav) return;
+        // Rebuilding replaces every button node below, which would drop
+        // keyboard focus out of the toolbar entirely on every click —
+        // remember whether focus was inside it so it can be restored to
+        // whichever button ends up pressed.
+        var hadFocusInside = viewsNav.contains(document.activeElement);
         var levels = window.TreeLogic.ancestorLevels(focusId, parentsOf, exists);
         viewsNav.innerHTML = "";
         if (!levels.length) {
@@ -148,7 +136,7 @@
           })
         );
         var deepest = levels.length;
-        for (var lv = deepest === 1 ? 1 : 2; lv <= deepest; lv++) {
+        for (var lv = 1; lv <= deepest; lv++) {
           (function (lv) {
             row.appendChild(
               makeButton(
@@ -179,12 +167,23 @@
               var pressed = group.indexOf(viewRootId) !== -1;
               branches.appendChild(
                 makeButton(label, pressed, function () {
-                  setView(chain.slice(0, viewLevel - 1).concat([group[0]]));
+                  // The chosen couple can be on an entirely different
+                  // lineage than the one already in view (paternal vs.
+                  // maternal), so the whole chain has to be rebuilt from
+                  // focusId — patching just the deepest entry can leave
+                  // earlier entries pointing at an unrelated branch.
+                  var path = window.TreeLogic.ancestorPath(focusId, group[0], parentsOf, exists);
+                  if (path) setView(path);
                 })
               );
             });
             viewsNav.appendChild(branches);
           }
+        }
+
+        if (hadFocusInside) {
+          var toFocus = viewsNav.querySelector('[aria-pressed="true"]');
+          if (toFocus) toFocus.focus();
         }
       }
 
@@ -249,41 +248,78 @@
 
       // The survey map lives INSIDE the chart's pan/zoom group so it
       // translates and scales in lockstep with the tree (a CSS background
-      // on the container stays put while the chart moves). The pattern
-      // holds one seamless raster tile per theme — CSS displays the right
-      // one — at 1024 chart units per tile (1:1 pixels at zoom 1).
+      // on the container stays put while the chart moves), at 1024 chart
+      // units per tile (1:1 pixels at zoom 1). Only the active theme's
+      // tile is ever inserted — a hidden `display:none` <image> still
+      // gets fetched and decoded by the browser, so keeping both in the
+      // DOM and toggling CSS would silently double the image payload on
+      // every /tree view.
+      function mapTileTheme() {
+        var attr = document.documentElement.getAttribute("data-theme");
+        if (attr === "light" || attr === "manuscript") return "light";
+        if (attr === "dark") return "dark";
+        return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+
+      function mapTileHref(theme) {
+        return theme === "light" ? container.dataset.mapTile : container.dataset.mapTileDark;
+      }
+
       function installMapBackground() {
         var svg = container.querySelector("svg.main_svg");
         var view = svg && svg.querySelector("g.view");
-        if (!view || svg.querySelector("#tree-map-grid")) return;
+        if (svg && view && svg.querySelector("#tree-map-grid")) return;
+        if (!svg || !view) {
+          if (window.console && window.console.warn) {
+            window.console.warn(
+              "Storybook: couldn't find the family-chart SVG structure to attach the map " +
+                "background to (svg.main_svg / g.view) — the vendored bundle may have changed."
+            );
+          }
+          return;
+        }
         svg.insertAdjacentHTML(
           "afterbegin",
           '<defs><pattern id="tree-map-grid" patternUnits="userSpaceOnUse" width="1024" height="1024">' +
-            '<image class="tree-map-img tree-map-img--dark" href="' +
-            escapeHtml(container.dataset.mapTileDark) +
-            '" width="1024" height="1024"/>' +
-            '<image class="tree-map-img tree-map-img--light" href="' +
-            escapeHtml(container.dataset.mapTile) +
+            '<image id="tree-map-img" aria-hidden="true" href="' +
+            escapeHtml(mapTileHref(mapTileTheme())) +
             '" width="1024" height="1024"/>' +
             "</pattern></defs>"
         );
         var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         rect.setAttribute("class", "tree-map-bg");
+        rect.setAttribute("aria-hidden", "true");
         rect.setAttribute("x", "-50000");
         rect.setAttribute("y", "-50000");
         rect.setAttribute("width", "100000");
         rect.setAttribute("height", "100000");
         rect.setAttribute("fill", "url(#tree-map-grid)");
         view.insertBefore(rect, view.firstChild);
+
+        function refreshMapTile() {
+          var img = svg.querySelector("#tree-map-img");
+          if (img) img.setAttribute("href", mapTileHref(mapTileTheme()));
+        }
+        new window.MutationObserver(refreshMapTile).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-theme"],
+        });
+        var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)");
+        if (mq && mq.addEventListener) mq.addEventListener("change", refreshMapTile);
       }
 
       // Recenter: family-chart auto-fits the tree to the viewport on every
       // updateTree() call, via a d3-zoom transform applied to #f3Canvas.
-      // We snapshot that transform each time it settles (setTransitionTime
-      // is 600ms) and offer it back so a reader who has panned/zoomed off
-      // into the leather can get back without a page reload.
+      // We snapshot that transform each time it settles and offer it back
+      // so a reader who has panned/zoomed off into the leather can get
+      // back without a page reload. The vendored bundle's own fit
+      // transition adds a 100ms pre-delay before the setTransitionTime
+      // (600ms) duration even starts, so it actually settles ~700ms after
+      // updateTree() — capture a little past that so Recenter never
+      // restores a still-interpolating transform.
       var lastFitTransform = null;
       var fitCaptureTimer = null;
+      var FIT_SETTLE_MS = 720;
 
       function captureFitTransform() {
         var canvas = container.querySelector("#f3Canvas");
@@ -291,7 +327,7 @@
         if (fitCaptureTimer) window.clearTimeout(fitCaptureTimer);
         fitCaptureTimer = window.setTimeout(function () {
           lastFitTransform = window.d3.zoomTransform(canvas);
-        }, 650);
+        }, FIT_SETTLE_MS);
       }
 
       function recenter() {
@@ -304,7 +340,7 @@
         if (container.querySelector(".tree__recenter-btn")) return;
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "tree__recenter-btn";
+        btn.className = "btn tree__recenter-btn";
         btn.textContent = "Recenter";
         btn.setAttribute("aria-label", "Recenter the family tree");
         btn.addEventListener("click", recenter);

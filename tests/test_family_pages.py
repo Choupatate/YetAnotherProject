@@ -327,9 +327,12 @@ def test_tree_page_loads_vendored_scripts(auth_client, stories_dir):
     assert "vendor/d3/d3.min.js" in html
     assert "vendor/familychart/family-chart.min.js" in html
     assert "vendor/familychart/family-chart.css" in html
+    assert "js/safe-storage.js" in html
     assert "js/tree-logic.js" in html
     assert "js/tree.js" in html
-    # tree-logic.js (pure helpers) must load before tree.js (which uses it)
+    # safe-storage.js and tree-logic.js (both used by tree.js) must load
+    # before tree.js itself
+    assert html.index("js/safe-storage.js") < html.index("js/tree.js")
     assert html.index("js/tree-logic.js") < html.index("js/tree.js")
 
 

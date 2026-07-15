@@ -983,33 +983,18 @@
   }
 
   function readAutosave() {
-    var raw;
-    try {
-      raw = localStorage.getItem(AUTOSAVE_KEY);
-    } catch (e) {
-      return null;
-    }
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch (e) {
-      return null;
-    }
+    return window.SafeStorage ? window.SafeStorage.getJSON(AUTOSAVE_KEY) : null;
   }
 
   function clearAutosave() {
-    try {
-      localStorage.removeItem(AUTOSAVE_KEY);
-    } catch (e) {}
+    if (window.SafeStorage) window.SafeStorage.removeString(AUTOSAVE_KEY);
   }
 
   function scheduleAutosave() {
     if (autosaveTimer) return;
     autosaveTimer = setTimeout(function () {
       autosaveTimer = null;
-      try {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(currentDraftPayload()));
-      } catch (e) {}
+      if (window.SafeStorage) window.SafeStorage.setJSON(AUTOSAVE_KEY, currentDraftPayload());
     }, 2000);
   }
 

@@ -25,10 +25,7 @@
       if (preselected) {
         selected = preselected.dataset.authorName;
       } else {
-        var stored = null;
-        try {
-          stored = localStorage.getItem(STORAGE_KEY);
-        } catch (e) {}
+        var stored = window.SafeStorage ? window.SafeStorage.getString(STORAGE_KEY) : null;
         var storedChip = stored ? findChipByName(stored) : null;
         if (storedChip) {
           storedChip.setAttribute("aria-pressed", "true");
@@ -47,9 +44,7 @@
           } else {
             chip.setAttribute("aria-pressed", "true");
             selected = chip.dataset.authorName;
-            try {
-              localStorage.setItem(STORAGE_KEY, selected);
-            } catch (e) {}
+            if (window.SafeStorage) window.SafeStorage.setString(STORAGE_KEY, selected);
           }
           if (onChange) onChange(selected);
         });
