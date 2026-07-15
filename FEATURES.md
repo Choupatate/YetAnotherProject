@@ -1152,6 +1152,83 @@ referenced.
   person or a changed `STORYBOOK_CHILD` just falls back to Direct line).
   Silently no-ops when localStorage is unavailable (private browsing,
   quota) — nothing else depends on it.
+### Code-review fixes round
+
+A recall-focused review of the second dogfooding round above turned up
+several real bugs and duplication in the same view-scope/map-background
+code, before any of it shipped to a wider audience. Fixed:
+
+- **Branch-chip chain corruption.** Switching branches used to patch
+  only the deepest chain entry (`chain.slice(0, viewLevel - 1)
+  .concat([group[0]])`), which is wrong whenever the new couple is on a
+  different lineage than what's already in the chain (paternal vs.
+  maternal) — clicking a maternal grandparents chip while chain was
+  `['papa', 'papi-jean']` produced `['papa', 'papi-paul']`, and
+  papi-paul isn't papa's parent. `tree-logic.js` gained `ancestorPath`
+  (walks the parent graph from focus to find the REAL chain reaching a
+  target ancestor), and the branch-chip handler now uses that instead
+  of patching.
+- **Stale localStorage chains.** `restoreSavedView` used to accept a
+  saved chain as long as every id still existed as *some* person,
+  never checking the links were still parent/child — so an edited
+  parent link could restore an internally inconsistent view instead of
+  falling back to Direct line as documented. `tree-logic.js` gained
+  `isValidChain`; an invalid saved chain is now discarded entirely.
+- **Toolbar level-1 gap.** The level-button loop skipped level 1
+  whenever the tree went deeper than one generation (it looked
+  redundant with Direct line), but a branch that dead-ends after one
+  generation can legitimately leave `viewLevel` at 1 — with no button
+  for it, nothing showed pressed. The loop now always includes level 1
+  (given its own "Parents' branch" label, fixing an old off-by-one
+  where `levelLabel(1, deepest)` collided with level 2's label).
+- **Keyboard focus loss.** `renderToolbar()` rebuilds every button via
+  `innerHTML = ""` on each click, which silently dropped keyboard
+  focus to `<body>`. It now remembers whether focus was inside the
+  toolbar before rebuilding and restores it to whichever button ends
+  up pressed.
+- **Focus-person gold ring never rendered.** `.card-inner--focus`'s
+  border/box-shadow lost a CSS specificity tie to the older, more
+  specific `div.card-inner` rule, so the ring was always overridden.
+  Fixed by matching that rule's specificity.
+- **Map background double-fetch.** Both theme tiles were always
+  inserted into the SVG pattern, with CSS `display:none` hiding the
+  inactive one — which doesn't stop the browser fetching/decoding it.
+  Only the active theme's tile is injected now, with a
+  `MutationObserver` on `data-theme` and a `prefers-color-scheme`
+  listener to swap it live if the reader changes theme mid-session.
+- **Recenter timing.** The 650ms snapshot delay was guessed to match
+  `setTransitionTime(600)`, but the vendored bundle's fit transition
+  adds its own 100ms pre-delay before that duration starts — settling
+  at ~700ms, not 600ms. Bumped to 720ms so Recenter doesn't capture a
+  still-interpolating transform.
+- **Pedigree collapse.** `ancestorLevels`'s single, all-levels `seen`
+  map meant an ancestor reachable via two lineages at different depths
+  (a remarriage or cousin match) was silently dropped from the deeper
+  occurrence. Dedup now happens only within a level, with a
+  generation-count cap standing in for the removed cycle guard.
+- **escapeHtml() didn't escape quotes** — fine for text content, not
+  safe for the `title=`/`href=` attribute contexts this round started
+  using it in. Now escapes `"` and `'` too.
+- **Decorative SVG map elements** (the injected `<image>`/`<rect>`)
+  now carry `aria-hidden="true"`, matching how the old CSS background
+  was invisible to assistive tech by construction.
+- **installMapBackground()** now `console.warn`s instead of silently
+  no-op'ing if the vendored bundle's internal SVG structure
+  (`svg.main_svg` / `g.view`) ever stops matching, so a future
+  vendored-library upgrade that breaks it is at least debuggable.
+- **Cleanup:** `.tree__view-btn`/`.tree__recenter-btn` now compose
+  with the existing `.btn` class instead of re-declaring its
+  flex-centering/font/cursor from scratch. A new
+  `app/static/js/safe-storage.js` (same dependency-free UMD shape as
+  `tree-logic.js`) centralizes the try/catch-wrapped localStorage
+  access that `tree.js`, `editor.js`'s autosave, and `author-chips.js`
+  each used to reimplement independently.
+
+Tests: `tests/js/tree_logic_test.mjs` gained coverage for
+`ancestorPath`, `isValidChain`, the level-1 label, and the pedigree-
+collapse case; a new `tests/js/safe_storage_test.mjs` covers the
+storage wrapper (including simulated private-mode/quota failures).
+
 - **Still open, deliberately not attempted:** the hourglass renderer can
   only show one root at a time, so two branches at the same depth
   (paternal vs. maternal grandparents) still can't appear together in a

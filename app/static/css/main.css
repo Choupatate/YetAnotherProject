@@ -2407,24 +2407,24 @@ img.family-chip__thumb {
 }
 
 /* Pinned over the top-right corner of the map (tree.js), so a reader who
-   has panned/zoomed away can get back without reloading the page. */
+   has panned/zoomed away can get back without reloading the page. Only
+   the properties that differ from .btn are set here — flex-centering,
+   font and cursor come from the shared class (tree.js applies both). The
+   translucent border/background are bespoke rather than the flat
+   --color-* tokens, since this floats over the moving map image and
+   needs its own contrast. */
 .tree__recenter-btn {
   position: absolute;
   top: 0.6rem;
   right: 0.6rem;
   z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   min-height: 36px;
   padding: 0 0.75rem;
   border-radius: 999px;
-  border: 1px solid rgba(236, 224, 200, 0.35);
+  border-color: rgba(236, 224, 200, 0.35);
   background: rgba(33, 27, 21, 0.72);
   color: #f4ecdb;
-  font-family: var(--font-sans);
   font-size: 0.8125rem;
-  cursor: pointer;
 }
 
 @media (prefers-color-scheme: light) {
@@ -2459,32 +2459,6 @@ img.family-chip__thumb {
   background-color: #f4ecdb;
 }
 
-/* The in-SVG map pattern carries two seamless tiles (dark leather /
-   parchment); show the one matching the theme, dark-first like the
-   container base color. */
-.page-tree .f3 .tree-map-img--light {
-  display: none;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) .page-tree .f3 .tree-map-img--dark {
-    display: none;
-  }
-  :root:not([data-theme]) .page-tree .f3 .tree-map-img--light {
-    display: inline;
-  }
-}
-
-:root[data-theme="light"] .page-tree .f3 .tree-map-img--dark,
-:root[data-theme="manuscript"] .page-tree .f3 .tree-map-img--dark {
-  display: none;
-}
-
-:root[data-theme="light"] .page-tree .f3 .tree-map-img--light,
-:root[data-theme="manuscript"] .page-tree .f3 .tree-map-img--light {
-  display: inline;
-}
-
 /* View scopes: Direct line / Grandparents' branch / … / Whole family,
    built by tree.js from the ancestor levels that actually exist. */
 .tree__views {
@@ -2501,19 +2475,14 @@ img.family-chip__thumb {
   gap: 0.5rem;
 }
 
+/* Only the properties that differ from .btn are set here (tree.js
+   applies both classes) — pill shape, tighter padding/font-size, and a
+   dimmer default text color that brightens to the accent when pressed. */
 .tree__view-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
   padding: 0 0.85rem;
   border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-raised);
   color: var(--color-text-dim);
-  font-family: var(--font-sans);
   font-size: 0.875rem;
-  cursor: pointer;
 }
 
 .tree__view-btn[aria-pressed="true"] {
@@ -2607,8 +2576,12 @@ img.family-chip__thumb {
 
 /* In rooted views (Grandparents' branch, Whole family) the gold brand
    follows the new root card, so the focus person gets this thinner gold
-   ring to stay findable. Applied by tree.js's card HTML creator. */
-.page-tree .f3 .card-inner--focus {
+   ring to stay findable. Applied by tree.js's card HTML creator. Needs
+   the redundant `div.card-inner` in the selector — matching specificity
+   to the plain card-inner rule above, not just .card-inner--focus alone
+   — or that rule's own border/box-shadow always wins the cascade and
+   the ring never actually shows. */
+.page-tree .f3 div.card-inner.card-inner--focus {
   border-color: #b3801f;
   box-shadow: 0 0 0 2px rgba(179, 128, 31, 0.22),
               0 2px 4px rgba(40, 30, 15, 0.28);
