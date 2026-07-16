@@ -101,6 +101,7 @@ def test_timeline_shows_cover_thumbnail_only_when_present(auth_client, stories_d
     resp = auth_client.get("/")
     html = resp.data.decode()
     assert html.count("timeline__thumb") == 1
+    assert f"/story/{story_id}/media/photo-001.thumb.jpg" in html
 
 
 def test_story_page_renders_markdown_with_highlight_and_image(auth_client, stories_dir):
@@ -153,3 +154,18 @@ def test_story_media_serves_image_and_rejects_bad_path(auth_client, stories_dir,
 
     resp = auth_client.get(f"/story/{story_id}/media/does-not-exist.jpg")
     assert resp.status_code == 404
+
+
+def test_story_media_thumb_falls_back_to_full_size_when_missing(auth_client, stories_dir):
+    """A photo saved before thumbnails existed has no `.thumb.` sibling on
+    disk — requesting it serves the full-size original instead of 404ing."""
+    from datetime import date
+
+    from app import storage
+
+    story_id = storage.create_story(stories_dir, "Legacy photo", date(2024, 1, 1), "body")
+    (stories_dir / story_id / "photo-001.jpg").write_bytes(b"fake-jpeg-bytes")
+
+    resp = auth_client.get(f"/story/{story_id}/media/{storage.thumb_filename('photo-001.jpg')}")
+    assert resp.status_code == 200
+    assert resp.data == b"fake-jpeg-bytes"

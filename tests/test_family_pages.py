@@ -87,7 +87,7 @@ def test_person_page_family_thumb_uses_portrait_when_available(auth_client, stor
 
     resp = auth_client.get(f"/people/{slug}")
     html = resp.data.decode()
-    assert f"/people/{papi}/media/photo-001.jpg" in html
+    assert f"/people/{papi}/media/photo-001.thumb.jpg" in html
 
 
 # --- Kinship label: the small-caps line ----------------------------------

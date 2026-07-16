@@ -1,6 +1,7 @@
 """Markdown -> HTML rendering for story bodies."""
 
 import re
+import threading
 import xml.etree.ElementTree as etree
 
 import markdown
@@ -82,11 +83,27 @@ class _StoryImageExtension(Extension):
         )
 
 
+_local = threading.local()
+
+
+def _get_markdown() -> markdown.Markdown:
+    """One `markdown.Markdown` instance per thread, reused across calls
+    (`.reset()` between conversions) instead of rebuilding the extension
+    chain on every story/book render. Thread-local rather than a single
+    module-global so concurrent requests handled by different threads never
+    share (and race on) the same parser state."""
+    md = getattr(_local, "md", None)
+    if md is None:
+        md = markdown.Markdown(extensions=EXTENSIONS + [_StoryImageExtension(media_base="")])
+        _local.md = md
+    return md
+
+
 def render_markdown(body: str, media_base: str) -> str:
     """Render markdown to HTML, rewriting bare image srcs to
     `<media_base>/<filename>` and wrapping them in <figure>. `media_base` is
     a path prefix with no trailing slash, e.g. "/story/<id>/media"."""
-    md = markdown.Markdown(
-        extensions=EXTENSIONS + [_StoryImageExtension(media_base=media_base)]
-    )
+    md = _get_markdown()
+    md.treeprocessors["story_images"].media_base = media_base
+    md.reset()
     return md.convert(body or "")

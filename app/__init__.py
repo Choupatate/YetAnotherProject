@@ -98,6 +98,7 @@ def create_app(test_config=None):
 
     app.jinja_env.globals["is_sealed"] = storage.is_sealed
     app.jinja_env.globals["age_label"] = dates.age_label
+    app.jinja_env.globals["thumb_filename"] = storage.thumb_filename
 
     @app.context_processor
     def inject_title():

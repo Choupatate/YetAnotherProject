@@ -1365,3 +1365,54 @@ person pages still show the full Family section; zero external network
 requests with the tree page open (the vendored bundle must be re-audited
 by watching the network panel during pan/zoom/expand); hand-inspect one
 person's index.md — the only new lines are the plain optional fields.
+
+---
+
+## Performance round: photo thumbnails and markdown parser reuse
+
+Two contained optimizations found during a codebase-wide audit, no
+behavior change beyond what's noted below.
+
+**Dedicated avatar thumbnails.** `storage.save_image_to` (shared by F11's
+photo pipeline) now generates a second, small copy alongside the existing
+full-size re-encode: `photo-NNN.thumb.<ext>`, capped at
+`THUMB_MAX_EDGE = 320` (vs. `MAX_IMAGE_EDGE = 2000` for the full photo),
+same PNG-vs-JPEG-q85 rule as the full image. Before this, the small
+avatar-style contexts — `.timeline__thumb` (72px/56px story-cover
+thumbnails) and the `photo_thumb` macro's `.person-family__thumb`/
+`.family-chip__thumb` (32px/24px) — were downloading the full 2000px
+photo just to paint a tiny circle, real bandwidth waste on a mobile-first
+app. `timeline.html` and `routes_pages._person_ref` now point at
+`thumb_filename(...)` for those contexts only; every other photo usage
+(story/person cover, book pages, epub, lightbox, the body of a story)
+is untouched and still serves the full-size image.
+
+Photos uploaded before this change have no `.thumb.` sibling on disk yet.
+Rather than a migration, `_serve_media` (the shared story_media/
+person_media handler) falls back to serving the full-size original when
+a requested `.thumb.` filename doesn't exist on disk — the same "files
+outlive app changes" tolerance the rest of storage.py already follows
+elsewhere (e.g. `_parse_unlock`). `storage.thumb_filename` /
+`original_filename_from_thumb` are the pure filename transforms behind
+this; `_next_photo_number`'s `photo-*` glob already tolerates the new
+`.thumb.` sibling since it matches the same leading `photo-NNN.` prefix.
+
+**Markdown parser reuse.** `rendering.render_markdown` used to construct
+a brand-new `markdown.Markdown()` instance (full extension chain,
+including the story-image treeprocessor) on every single call — real
+waste given `/book` and `/book.epub` call it once per readable story in a
+loop. It now keeps one parser per thread in a `threading.local()` (not a
+single shared module-global — a threaded production WSGI deployment must
+never have two requests racing on the same parser's `media_base`/parse
+state), resetting it between conversions via the documented `md.reset()`
+API and updating the story-image treeprocessor's `media_base` in place
+before each `.convert()` call.
+
+Tests: `tests/test_storage.py` gained thumbnail-file assertions on the
+existing JPEG/PNG upload tests plus a `thumb_filename`/
+`original_filename_from_thumb` round-trip test; `tests/test_pages.py`
+gained a `_serve_media` fallback-to-full-size test and a stronger
+cover-thumbnail URL assertion; `tests/test_family_pages.py`'s family-thumb
+test updated to expect the `.thumb.` URL; `tests/test_rendering.py`
+gained a test that repeated calls with different `media_base` values
+never leak into each other now that the parser is reused.

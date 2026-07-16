@@ -46,12 +46,17 @@ def _get_story_or_404(stories_dir, story_id):
 def _serve_media(root_dir, id_value, filename):
     """Validate `id_value`/`filename`, then serve `filename` from
     `root_dir/id_value` — the shared story_media/person_media pattern
-    (CLAUDE.md: validate, then check existence, then serve)."""
+    (CLAUDE.md: validate, then check existence, then serve). Falls back to
+    the full-size photo when a `.thumb.` filename doesn't exist on disk yet
+    (photos uploaded before thumbnails existed)."""
     if not storage.is_valid_story_id(id_value) or not storage.is_valid_filename(filename):
         abort(404)
     media_dir = root_dir / id_value
     if not (media_dir / filename).is_file():
-        abort(404)
+        fallback = storage.original_filename_from_thumb(filename)
+        if not fallback or not (media_dir / fallback).is_file():
+            abort(404)
+        filename = fallback
     return send_from_directory(media_dir, filename, max_age=_media_max_age(filename))
 
 
@@ -352,7 +357,10 @@ def _person_ref(people_by_slug, slug):
     p = people_by_slug.get(slug)
     if p is None:
         return None
-    photo_url = url_for("pages.person_media", slug=p.slug, filename=p.photo) if p.photo else None
+    photo_url = (
+        url_for("pages.person_media", slug=p.slug, filename=storage.thumb_filename(p.photo))
+        if p.photo else None
+    )
     return {"slug": p.slug, "name": p.name, "photo_url": photo_url, "photo_sepia": p.photo_sepia}
 
 

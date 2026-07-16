@@ -118,6 +118,13 @@ def test_path_safety_filename_regex():
     assert not storage.is_valid_filename("")
 
 
+def test_thumb_filename_round_trips():
+    assert storage.thumb_filename("photo-001.jpg") == "photo-001.thumb.jpg"
+    assert storage.thumb_filename("photo-002.png") == "photo-002.thumb.png"
+    assert storage.original_filename_from_thumb("photo-001.thumb.jpg") == "photo-001.jpg"
+    assert storage.original_filename_from_thumb("photo-001.jpg") is None
+
+
 def test_slugify_lowercases_ascii_and_truncates():
     assert storage.slugify("Hello, World!") == "hello-world"
     long_title = "A" * 100
@@ -143,6 +150,11 @@ def test_save_image_resizes_and_names_sequentially(stories_dir, jpeg_bytes):
     with Image.open(stories_dir / story_id / name1) as img:
         assert max(img.size) <= storage.MAX_IMAGE_EDGE
 
+    thumb_path = stories_dir / story_id / storage.thumb_filename(name1)
+    assert thumb_path.is_file()
+    with Image.open(thumb_path) as thumb_img:
+        assert max(thumb_img.size) <= storage.THUMB_MAX_EDGE
+
 
 def test_save_image_keeps_png_as_png(stories_dir):
     from io import BytesIO
@@ -161,6 +173,10 @@ def test_save_image_keeps_png_as_png(stories_dir):
     assert name == "photo-001.png"
     with Image.open(stories_dir / story_id / name) as img:
         assert img.format == "PNG"
+
+    thumb_path = stories_dir / story_id / storage.thumb_filename(name)
+    with Image.open(thumb_path) as thumb_img:
+        assert thumb_img.format == "PNG"
 
 
 def test_save_image_invalid_story_id_raises(stories_dir):

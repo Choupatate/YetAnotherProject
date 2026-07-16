@@ -73,12 +73,12 @@
         {% if story.kind == 'instant' %}
         <span class="timeline__instant-line">{{ story.title }}</span>
         {% if story.cover %}
-        <img class="timeline__thumb timeline__thumb--instant" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="" loading="lazy">
+        <img class="timeline__thumb timeline__thumb--instant" src="{{ url_for('pages.story_media', story_id=story.id, filename=thumb_filename(story.cover)) }}" alt="" loading="lazy">
         {% endif %}
         {% else %}
         <span class="timeline__title">{{ story.title }}</span>
         {% if story.cover %}
-        <img class="timeline__thumb" src="{{ url_for('pages.story_media', story_id=story.id, filename=story.cover) }}" alt="" loading="lazy">
+        <img class="timeline__thumb" src="{{ url_for('pages.story_media', story_id=story.id, filename=thumb_filename(story.cover)) }}" alt="" loading="lazy">
         {% endif %}
         {% endif %}
         {% endif %}
