@@ -101,6 +101,14 @@ undocumented.
   extracting anything (zip-slip protection) and is all-or-nothing (a
   collision aborts with nothing written). Keep that all-or-nothing guarantee
   if you touch import/export.
+- `story_media`/`person_media` set a one-year `Cache-Control` max-age on
+  `.jpg`/`.png` files (`_media_max_age` in `routes_pages.py`), safe only
+  because `save_image_to` never overwrites or reuses a photo's filename.
+  Voice memos are deliberately excluded from that long cache: `delete_memo`
+  can free up a `memo-NNN` number that a later upload then reuses for
+  different audio, so their filename isn't a stable cache key. If you add a
+  new media type, work out whether its filename is truly immutable before
+  putting it in `_LONG_CACHE_EXTENSIONS`.
 
 ## Running it
 
@@ -141,10 +149,11 @@ node tests/js/safe_storage_test.mjs   # localStorage wrapper tests directly
 
 ## Working conventions
 
-- No linter/formatter is configured (no ruff/black/eslint/prettier in this
-  repo) — match the existing style by hand: 4-space Python, no trailing
-  whitespace, docstrings on non-obvious modules/functions in the style
-  already used (see `storage.py`), minimal comments elsewhere.
+- `ruff check .` runs in CI (config in `pyproject.toml`) — run it locally
+  before pushing Python changes. No formatter or JS/CSS linter is
+  configured; match the existing style by hand elsewhere: 4-space Python,
+  no trailing whitespace, docstrings on non-obvious modules/functions in
+  the style already used (see `storage.py`), minimal comments elsewhere.
 - Dependencies in `requirements.txt` are pinned to exact versions
   (`flask==3.1.3`, etc.) — pin any new dependency the same way, and prefer
   not adding one at all given the "boring, minimal dependencies" rule above.
