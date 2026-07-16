@@ -9,6 +9,11 @@
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   }
 
+  // Loaded on every page before any page-specific script (base.html), so
+  // editor.js/tree.js derive their own theme checks from this instead of
+  // each re-deriving the data-theme/prefers-color-scheme fallback logic.
+  window.StorybookTheme = { current: currentTheme };
+
   // R4.8: the two theme-color metas key off prefers-color-scheme, so once a
   // theme is actively chosen (rather than left to follow the OS), the
   // address-bar chrome can clash with it. Once a theme is applied, overwrite
@@ -33,7 +38,7 @@
     var index = THEMES.indexOf(currentTheme());
     var next = THEMES[(index + 1) % THEMES.length];
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem(STORAGE_KEY, next);
+    if (window.SafeStorage) window.SafeStorage.setString(STORAGE_KEY, next);
     syncThemeColorMeta();
   });
 })();

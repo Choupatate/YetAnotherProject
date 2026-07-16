@@ -31,20 +31,6 @@
     }
   });
 
-  function handleJsonResponse(response) {
-    return response
-      .json()
-      .catch(function () {
-        return {};
-      })
-      .then(function (data) {
-        if (!response.ok) {
-          throw new Error(data.error || "Something went wrong. Please try again.");
-        }
-        return data;
-      });
-  }
-
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var file = photoInput.files[0];
@@ -71,7 +57,7 @@
         author: author,
       }),
     })
-      .then(handleJsonResponse)
+      .then(window.FetchJson.parse)
       .then(function (created) {
         var formData = new FormData();
         formData.append("file", file);
@@ -79,7 +65,7 @@
           method: "POST",
           body: formData,
         })
-          .then(handleJsonResponse)
+          .then(window.FetchJson.parse)
           .then(function (uploaded) {
             return fetch("/api/stories/" + created.id, {
               method: "PUT",
@@ -91,7 +77,7 @@
                 cover: uploaded.filename,
                 author: author,
               }),
-            }).then(handleJsonResponse);
+            }).then(window.FetchJson.parse);
           });
       })
       .then(function () {

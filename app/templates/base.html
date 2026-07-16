@@ -10,10 +10,11 @@
 <meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+<script src="{{ url_for('static', filename='js/safe-storage.js') }}"></script>
 <script>
 document.documentElement.classList.add("js");
 (function () {
-  var stored = localStorage.getItem("storybook-theme");
+  var stored = window.SafeStorage.getString("storybook-theme");
   if (stored === "light" || stored === "dark" || stored === "manuscript") {
     document.documentElement.setAttribute("data-theme", stored);
   }

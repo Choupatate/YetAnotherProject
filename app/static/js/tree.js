@@ -188,10 +188,10 @@
       }
 
       function mapTileTheme() {
-        var attr = document.documentElement.getAttribute("data-theme");
-        if (attr === "light" || attr === "manuscript") return "light";
-        if (attr === "dark") return "dark";
-        return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        // The map only distinguishes light vs. dark tiles — "manuscript"
+        // (and any OS-fallback "light") folds into "light".
+        var theme = window.StorybookTheme ? window.StorybookTheme.current() : "light";
+        return theme === "dark" ? "dark" : "light";
       }
 
       function mapTileHref(theme) {
