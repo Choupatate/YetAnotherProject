@@ -22,6 +22,19 @@ from .rendering import render_markdown
 
 bp = Blueprint("pages", __name__)
 
+# Re-encoded photos (storage.save_image_to always writes .jpg or .png) are
+# never overwritten or reused under a different number, so they're safe to
+# cache for a long time. Voice memos are excluded: delete_memo can free up a
+# number that a later upload then reuses for different audio, so their
+# filename isn't a stable cache key.
+_LONG_CACHE_EXTENSIONS = {"jpg", "png"}
+_LONG_CACHE_MAX_AGE = 31536000  # 1 year
+
+
+def _media_max_age(filename):
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return _LONG_CACHE_MAX_AGE if ext in _LONG_CACHE_EXTENSIONS else None
+
 
 @bp.route("/")
 @login_required
@@ -264,7 +277,7 @@ def story_media(story_id, filename):
     story_dir = current_app.config["STORIES_DIR"] / story_id
     if not (story_dir / filename).is_file():
         abort(404)
-    return send_from_directory(story_dir, filename)
+    return send_from_directory(story_dir, filename, max_age=_media_max_age(filename))
 
 
 @bp.route("/new")
@@ -375,7 +388,7 @@ def person_media(slug, filename):
     person_dir = _people_dir() / slug
     if not (person_dir / filename).is_file():
         abort(404)
-    return send_from_directory(person_dir, filename)
+    return send_from_directory(person_dir, filename, max_age=_media_max_age(filename))
 
 
 @bp.route("/tree")
