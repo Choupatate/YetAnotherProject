@@ -39,6 +39,20 @@ def children_of(graph: Graph, slug: str) -> list:
     return [s for s in graph.nodes if slug in graph.parents.get(s, [])]
 
 
+def resolve_anchor(configured_slug: Optional[str], graph: Graph) -> Optional[str]:
+    """The configured `STORYBOOK_CHILD` slug, or None if it's unset or no
+    longer a real person in the current graph — the one rule every anchor
+    consumer (person pages, /tree, /api/tree) must apply identically."""
+    return configured_slug if configured_slug in graph.nodes else None
+
+
+def is_in_family(graph: Graph, slug: str) -> bool:
+    """True when `slug` is part of the blood/partner graph — has recorded
+    parents, a partner, or a child — as opposed to a friend-only or fully
+    unlinked person (FEATURES.md F18's "family" vs. "other" split)."""
+    return bool(graph.parents.get(slug) or graph.partners.get(slug) or children_of(graph, slug))
+
+
 def siblings_of(graph: Graph, slug: str) -> list:
     """People sharing at least one parent with `slug`, excluding `slug`."""
     my_parents = set(graph.parents.get(slug, []))

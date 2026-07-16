@@ -67,22 +67,48 @@ def _validate_kind(data):
     return kind, None
 
 
+def _validate_media_filename(data, field_name, media_dir, noun, not_found_msg):
+    """Resolve and validate an optional filename field referring to a file
+    already uploaded into `media_dir` — a story's `cover`, a person's
+    `photo` (FEATURES.md F14). Absent means "leave unchanged"; empty
+    string clears it; a non-empty value must be a safe filename that
+    already exists there."""
+    if field_name not in data:
+        return None, None
+    value = data.get(field_name)
+    if not value:
+        return "", None
+    if not storage.is_valid_filename(value):
+        return None, _error(f"Invalid {noun} filename.", 400)
+    if not (media_dir / value).is_file():
+        return None, _error(not_found_msg, 400)
+    return value, None
+
+
 def _validate_cover(data, stories_dir, story_id):
     """Resolve and validate the optional 'cover' field on update.
 
     Absent means "leave unchanged"; empty string clears it; a non-empty
     value must be a safe filename that already exists in the story folder.
     """
-    if "cover" not in data:
-        return None, None
-    cover = data.get("cover")
-    if not cover:
-        return "", None
-    if not storage.is_valid_filename(cover):
-        return None, _error("Invalid cover filename.", 400)
-    if not (Path(stories_dir) / story_id / cover).is_file():
-        return None, _error("Cover image not found.", 400)
-    return cover, None
+    return _validate_media_filename(
+        data, "cover", Path(stories_dir) / story_id, "cover", "Cover image not found."
+    )
+
+
+def _parse_story_fields(data):
+    """The raw title/date/markdown/draft/archived fields shared by
+    create/update, plus the one validation rule both apply identically
+    (a valid date is always required). Title is validated separately by
+    each caller — create's rule depends on `kind`, update's doesn't."""
+    title = (data.get("title") or "").strip()
+    story_date = _parse_date(data.get("date"))
+    markdown = data.get("markdown") or ""
+    draft = bool(data.get("draft"))
+    archived = bool(data.get("archived"))
+    if story_date is None:
+        return None, _error("Date must be an ISO date (YYYY-MM-DD).", 400)
+    return (title, story_date, markdown, draft, archived), None
 
 
 @bp.route("/stories", methods=["POST"])
@@ -93,11 +119,10 @@ def create_story():
     if error:
         return error
 
-    title = (data.get("title") or "").strip()
-    story_date = _parse_date(data.get("date"))
-    markdown = data.get("markdown") or ""
-    draft = bool(data.get("draft"))
-    archived = bool(data.get("archived"))
+    fields, error = _parse_story_fields(data)
+    if error:
+        return error
+    title, story_date, markdown, draft, archived = fields
 
     if kind == "instant":
         # FEATURES.md F13: the "line" is optional, so an instant never fails
@@ -105,8 +130,6 @@ def create_story():
         title = title[:60] if title else "Instant"
     elif not title:
         return _error("Title is required.", 400)
-    if story_date is None:
-        return _error("Date must be an ISO date (YYYY-MM-DD).", 400)
 
     author, error = _validate_author(data)
     if error:
@@ -129,16 +152,12 @@ def update_story(story_id):
         return _error("Story not found.", 404)
 
     data = request.get_json(silent=True) or {}
-    title = (data.get("title") or "").strip()
-    story_date = _parse_date(data.get("date"))
-    markdown = data.get("markdown") or ""
-    draft = bool(data.get("draft"))
-    archived = bool(data.get("archived"))
-
+    fields, error = _parse_story_fields(data)
+    if error:
+        return error
+    title, story_date, markdown, draft, archived = fields
     if not title:
         return _error("Title is required.", 400)
-    if story_date is None:
-        return _error("Date must be an ISO date (YYYY-MM-DD).", 400)
 
     author, error = _validate_author(data)
     if error:
@@ -252,22 +271,15 @@ def delete_memo(story_id, filename):
 
 
 def _people_dir():
-    return current_app.config["STORIES_DIR"] / "people"
+    return storage.people_dir(current_app.config["STORIES_DIR"])
 
 
 def _validate_person_photo(data, slug):
     """Resolve and validate the optional 'photo' field on person update.
     Same rules as a story's `cover` (FEATURES.md F14)."""
-    if "photo" not in data:
-        return None, None
-    photo = data.get("photo")
-    if not photo:
-        return "", None
-    if not storage.is_valid_filename(photo):
-        return None, _error("Invalid photo filename.", 400)
-    if not (_people_dir() / slug / photo).is_file():
-        return None, _error("Photo not found.", 400)
-    return photo, None
+    return _validate_media_filename(
+        data, "photo", _people_dir() / slug, "photo", "Photo not found."
+    )
 
 
 def _validate_person_photo_sepia(data):
@@ -538,18 +550,11 @@ def api_tree():
     people_dir = _people_dir()
     all_people = people.list_people(people_dir)
     graph = kinship.build_graph(all_people)
-
-    anchor = current_app.config.get("CHILD_SLUG")
-    if anchor not in graph.nodes:
-        anchor = None
+    anchor = kinship.resolve_anchor(current_app.config.get("CHILD_SLUG"), graph)
 
     entries = []
     for p in all_people:
-        in_family = bool(
-            graph.parents.get(p.slug)
-            or graph.partners.get(p.slug)
-            or kinship.children_of(graph, p.slug)
-        )
+        in_family = kinship.is_in_family(graph, p.slug)
         entry = {
             "id": p.slug,
             "name": p.name,

@@ -41,10 +41,6 @@ class InvalidStoryId(ValueError):
     pass
 
 
-class InvalidFilename(ValueError):
-    pass
-
-
 class InvalidVersionId(ValueError):
     pass
 
@@ -105,6 +101,12 @@ def _story_dir(stories_dir: Path, story_id: str) -> Path:
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
     return Path(stories_dir) / story_id
+
+
+def people_dir(stories_dir) -> Path:
+    """The "cast of the book" (FEATURES.md F14) lives in a fixed
+    subdirectory of the stories root, same as every other story folder."""
+    return Path(stories_dir) / "people"
 
 
 def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> Story:
@@ -204,6 +206,13 @@ def readable_stories(stories: list[Story], today: Optional[date_cls] = None) -> 
     result = [s for s in stories if not s.draft and not s.archived and not is_sealed(s, today)]
     result.sort(key=lambda s: (s.date, s.created or datetime.min))
     return result
+
+
+def readable_page_stories(stories_dir) -> list[Story]:
+    """`readable_stories` narrowed to `kind == "story"` — the candidate set
+    for anything that turns pages (F15 random, F2 reading order): instants
+    (F13) are a different, feed-like kind and never page-turn targets."""
+    return [s for s in readable_stories(list_stories(stories_dir)) if s.kind == "story"]
 
 
 def _is_leap_year(year: int) -> bool:
@@ -354,11 +363,9 @@ def _snapshot_version(stories_dir, story_id: str) -> None:
     _prune_versions(versions_dir)
 
 
-def _prune_versions(versions_dir: Path, keep: Optional[int] = None) -> None:
-    if keep is None:
-        keep = MAX_VERSIONS
+def _prune_versions(versions_dir: Path) -> None:
     files = sorted(versions_dir.glob("*.md"))
-    for f in files[: max(0, len(files) - keep)]:
+    for f in files[: max(0, len(files) - MAX_VERSIONS)]:
         f.unlink()
 
 
