@@ -5,20 +5,6 @@ from PIL import Image
 from app import storage
 
 
-def _jpeg_bytes():
-    buf = BytesIO()
-    Image.new("RGB", (100, 100), color="green").save(buf, format="JPEG")
-    buf.seek(0)
-    return buf
-
-
-def _heic_bytes():
-    buf = BytesIO()
-    Image.new("RGB", (100, 100), color="green").save(buf, format="HEIF", quality=80)
-    buf.seek(0)
-    return buf
-
-
 def test_create_story_via_api(auth_client, stories_dir):
     resp = auth_client.post(
         "/api/stories",
@@ -97,13 +83,13 @@ def test_update_story_requires_title(auth_client, stories_dir):
     assert resp.status_code == 400
 
 
-def test_upload_image_returns_filename(auth_client, stories_dir):
+def test_upload_image_returns_filename(auth_client, stories_dir, jpeg_bytes):
     from datetime import date
 
     story_id = storage.create_story(stories_dir, "Photo story", date(2026, 1, 1), "")
     resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
@@ -112,13 +98,13 @@ def test_upload_image_returns_filename(auth_client, stories_dir):
     assert (stories_dir / story_id / "photo-001.jpg").is_file()
 
 
-def test_upload_heic_image_converts_to_jpeg(auth_client, stories_dir):
+def test_upload_heic_image_converts_to_jpeg(auth_client, stories_dir, heic_bytes):
     from datetime import date
 
     story_id = storage.create_story(stories_dir, "Heic photo story", date(2026, 1, 1), "")
     resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_heic_bytes(), "photo.heic")},
+        data={"file": (heic_bytes(), "photo.heic")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
@@ -138,19 +124,19 @@ def test_upload_image_no_file_returns_400(auth_client, stories_dir):
     assert resp.status_code == 400
 
 
-def test_upload_image_invalid_story_id_returns_404(auth_client):
+def test_upload_image_invalid_story_id_returns_404(auth_client, jpeg_bytes):
     resp = auth_client.post(
         "/api/stories/../../etc/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 404
 
 
-def test_upload_image_nonexistent_story_returns_404(auth_client):
+def test_upload_image_nonexistent_story_returns_404(auth_client, jpeg_bytes):
     resp = auth_client.post(
         "/api/stories/2026-01-01-nope/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 404
@@ -168,7 +154,7 @@ def test_upload_image_bad_content_returns_400(auth_client, stories_dir):
     assert resp.status_code == 400
 
 
-def test_full_create_upload_update_read_cycle(auth_client, stories_dir):
+def test_full_create_upload_update_read_cycle(auth_client, stories_dir, jpeg_bytes):
     create_resp = auth_client.post(
         "/api/stories", json={"title": "Full cycle", "date": "2026-03-03", "markdown": ""}
     )
@@ -176,7 +162,7 @@ def test_full_create_upload_update_read_cycle(auth_client, stories_dir):
 
     upload_resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     filename = upload_resp.get_json()["filename"]

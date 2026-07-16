@@ -124,18 +124,14 @@ def test_slugify_lowercases_ascii_and_truncates():
     assert len(storage.slugify(long_title)) <= 60
 
 
-def test_save_image_resizes_and_names_sequentially(stories_dir):
-    from io import BytesIO
-
+def test_save_image_resizes_and_names_sequentially(stories_dir, jpeg_bytes):
     from PIL import Image
     from werkzeug.datastructures import FileStorage
 
     story_id = storage.create_story(stories_dir, "Photo story", date(2026, 1, 1), "")
 
     def make_upload(color):
-        buf = BytesIO()
-        Image.new("RGB", (3000, 1000), color=color).save(buf, format="JPEG")
-        buf.seek(0)
+        buf = jpeg_bytes(color=color, size=(3000, 1000))
         return FileStorage(stream=buf, filename="upload.jpg", content_type="image/jpeg")
 
     name1 = storage.save_image(stories_dir, story_id, make_upload("red"))
@@ -179,17 +175,13 @@ def test_save_image_invalid_story_id_raises(stories_dir):
 # --- HEIC/HEIF uploads (FEATURES.md F11) --------------------------------------
 
 
-def test_save_image_heic_converts_to_jpeg(stories_dir):
-    from io import BytesIO
-
+def test_save_image_heic_converts_to_jpeg(stories_dir, heic_bytes):
     from PIL import Image
     from werkzeug.datastructures import FileStorage
 
     story_id = storage.create_story(stories_dir, "Heic story", date(2026, 1, 1), "")
 
-    buf = BytesIO()
-    Image.new("RGB", (3000, 1000), color=(120, 40, 200)).save(buf, format="HEIF", quality=80)
-    buf.seek(0)
+    buf = heic_bytes(color=(120, 40, 200), size=(3000, 1000))
     upload = FileStorage(stream=buf, filename="upload.heic", content_type="image/heic")
 
     name = storage.save_image(stories_dir, story_id, upload)

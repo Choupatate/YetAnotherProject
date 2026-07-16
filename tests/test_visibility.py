@@ -8,48 +8,36 @@ from app import storage
 # --- storage.is_sealed / readable_stories -----------------------------------
 
 
-def test_is_sealed_true_when_unlock_in_future():
-    story = storage.Story(
-        id="x", title="T", date=date(2026, 1, 1), created=None, updated=None,
-        unlock=date(2030, 1, 1),
-    )
+def test_is_sealed_true_when_unlock_in_future(make_story):
+    story = make_story("x", date(2026, 1, 1), title="T", unlock=date(2030, 1, 1))
     assert storage.is_sealed(story, today=date(2026, 1, 1)) is True
 
 
-def test_is_sealed_false_when_unlock_in_past_or_today():
-    past = storage.Story(
-        id="x", title="T", date=date(2026, 1, 1), created=None, updated=None,
-        unlock=date(2020, 1, 1),
-    )
-    today_unlock = storage.Story(
-        id="y", title="T", date=date(2026, 1, 1), created=None, updated=None,
-        unlock=date(2026, 1, 1),
-    )
+def test_is_sealed_false_when_unlock_in_past_or_today(make_story):
+    past = make_story("x", date(2026, 1, 1), title="T", unlock=date(2020, 1, 1))
+    today_unlock = make_story("y", date(2026, 1, 1), title="T", unlock=date(2026, 1, 1))
     assert storage.is_sealed(past, today=date(2026, 1, 1)) is False
     assert storage.is_sealed(today_unlock, today=date(2026, 1, 1)) is False
 
 
-def test_is_sealed_false_when_no_unlock():
-    story = storage.Story(id="x", title="T", date=date(2026, 1, 1), created=None, updated=None)
+def test_is_sealed_false_when_no_unlock(make_story):
+    story = make_story("x", date(2026, 1, 1), title="T")
     assert storage.is_sealed(story, today=date(2026, 1, 1)) is False
 
 
-def test_readable_stories_excludes_drafts_and_sealed():
+def test_readable_stories_excludes_drafts_and_sealed(make_story):
     today = date(2026, 1, 1)
-    published = storage.Story(id="a", title="Published", date=date(2025, 1, 1), created=None, updated=None)
-    draft = storage.Story(id="b", title="Draft", date=date(2025, 2, 1), created=None, updated=None, draft=True)
-    sealed = storage.Story(
-        id="c", title="Sealed", date=date(2025, 3, 1), created=None, updated=None,
-        unlock=date(2030, 1, 1),
-    )
+    published = make_story("a", date(2025, 1, 1), title="Published")
+    draft = make_story("b", date(2025, 2, 1), title="Draft", draft=True)
+    sealed = make_story("c", date(2025, 3, 1), title="Sealed", unlock=date(2030, 1, 1))
     result = storage.readable_stories([published, draft, sealed], today=today)
     assert [s.id for s in result] == ["a"]
 
 
-def test_readable_stories_sorted_date_ascending():
+def test_readable_stories_sorted_date_ascending(make_story):
     today = date(2026, 1, 1)
-    later = storage.Story(id="later", title="Later", date=date(2025, 6, 1), created=None, updated=None)
-    earlier = storage.Story(id="earlier", title="Earlier", date=date(2025, 1, 1), created=None, updated=None)
+    later = make_story("later", date(2025, 6, 1), title="Later")
+    earlier = make_story("earlier", date(2025, 1, 1), title="Earlier")
     result = storage.readable_stories([later, earlier], today=today)
     assert [s.id for s in result] == ["earlier", "later"]
 

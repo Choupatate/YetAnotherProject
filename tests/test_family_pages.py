@@ -1,22 +1,20 @@
 """Tests for FEATURES.md F18: the person page's Family section and the
 computed kinship/friend-of small-caps line."""
 
-from app import create_app, people
+import pytest
+
+from app import people
 
 
 def _people_dir(stories_dir):
     return stories_dir / "people"
 
 
-def _anchored_client(stories_dir, child_slug):
-    app = create_app(test_config={
-        "STORIES_DIR": stories_dir, "TESTING": True,
-        "PASSWORD": "test-password", "SECRET_KEY": "test-secret-key",
-        "CHILD_SLUG": child_slug,
-    })
-    client = app.test_client()
-    client.post("/login", data={"password": "test-password"})
-    return client
+@pytest.fixture
+def anchored_client(auth_client_factory):
+    def _make(child_slug):
+        return auth_client_factory(CHILD_SLUG=child_slug)
+    return _make
 
 
 # --- Family section rendering -------------------------------------------
@@ -77,19 +75,12 @@ def test_person_page_shows_siblings(auth_client, stories_dir):
     assert "Emma" in html
 
 
-def test_person_page_family_thumb_uses_portrait_when_available(auth_client, stories_dir):
-    from io import BytesIO
-
-    from PIL import Image
-
+def test_person_page_family_thumb_uses_portrait_when_available(auth_client, stories_dir, jpeg_bytes):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi Georges")
-    buf = BytesIO()
-    Image.new("RGB", (10, 10)).save(buf, format="JPEG")
-    buf.seek(0)
     auth_client.post(
         f"/api/people/{papi}/photo",
-        data={"file": (buf, "photo.jpg")},
+        data={"file": (jpeg_bytes(size=(10, 10)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     slug = people.create_person(people_dir, "Papa", parents=[papi])
@@ -102,20 +93,20 @@ def test_person_page_family_thumb_uses_portrait_when_available(auth_client, stor
 # --- Kinship label: the small-caps line ----------------------------------
 
 
-def test_person_page_kinship_label_shown_when_relation_absent(stories_dir):
+def test_person_page_kinship_label_shown_when_relation_absent(stories_dir, anchored_client):
     people_dir = _people_dir(stories_dir)
     adele = people.create_person(people_dir, "Great-Grandma Adele", gender="f")
     georges = people.create_person(people_dir, "Papi Georges", parents=[adele])
     papa = people.create_person(people_dir, "Papa", parents=[georges])
     people.create_person(people_dir, "Milo", parents=[papa])
 
-    client = _anchored_client(stories_dir, "milo")
+    client = anchored_client("milo")
     resp = client.get(f"/people/{adele}")
     html = resp.data.decode()
     assert "your great-grandmother" in html
 
 
-def test_person_page_relation_wins_over_kinship_label(stories_dir):
+def test_person_page_relation_wins_over_kinship_label(stories_dir, anchored_client):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(
         people_dir, "Papi Georges", relation="the family patriarch",
@@ -123,7 +114,7 @@ def test_person_page_relation_wins_over_kinship_label(stories_dir):
     papa = people.create_person(people_dir, "Papa", parents=[papi])
     people.create_person(people_dir, "Milo", parents=[papa])
 
-    client = _anchored_client(stories_dir, "milo")
+    client = anchored_client("milo")
     resp = client.get(f"/people/{papi}")
     html = resp.data.decode()
     assert "the family patriarch" in html
@@ -398,13 +389,13 @@ def test_tree_page_family_member_not_in_others_list(auth_client, stories_dir):
 # --- /tree print outline -------------------------------------------------
 
 
-def test_tree_page_print_outline_groups_by_generation_with_anchor(stories_dir):
+def test_tree_page_print_outline_groups_by_generation_with_anchor(stories_dir, anchored_client):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi Georges", gender="m")
     papa = people.create_person(people_dir, "Papa", parents=[papi], gender="m")
     milo = people.create_person(people_dir, "Milo", parents=[papa], gender="m")
 
-    client = _anchored_client(stories_dir, milo)
+    client = anchored_client(milo)
     resp = client.get("/tree")
     html = resp.data.decode()
     outline = html[html.find("tree__print-outline") : html.find("tree__others")]
@@ -435,14 +426,14 @@ def test_tree_page_print_outline_single_bucket_without_anchor(auth_client, stori
     assert "your" not in outline.lower()
 
 
-def test_tree_page_print_outline_excludes_friends_and_unlinked(stories_dir):
+def test_tree_page_print_outline_excludes_friends_and_unlinked(stories_dir, anchored_client):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi Georges", gender="m")
     milo = people.create_person(people_dir, "Milo", parents=[papi], gender="m")
     people.create_person(people_dir, "Ami Jean", friend_of=[papi])
     people.create_person(people_dir, "Solo Gaston")
 
-    client = _anchored_client(stories_dir, milo)
+    client = anchored_client(milo)
     resp = client.get("/tree")
     html = resp.data.decode()
     outline = html[html.find("tree__print-outline") : html.find("tree__others")]

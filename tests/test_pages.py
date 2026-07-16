@@ -83,19 +83,15 @@ def test_timeline_shows_year_markers_and_entries(auth_client, stories_dir):
     assert "No stories yet" not in html
 
 
-def test_timeline_shows_cover_thumbnail_only_when_present(auth_client, stories_dir):
+def test_timeline_shows_cover_thumbnail_only_when_present(auth_client, stories_dir, jpeg_bytes):
     from datetime import date
-    from io import BytesIO
 
-    from PIL import Image
     from werkzeug.datastructures import FileStorage
 
     from app import storage
 
     story_id = storage.create_story(stories_dir, "With cover", date(2024, 1, 1), "body")
-    buf = BytesIO()
-    Image.new("RGB", (200, 200), color="red").save(buf, format="JPEG")
-    buf.seek(0)
+    buf = jpeg_bytes(color="red", size=(200, 200))
     filename = storage.save_image(stories_dir, story_id, FileStorage(stream=buf, filename="c.jpg"))
     story = storage.get_story(stories_dir, story_id)
     storage.save_story(stories_dir, story_id, story.title, story.date, story.body, cover=filename)
@@ -138,19 +134,15 @@ def test_404_page_renders_custom_template(auth_client):
     assert b"doesn't exist" in resp.data
 
 
-def test_story_media_serves_image_and_rejects_bad_path(auth_client, stories_dir):
+def test_story_media_serves_image_and_rejects_bad_path(auth_client, stories_dir, jpeg_bytes):
     from datetime import date
-    from io import BytesIO
 
-    from PIL import Image
     from werkzeug.datastructures import FileStorage
 
     from app import storage
 
     story_id = storage.create_story(stories_dir, "Media test", date(2024, 1, 1), "body")
-    buf = BytesIO()
-    Image.new("RGB", (50, 50), color="blue").save(buf, format="JPEG")
-    buf.seek(0)
+    buf = jpeg_bytes(color="blue", size=(50, 50))
     filename = storage.save_image(stories_dir, story_id, FileStorage(stream=buf, filename="m.jpg"))
 
     resp = auth_client.get(f"/story/{story_id}/media/{filename}")

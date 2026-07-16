@@ -14,18 +14,8 @@ AUTHORS_CONFIG = [
 
 
 @pytest.fixture
-def authored_app(tmp_path):
-    stories_dir = tmp_path / "stories"
-    stories_dir.mkdir()
-    return create_app(
-        test_config={
-            "STORIES_DIR": stories_dir,
-            "TESTING": True,
-            "PASSWORD": "test-password",
-            "SECRET_KEY": "test-secret-key",
-            "AUTHORS": AUTHORS_CONFIG,
-        }
-    )
+def authored_app(app_factory):
+    return app_factory(AUTHORS=AUTHORS_CONFIG)
 
 
 @pytest.fixture

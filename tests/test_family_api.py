@@ -195,31 +195,15 @@ def test_api_tree_anchor_null_when_unset(auth_client):
     assert resp.get_json()["anchor"] is None
 
 
-def test_api_tree_anchor_set_when_child_slug_configured(stories_dir):
-    from app import create_app
-
+def test_api_tree_anchor_set_when_child_slug_configured(stories_dir, auth_client_factory):
     people.create_person(_people_dir(stories_dir), "Milo")
-    app = create_app(test_config={
-        "STORIES_DIR": stories_dir, "TESTING": True,
-        "PASSWORD": "test-password", "SECRET_KEY": "test-secret-key",
-        "CHILD_SLUG": "milo",
-    })
-    client = app.test_client()
-    client.post("/login", data={"password": "test-password"})
+    client = auth_client_factory(CHILD_SLUG="milo")
     resp = client.get("/api/tree")
     assert resp.get_json()["anchor"] == "milo"
 
 
-def test_api_tree_unset_child_slug_not_found_gives_null_anchor(stories_dir):
-    from app import create_app
-
-    app = create_app(test_config={
-        "STORIES_DIR": stories_dir, "TESTING": True,
-        "PASSWORD": "test-password", "SECRET_KEY": "test-secret-key",
-        "CHILD_SLUG": "does-not-exist",
-    })
-    client = app.test_client()
-    client.post("/login", data={"password": "test-password"})
+def test_api_tree_unset_child_slug_not_found_gives_null_anchor(stories_dir, auth_client_factory):
+    client = auth_client_factory(CHILD_SLUG="does-not-exist")
     resp = client.get("/api/tree")
     assert resp.get_json()["anchor"] is None
 
@@ -271,39 +255,24 @@ def test_api_tree_kinship_null_when_no_anchor(auth_client, stories_dir):
     assert people_by_id["papi"]["kinship"] is None
 
 
-def test_api_tree_kinship_computed_relative_to_anchor(stories_dir):
-    from app import create_app
-
+def test_api_tree_kinship_computed_relative_to_anchor(stories_dir, auth_client_factory):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi", gender="m")
     papa = people.create_person(people_dir, "Papa", parents=[papi])
     people.create_person(people_dir, "Milo", parents=[papa])
 
-    app = create_app(test_config={
-        "STORIES_DIR": stories_dir, "TESTING": True,
-        "PASSWORD": "test-password", "SECRET_KEY": "test-secret-key",
-        "CHILD_SLUG": "milo",
-    })
-    client = app.test_client()
-    client.post("/login", data={"password": "test-password"})
+    client = auth_client_factory(CHILD_SLUG="milo")
     resp = client.get("/api/tree")
     people_by_id = {p["id"]: p for p in resp.get_json()["people"]}
     assert people_by_id["papi"]["kinship"] == "your grandfather"
 
 
-def test_api_tree_photo_resolves_to_person_media_url(auth_client, stories_dir):
-    from io import BytesIO
-
-    from PIL import Image
-
+def test_api_tree_photo_resolves_to_person_media_url(auth_client, stories_dir, jpeg_bytes):
     people_dir = _people_dir(stories_dir)
     slug = people.create_person(people_dir, "Photo Person")
-    buf = BytesIO()
-    Image.new("RGB", (10, 10)).save(buf, format="JPEG")
-    buf.seek(0)
     auth_client.post(
         f"/api/people/{slug}/photo",
-        data={"file": (buf, "photo.jpg")},
+        data={"file": (jpeg_bytes(size=(10, 10)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     resp = auth_client.get("/api/tree")

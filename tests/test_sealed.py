@@ -55,18 +55,13 @@ def test_timeline_shows_envelope_entry_for_sealed_story(auth_client, stories_dir
     assert "Secret title" not in html
 
 
-def test_timeline_sealed_entry_hides_thumbnail(auth_client, stories_dir):
-    from io import BytesIO
-
-    from PIL import Image
+def test_timeline_sealed_entry_hides_thumbnail(auth_client, stories_dir, jpeg_bytes):
     from werkzeug.datastructures import FileStorage
 
     story_id = storage.create_story(
         stories_dir, "Secret", date(2026, 1, 1), "body", unlock=date(2040, 6, 18)
     )
-    buf = BytesIO()
-    Image.new("RGB", (200, 200), color="red").save(buf, format="JPEG")
-    buf.seek(0)
+    buf = jpeg_bytes(color="red", size=(200, 200))
     filename = storage.save_image(stories_dir, story_id, FileStorage(stream=buf, filename="c.jpg"))
     story = storage.get_story(stories_dir, story_id)
     storage.save_story(

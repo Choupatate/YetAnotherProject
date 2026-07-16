@@ -34,12 +34,10 @@ def test_save_story_sets_and_clears_archived(stories_dir):
     assert story.archived is False
 
 
-def test_readable_stories_excludes_archived():
+def test_readable_stories_excludes_archived(make_story):
     today = date(2026, 1, 1)
-    published = storage.Story(id="a", title="Published", date=date(2025, 1, 1), created=None, updated=None)
-    archived = storage.Story(
-        id="b", title="Archived", date=date(2025, 2, 1), created=None, updated=None, archived=True
-    )
+    published = make_story("a", date(2025, 1, 1), title="Published")
+    archived = make_story("b", date(2025, 2, 1), title="Archived", archived=True)
     result = storage.readable_stories([published, archived], today=today)
     assert [s.id for s in result] == ["a"]
 
@@ -162,11 +160,9 @@ def test_book_excludes_archived_stories(auth_client, stories_dir):
     assert "hidden body" not in html
 
 
-def test_on_this_day_excludes_archived():
+def test_on_this_day_excludes_archived(make_story):
     today = date(2026, 6, 18)
-    archived = storage.Story(
-        id="a", title="Archived", date=date(2023, 6, 18), created=None, updated=None, archived=True
-    )
+    archived = make_story("a", date(2023, 6, 18), title="Archived", archived=True)
     result = storage.on_this_day([archived], today=today)
     assert result == []
 

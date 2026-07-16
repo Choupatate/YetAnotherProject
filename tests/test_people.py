@@ -1,7 +1,6 @@
 """Tests for FEATURES.md F14: people (the cast of the book)."""
 
 import re
-from io import BytesIO
 
 from PIL import Image
 
@@ -10,20 +9,6 @@ from app import people, storage
 
 def _people_dir(stories_dir):
     return stories_dir / "people"
-
-
-def _jpeg_bytes():
-    buf = BytesIO()
-    Image.new("RGB", (100, 100), color="blue").save(buf, format="JPEG")
-    buf.seek(0)
-    return buf
-
-
-def _heic_bytes():
-    buf = BytesIO()
-    Image.new("RGB", (100, 100), color="green").save(buf, format="HEIF", quality=80)
-    buf.seek(0)
-    return buf
 
 
 # --- app/people.py storage layer -------------------------------------------
@@ -375,18 +360,18 @@ def test_people_page_portrait_default_sepia_when_only_photo_set(auth_client, sto
 # --- API: person image upload -----------------------------------------------
 
 
-def test_upload_person_image_returns_filename(auth_client, stories_dir):
+def test_upload_person_image_returns_filename(auth_client, stories_dir, jpeg_bytes):
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
     resp = auth_client.post(
         f"/api/people/{slug}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
     assert resp.get_json()["filename"] == "photo-001.jpg"
 
 
-def test_upload_person_image_converts_heic_to_jpeg(auth_client, stories_dir):
+def test_upload_person_image_converts_heic_to_jpeg(auth_client, stories_dir, heic_bytes):
     """The editor's crop tool can't decode HEIC/HEIF in the browser at all,
     so it routes HEIC files through this endpoint first to get a
     browser-viewable JPEG before opening the cropper. Locks down that this
@@ -395,7 +380,7 @@ def test_upload_person_image_converts_heic_to_jpeg(auth_client, stories_dir):
     slug = people.create_person(people_dir, "Photo Person")
     resp = auth_client.post(
         f"/api/people/{slug}/images",
-        data={"file": (_heic_bytes(), "photo.heic")},
+        data={"file": (heic_bytes(), "photo.heic")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
@@ -405,14 +390,14 @@ def test_upload_person_image_converts_heic_to_jpeg(auth_client, stories_dir):
     assert saved.format == "JPEG"
 
 
-def test_body_image_upload_does_not_set_photo(auth_client, stories_dir):
+def test_body_image_upload_does_not_set_photo(auth_client, stories_dir, jpeg_bytes):
     """Body-inserted images (the WYSIWYG editor's "Insert image" button)
     never become the cover photo — only the dedicated /photo endpoint does
     (FEATURES.md F18 photo styling round)."""
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
     auth_client.post(
         f"/api/people/{slug}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     p = people.get_person(_people_dir(stories_dir), slug)
@@ -422,11 +407,11 @@ def test_body_image_upload_does_not_set_photo(auth_client, stories_dir):
 # --- API: dedicated cover-photo upload --------------------------------------
 
 
-def test_upload_person_photo_sets_photo_and_defaults(auth_client, stories_dir):
+def test_upload_person_photo_sets_photo_and_defaults(auth_client, stories_dir, jpeg_bytes):
     slug = people.create_person(_people_dir(stories_dir), "Photo Person")
     resp = auth_client.post(
         f"/api/people/{slug}/photo",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
@@ -438,18 +423,18 @@ def test_upload_person_photo_sets_photo_and_defaults(auth_client, stories_dir):
     assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
 
 
-def test_second_photo_upload_replaces_and_resets_sepia(auth_client, stories_dir):
+def test_second_photo_upload_replaces_and_resets_sepia(auth_client, stories_dir, jpeg_bytes):
     people_dir = _people_dir(stories_dir)
     slug = people.create_person(people_dir, "Photo Person")
     auth_client.post(
         f"/api/people/{slug}/photo",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     people.update_person(people_dir, slug, "Photo Person", photo_sepia=80)
     auth_client.post(
         f"/api/people/{slug}/photo",
-        data={"file": (_jpeg_bytes(), "photo2.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo2.jpg")},
         content_type="multipart/form-data",
     )
     p = people.get_person(people_dir, slug)
@@ -457,19 +442,19 @@ def test_second_photo_upload_replaces_and_resets_sepia(auth_client, stories_dir)
     assert p.photo_sepia == people.DEFAULT_PHOTO_SEPIA
 
 
-def test_upload_person_photo_nonexistent_person_returns_404(auth_client):
+def test_upload_person_photo_nonexistent_person_returns_404(auth_client, jpeg_bytes):
     resp = auth_client.post(
         "/api/people/nobody/photo",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 404
 
 
-def test_upload_person_image_nonexistent_person_returns_404(auth_client):
+def test_upload_person_image_nonexistent_person_returns_404(auth_client, jpeg_bytes):
     resp = auth_client.post(
         "/api/people/nobody/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="blue", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     assert resp.status_code == 404
