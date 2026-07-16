@@ -402,6 +402,9 @@ pip install -r requirements.txt
 pytest
 ```
 
+CI also runs `ruff check .` (a linter, config in `pyproject.toml`) — run it locally
+before pushing if you want to catch the same issues early.
+
 ## Philosophy
 
 - The data outlives the app: plain markdown + image files, human-readable forever.

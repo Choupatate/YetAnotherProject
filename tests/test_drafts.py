@@ -45,9 +45,9 @@ def test_published_story_page_has_no_draft_pill(auth_client, stories_dir):
 def test_drafts_page_lists_drafts_sorted_by_updated_desc(auth_client, stories_dir):
     import time
 
-    id1 = storage.create_story(stories_dir, "First draft", date(2026, 1, 1), "", draft=True)
+    storage.create_story(stories_dir, "First draft", date(2026, 1, 1), "", draft=True)
     time.sleep(0.01)
-    id2 = storage.create_story(stories_dir, "Second draft", date(2026, 1, 2), "", draft=True)
+    storage.create_story(stories_dir, "Second draft", date(2026, 1, 2), "", draft=True)
     storage.create_story(stories_dir, "Published", date(2026, 1, 3), "")
 
     resp = auth_client.get("/drafts")

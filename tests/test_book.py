@@ -13,7 +13,7 @@ def test_book_requires_auth(client):
 
 def test_book_contains_all_readable_stories_in_order(auth_client, stories_dir):
     id1 = storage.create_story(stories_dir, "First story", date(2024, 1, 1), "Body one")
-    id2 = storage.create_story(stories_dir, "Second story", date(2025, 6, 1), "Body two")
+    storage.create_story(stories_dir, "Second story", date(2025, 6, 1), "Body two")
 
     resp = auth_client.get("/book")
     assert resp.status_code == 200

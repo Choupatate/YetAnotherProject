@@ -130,7 +130,7 @@ def test_published_story_page_has_no_archived_pill(auth_client, stories_dir):
 
 
 def test_archived_story_excluded_from_prev_next(auth_client, stories_dir):
-    first_id = storage.create_story(stories_dir, "First", date(2026, 1, 1), "")
+    storage.create_story(stories_dir, "First", date(2026, 1, 1), "")
     storage.create_story(stories_dir, "Archived middle", date(2026, 1, 2), "", archived=True)
     last_id = storage.create_story(stories_dir, "Last", date(2026, 1, 3), "")
 
