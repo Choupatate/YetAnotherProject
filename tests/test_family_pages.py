@@ -393,3 +393,58 @@ def test_tree_page_family_member_not_in_others_list(auth_client, stories_dir):
     others_section = html[html.find("tree__others") :]
     assert "Papi" not in others_section
     assert "Papa" not in others_section
+
+
+# --- /tree print outline -------------------------------------------------
+
+
+def test_tree_page_print_outline_groups_by_generation_with_anchor(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi Georges", gender="m")
+    papa = people.create_person(people_dir, "Papa", parents=[papi], gender="m")
+    milo = people.create_person(people_dir, "Milo", parents=[papa], gender="m")
+
+    client = _anchored_client(stories_dir, milo)
+    resp = client.get("/tree")
+    html = resp.data.decode()
+    outline = html[html.find("tree__print-outline") : html.find("tree__others")]
+
+    assert "Grandparents’ generation" in outline
+    assert "Parents’ generation" in outline
+    assert "Milo’s generation" in outline
+    assert "Papi Georges" in outline
+    assert "your grandfather" in outline
+    assert "Papa" in outline
+    assert "your father" in outline
+    # Order: oldest generation first.
+    assert outline.find("Grandparents’ generation") < outline.find("Parents’ generation")
+    assert outline.find("Parents’ generation") < outline.find("Milo’s generation")
+
+
+def test_tree_page_print_outline_single_bucket_without_anchor(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi Georges")
+    people.create_person(people_dir, "Papa", parents=[papi])
+
+    resp = auth_client.get("/tree")
+    html = resp.data.decode()
+    outline = html[html.find("tree__print-outline") : html.find("tree__others")]
+    assert "Family" in outline
+    assert "Papi Georges" in outline
+    assert "Papa" in outline
+    assert "your" not in outline.lower()
+
+
+def test_tree_page_print_outline_excludes_friends_and_unlinked(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    papi = people.create_person(people_dir, "Papi Georges", gender="m")
+    milo = people.create_person(people_dir, "Milo", parents=[papi], gender="m")
+    people.create_person(people_dir, "Ami Jean", friend_of=[papi])
+    people.create_person(people_dir, "Solo Gaston")
+
+    client = _anchored_client(stories_dir, milo)
+    resp = client.get("/tree")
+    html = resp.data.decode()
+    outline = html[html.find("tree__print-outline") : html.find("tree__others")]
+    assert "Ami Jean" not in outline
+    assert "Solo Gaston" not in outline

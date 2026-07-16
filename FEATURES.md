@@ -1229,11 +1229,6 @@ Tests: `tests/js/tree_logic_test.mjs` gained coverage for
 collapse case; a new `tests/js/safe_storage_test.mjs` covers the
 storage wrapper (including simulated private-mode/quota failures).
 
-- **Still open, deliberately not attempted:** a dedicated print/PDF
-  layout for the tree itself is still out of scope (see the original
-  Layer 3 section above); print continues to show only the "Friends &
-  others" list and a note.
-
 ### Multi-branch rendering round
 
 The branch-chip toggle above let a reader see one ancestor couple's
@@ -1282,6 +1277,58 @@ Tests: `tests/js/tree_logic_test.mjs` dropped the now-dead
 `ancestorPath`/`isValidChain`/`chainToLevel` coverage and gained a
 `coupleGroups` case asserting the paternal and maternal branches land in
 separate groups, which is what the multi-panel view depends on.
+
+### Print outline round — closing the print/PDF gap
+
+`/tree` never had a print representation of the family itself — only
+"Friends & others" and a static note survived `@media print`, since the
+interactive chart obviously can't. Rather than trying to make an SVG
+chart survive print, the note is replaced with a plain-text generation
+outline, server-rendered (works without JS, like every other family
+page): headings such as "Great-grandparents' generation" / "Parents'
+generation" / "Milo's generation" / "Children's generation", oldest
+first, each listing names with their existing computed kinship label
+("Papi Paul — your grandfather").
+
+Each in-family person gets a **generation offset** relative to
+`STORYBOOK_CHILD`: positive toward ancestors, negative toward
+descendants, 0 for the anchor's own generation. This is measured from
+each person's own nearest common ancestor with the anchor (`kinship.py`'s
+existing `_blood_updown`, extracted out of `_blood_kinship` — same
+`(up, down)` pair `kinship_label` already computes, just exposed as a new
+`generation_offset()` alongside it) — deliberately **not** a structural
+"depth from the deepest recorded root," which would misfile a grandparent
+a whole generation off whenever their own parents aren't recorded (the
+fixture family already has exactly this shape on the maternal side). An
+offset bucket like "Parents' generation" intentionally mixes real parents
+with aunts/uncles (same net distance) — that's colloquially accurate, not
+a bug, and the per-person kinship label still gives the precise relation.
+A person reachable only via one hop of partnership (e.g. an uncle's wife
+with no blood link of her own) inherits her partner's offset, mirroring
+`kinship_label`'s existing "your uncle's wife" fallback; someone
+reachable by neither blood nor that one hop (an isolated in-law couple
+with no connection to the family's blood graph) lands in a final "Other
+family" bucket rather than silently vanishing. Without `STORYBOOK_CHILD`
+set, generation math doesn't apply — everyone in-family lands in one
+plain "Family" bucket, same as kinship labels already disappearing
+app-wide without an anchor.
+
+`routes_pages.py`'s `tree_page()` folds this into the loop that already
+built the `others` list (no second pass over `all_people`), bucketing by
+`kinship.generation_offset()` and sorting real offsets descending
+(oldest generation first) before rendering. `tree.html` renders it as
+`.tree__print-outline`, `display: none` on screen and forced to `display:
+block` inside `main.css`'s existing `@media print` block, the same
+shape `.tree__print-note` used before it.
+
+Tests: `tests/test_kinship.py` gained a `generation_offset` table
+parametrized against the same 16-person fixture the kinship-label table
+already uses (including the great-uncle/uncle's-wife/cousin cases, plus
+an isolated-partner-pair case for the "no path at all" `None` result) and
+a `generation_group_label` table; `tests/test_family_pages.py` gained
+`/tree` cases for the anchored multi-generation outline, the unanchored
+single-bucket fallback, and confirming friends/unlinked people never leak
+into the outline.
 
 ### Tests (second round)
 

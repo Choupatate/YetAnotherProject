@@ -2575,8 +2575,40 @@ img.family-chip__thumb {
   color: var(--color-text-dim);
 }
 
-.tree__print-note {
+/* Hidden on screen — the interactive chart/panels cover this ground
+   there. Shown only in @media print below, as a plain-text stand-in for
+   the chart (which can't survive print): one heading per generation,
+   oldest first, each name with its computed kinship label. Structural
+   rules live here unconditionally rather than inside the print query —
+   harmless since the whole section is display:none until print anyway,
+   and it keeps the print query itself down to the visibility flip. */
+.tree__print-outline {
   display: none;
+}
+
+.tree__print-outline-group {
+  break-inside: avoid;
+  margin-bottom: 1.25rem;
+}
+
+.tree__print-outline-heading {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  margin: 0 0 0.4rem;
+}
+
+.tree__print-outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tree__print-outline-item {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
 }
 
 /* The vendor stylesheet paints card faces from these variables (and it
@@ -2765,7 +2797,7 @@ img.family-chip__thumb {
     display: none !important;
   }
 
-  .tree__print-note {
+  .tree__print-outline {
     display: block !important;
     color: #111;
   }

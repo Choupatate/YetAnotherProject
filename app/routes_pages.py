@@ -400,8 +400,18 @@ def tree_page():
 
     has_family_links = _has_family_links(graph)
 
+    anchor = current_app.config.get("CHILD_SLUG")
+    if anchor not in graph.nodes:
+        anchor = None
+
     others = []
+    generations = []
     if has_family_links:
+        # Buckets the printable outline groups by: real generation offsets
+        # when an anchor is set, one fixed key otherwise (kinship labels
+        # — and so per-person generation — don't exist without an
+        # anchor; everyone just lands in a single "Family" bucket).
+        buckets = {}
         for p in all_people:
             in_family = bool(
                 graph.parents.get(p.slug)
@@ -409,6 +419,15 @@ def tree_page():
                 or kinship.children_of(graph, p.slug)
             )
             if in_family:
+                ref = _person_ref(people_by_slug, p.slug)
+                if ref is None:
+                    continue
+                if anchor:
+                    ref["kinship"] = kinship.kinship_label(graph, anchor, p.slug)
+                    key = kinship.generation_offset(graph, anchor, p.slug)
+                else:
+                    key = "unanchored"
+                buckets.setdefault(key, []).append(ref)
                 continue
             friend_refs = [_person_ref(people_by_slug, s) for s in graph.friend_of.get(p.slug, [])]
             others.append({
@@ -417,7 +436,21 @@ def tree_page():
                 "friend_of": [ref for ref in friend_refs if ref],
             })
 
-    return render_template("tree.html", has_family_links=has_family_links, others=others)
+        if anchor:
+            anchor_name = people_by_slug[anchor].name
+            for offset in sorted((k for k in buckets if k is not None), reverse=True):
+                generations.append({
+                    "heading": kinship.generation_group_label(offset, anchor_name),
+                    "people": buckets[offset],
+                })
+            if None in buckets:
+                generations.append({"heading": "Other family", "people": buckets[None]})
+        elif buckets:
+            generations.append({"heading": "Family", "people": buckets["unanchored"]})
+
+    return render_template(
+        "tree.html", has_family_links=has_family_links, others=others, generations=generations,
+    )
 
 
 def _other_people_refs(exclude_slug=None):
