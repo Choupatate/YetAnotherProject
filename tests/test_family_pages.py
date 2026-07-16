@@ -363,7 +363,7 @@ def test_tree_page_lists_friend_only_person_in_others(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi")
     people.create_person(people_dir, "Papa", parents=[papi])
-    jean = people.create_person(people_dir, "Ami Jean", friend_of=[papi])
+    people.create_person(people_dir, "Ami Jean", friend_of=[papi])
 
     resp = auth_client.get("/tree")
     html = resp.data.decode()

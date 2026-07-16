@@ -4,7 +4,6 @@ from datetime import date
 from io import BytesIO
 
 from PIL import Image
-from werkzeug.datastructures import FileStorage
 
 from app import storage
 
@@ -266,7 +265,7 @@ def test_instant_story_page_renders_normally(auth_client, stories_dir):
 
 
 def test_prev_next_skips_instants(auth_client, stories_dir):
-    first_id = storage.create_story(stories_dir, "First", date(2026, 1, 1), "")
+    storage.create_story(stories_dir, "First", date(2026, 1, 1), "")
     storage.create_story(
         stories_dir, "An instant", date(2026, 1, 2), "line", kind="instant"
     )
