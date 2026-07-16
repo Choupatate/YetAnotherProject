@@ -1229,14 +1229,59 @@ Tests: `tests/js/tree_logic_test.mjs` gained coverage for
 collapse case; a new `tests/js/safe_storage_test.mjs` covers the
 storage wrapper (including simulated private-mode/quota failures).
 
-- **Still open, deliberately not attempted:** the hourglass renderer can
-  only show one root at a time, so two branches at the same depth
-  (paternal vs. maternal grandparents) still can't appear together in a
-  single "Whole family" view — only reachable one at a time via the
-  branch chips. Fixing that needs a different chart layout entirely and
-  is out of scope here. A dedicated print/PDF layout for the tree itself
-  is also still out of scope (see the original Layer 3 section above);
-  print continues to show only the "Friends & others" list and a note.
+- **Still open, deliberately not attempted:** a dedicated print/PDF
+  layout for the tree itself is still out of scope (see the original
+  Layer 3 section above); print continues to show only the "Friends &
+  others" list and a note.
+
+### Multi-branch rendering round
+
+The branch-chip toggle above let a reader see one ancestor couple's
+descendants at a time, but never two at once — so paternal and maternal
+grandparents (or any two couples at the same depth) could never appear
+together on screen, only reached one at a time. Rooting the chart
+directly at the focus person (level 0, "Direct line") was never actually
+broken this way: a person has at most two parents, so a pedigree rooted
+at them already recurses through both sides simultaneously. The gap was
+specific to levels ≥ 1, which exist to reveal *lateral* relatives
+(aunts/uncles/cousins) by re-rooting at a specific ancestor to show
+*their* descendants — and one ancestor's descendants are a different,
+disjoint subtree from their partner-couple's counterpart on the other
+side. No single-root hourglass can show two disjoint subtrees in one
+drawing.
+
+Fixed by replacing the single chart + branch-chip switcher with one
+independent `family-chart` instance **per ancestor couple** at the
+chosen level, rendered together — stacked on phones, a `repeat(auto-fit,
+minmax(20rem, 1fr))` grid from `700px` up (`.tree__panels` /
+`.tree__panel` in `main.css`), each captioned "via Name & Name" and each
+fully interactive (its own pan/zoom, mini-tree re-root, Recenter). Level
+0 is untouched — still the single big chart. This reuses the
+already-vendored, network-audited `family-chart` + `d3` bundle as
+multiple independent mounts; no new dependency, no vendored-file changes.
+
+This also deleted code rather than adding much: with every couple at a
+level shown at once, there's no more "which branch is selected" to
+track, so `tree-logic.js`'s `ancestorPath`, `isValidChain`, and
+`chainToLevel` — and the `chain[]`/branch-chip machinery in `tree.js`
+built around them — are gone. View state is now just `{focusId,
+viewLevel}`; `ancestorLevels` and `coupleGroups` (unchanged) are enough
+to compute which panels a level needs on every render. Charts are always
+torn down and rebuilt on a level or focus change rather than re-rooted
+in place — the same "just rebuild it" approach `renderToolbar()` already
+used — since the number of panels needed can change between any two
+levels. One consequence: the injected ranch-map SVG pattern/image ids
+(`tree-map-grid-*`) are now suffixed per panel, since `url(#id)`
+resolves against the whole document and several simultaneous panels
+would otherwise fight over one id; the `MutationObserver`/
+`prefers-color-scheme` listener that refreshes them on a theme change
+was hoisted to run once for the page instead of once per chart instance,
+which would have leaked a new observer on every rebuild.
+
+Tests: `tests/js/tree_logic_test.mjs` dropped the now-dead
+`ancestorPath`/`isValidChain`/`chainToLevel` coverage and gained a
+`coupleGroups` case asserting the paternal and maternal branches land in
+separate groups, which is what the multi-panel view depends on.
 
 ### Tests (second round)
 

@@ -6,6 +6,7 @@
   var treeUrl = container.dataset.treeUrl;
   var fallbackAvatar = container.dataset.fallbackAvatar;
   var STORAGE_KEY = "storybook-tree-view";
+  var FIT_SETTLE_MS = 720;
 
   function escapeHtml(value) {
     var div = document.createElement("div");
@@ -68,39 +69,29 @@
         return urlById.hasOwnProperty(id);
       };
 
-      // The person the tree is ABOUT. Views re-root the chart layout at
-      // one of their ancestors (the hourglass layout can only show
-      // aunts/uncles/cousins as an ancestor's descendants), but the focus
-      // stays put; the mini-tree control moves it.
+      // The person the tree is ABOUT. Level 0 ("Direct line") roots the
+      // chart directly at focus, which already shows their whole pedigree
+      // (every ancestor, both sides, recursing naturally — a person has
+      // at most two parents). Deeper levels exist to reveal lateral
+      // relatives — aunts/uncles/cousins — which only appear as an
+      // ancestor's OWN descendants, a subtree disjoint from any sibling
+      // couple's. The mini-tree control moves focus; the level buttons
+      // never do.
       var focusId =
         payload.anchor && urlById.hasOwnProperty(payload.anchor)
           ? payload.anchor
           : familyPeople[0].id;
 
-      // `chain[i]` is the ancestor selected i+1 generations above focus.
-      // Going deeper extends whichever branch is already chosen instead
-      // of jumping to an arbitrary ancestor at the new depth; a branch
-      // chip overwrites the chain from that level down.
-      var chain = [];
       var viewLevel = 0;
-      var viewRootId = focusId;
 
       function restoreSavedView() {
         var saved = window.SafeStorage.getJSON(STORAGE_KEY);
-        if (!saved || saved.focusId !== focusId || !Array.isArray(saved.chain)) return;
-        if (!saved.chain.length) return;
-        // Every entry must still be a real link in the CURRENT parent
-        // graph, not just a person who still exists — a parent link
-        // edited between visits falls back to Direct line entirely
-        // rather than restoring a truncated, possibly-disconnected chain.
-        if (!window.TreeLogic.isValidChain(saved.chain, focusId, parentsOf, exists)) return;
-        chain = saved.chain.slice();
-        viewLevel = chain.length;
-        viewRootId = chain[chain.length - 1];
+        if (!saved || saved.focusId !== focusId || typeof saved.viewLevel !== "number") return;
+        viewLevel = saved.viewLevel;
       }
 
       function saveView() {
-        window.SafeStorage.setJSON(STORAGE_KEY, { focusId: focusId, chain: chain });
+        window.SafeStorage.setJSON(STORAGE_KEY, { focusId: focusId, viewLevel: viewLevel });
       }
 
       function makeButton(label, pressed, onClick) {
@@ -113,14 +104,13 @@
         return btn;
       }
 
-      function renderToolbar() {
+      function renderToolbar(levels, deepest) {
         if (!viewsNav) return;
         // Rebuilding replaces every button node below, which would drop
         // keyboard focus out of the toolbar entirely on every click —
         // remember whether focus was inside it so it can be restored to
         // whichever button ends up pressed.
         var hadFocusInside = viewsNav.contains(document.activeElement);
-        var levels = window.TreeLogic.ancestorLevels(focusId, parentsOf, exists);
         viewsNav.innerHTML = "";
         if (!levels.length) {
           viewsNav.hidden = true;
@@ -135,51 +125,16 @@
             goToLevel(0);
           })
         );
-        var deepest = levels.length;
         for (var lv = 1; lv <= deepest; lv++) {
           (function (lv) {
             row.appendChild(
-              makeButton(
-                window.TreeLogic.levelLabel(lv, deepest),
-                viewLevel === lv,
-                function () {
-                  goToLevel(lv);
-                }
-              )
+              makeButton(window.TreeLogic.levelLabel(lv, deepest), viewLevel === lv, function () {
+                goToLevel(lv);
+              })
             );
           })(lv);
         }
         viewsNav.appendChild(row);
-
-        if (viewLevel > 0) {
-          var groups = window.TreeLogic.coupleGroups(levels[viewLevel - 1] || [], partnersOf);
-          if (groups.length > 1) {
-            var branches = document.createElement("div");
-            branches.className = "tree__views-branches";
-            groups.forEach(function (group) {
-              var label =
-                "via " +
-                group
-                  .map(function (id) {
-                    return nameById[id];
-                  })
-                  .join(" & ");
-              var pressed = group.indexOf(viewRootId) !== -1;
-              branches.appendChild(
-                makeButton(label, pressed, function () {
-                  // The chosen couple can be on an entirely different
-                  // lineage than the one already in view (paternal vs.
-                  // maternal), so the whole chain has to be rebuilt from
-                  // focusId — patching just the deepest entry can leave
-                  // earlier entries pointing at an unrelated branch.
-                  var path = window.TreeLogic.ancestorPath(focusId, group[0], parentsOf, exists);
-                  if (path) setView(path);
-                })
-              );
-            });
-            viewsNav.appendChild(branches);
-          }
-        }
 
         if (hadFocusInside) {
           var toFocus = viewsNav.querySelector('[aria-pressed="true"]');
@@ -187,34 +142,18 @@
         }
       }
 
-      // Level-button clicks: extend/truncate the chain, preferring the
-      // branch already selected rather than an arbitrary ancestor at that
-      // depth. `viewLevel` ends up at whatever depth was actually reached,
-      // so "Whole family" on a branch that runs out of paper trail early
-      // just settles at that branch's deepest recorded ancestor instead
-      // of silently jumping to an unrelated one.
       function goToLevel(lv) {
-        setView(window.TreeLogic.chainToLevel(chain, lv, focusId, parentsOf, exists));
-      }
-
-      // The chain is the single source of truth for both the current root
-      // and the current depth — level and rootId are always derived from
-      // it, never reconstructed separately, so they can't drift apart.
-      function setView(newChain) {
-        chain = newChain;
-        viewLevel = chain.length;
-        viewRootId = chain.length ? chain[chain.length - 1] : focusId;
-        chart.updateMainId(viewRootId);
-        chart.updateTree({});
-        renderToolbar();
-        saveView();
-        captureFitTransform();
+        viewLevel = lv;
+        renderView();
       }
 
       function cardInnerHtml(node) {
         var d = node.data.data;
-        // In rooted views the gold brand follows the new root card; keep
-        // the focus person findable with their own thin gold ring.
+        // At level 0 there's exactly one chart and no "branch" to speak
+        // of; from level 1 up, each panel is rooted at an ancestor and
+        // focus shows up somewhere in it as their descendant — mark them
+        // with their own thin gold ring so they stay findable among the
+        // aunts/uncles/cousins.
         var isFocus = viewLevel > 0 && node.data.id === focusId;
         var innerClass = "card-inner" + (isFocus ? " card-inner--focus" : "");
         var avatarClass = "f3-card-avatar" + (d.avatarIsPhoto ? " f3-card-avatar--photo" : "");
@@ -240,20 +179,13 @@
         // the card navigate to the person's page instead.
         if (event.target.closest(".mini-tree")) {
           focusId = node.data.id;
-          setView([]);
+          viewLevel = 0;
+          renderView();
           return;
         }
         window.location.href = urlById[node.data.id];
       }
 
-      // The survey map lives INSIDE the chart's pan/zoom group so it
-      // translates and scales in lockstep with the tree (a CSS background
-      // on the container stays put while the chart moves), at 1024 chart
-      // units per tile (1:1 pixels at zoom 1). Only the active theme's
-      // tile is ever inserted — a hidden `display:none` <image> still
-      // gets fetched and decoded by the browser, so keeping both in the
-      // DOM and toggling CSS would silently double the image payload on
-      // every /tree view.
       function mapTileTheme() {
         var attr = document.documentElement.getAttribute("data-theme");
         if (attr === "light" || attr === "manuscript") return "light";
@@ -265,10 +197,29 @@
         return theme === "light" ? container.dataset.mapTile : container.dataset.mapTileDark;
       }
 
-      function installMapBackground() {
-        var svg = container.querySelector("svg.main_svg");
+      // One shared listener refreshes every currently-mounted map tile
+      // (there can be several, one per panel) on a theme change, instead
+      // of each chart instance registering its own MutationObserver —
+      // charts are torn down and rebuilt on every level/focus change, so
+      // a per-instance observer would leak a new one on every click.
+      function refreshMapTiles() {
+        var href = mapTileHref(mapTileTheme());
+        document.querySelectorAll(".tree-map-img").forEach(function (img) {
+          img.setAttribute("href", href);
+        });
+      }
+
+      // The survey map lives INSIDE the chart's pan/zoom group so it
+      // translates and scales in lockstep with the tree (a CSS background
+      // on the container stays put while the chart moves), at 1024 chart
+      // units per tile (1:1 pixels at zoom 1). `uniqueId` keeps each
+      // panel's <pattern>/<image> ids distinct — SVG `url(#id)` resolves
+      // against the whole document, not just the local subtree, so
+      // reusing one id across several simultaneous panels would make them
+      // all paint whichever panel's pattern happened to register first.
+      function installMapBackground(mountEl, uniqueId) {
+        var svg = mountEl.querySelector("svg.main_svg");
         var view = svg && svg.querySelector("g.view");
-        if (svg && view && svg.querySelector("#tree-map-grid")) return;
         if (!svg || !view) {
           if (window.console && window.console.warn) {
             window.console.warn(
@@ -278,10 +229,11 @@
           }
           return;
         }
+        var gridId = "tree-map-grid-" + uniqueId;
         svg.insertAdjacentHTML(
           "afterbegin",
-          '<defs><pattern id="tree-map-grid" patternUnits="userSpaceOnUse" width="1024" height="1024">' +
-            '<image id="tree-map-img" aria-hidden="true" href="' +
+          '<defs><pattern id="' + gridId + '" patternUnits="userSpaceOnUse" width="1024" height="1024">' +
+            '<image class="tree-map-img" aria-hidden="true" href="' +
             escapeHtml(mapTileHref(mapTileTheme())) +
             '" width="1024" height="1024"/>' +
             "</pattern></defs>"
@@ -293,80 +245,129 @@
         rect.setAttribute("y", "-50000");
         rect.setAttribute("width", "100000");
         rect.setAttribute("height", "100000");
-        rect.setAttribute("fill", "url(#tree-map-grid)");
+        rect.setAttribute("fill", "url(#" + gridId + ")");
         view.insertBefore(rect, view.firstChild);
+      }
 
-        function refreshMapTile() {
-          var img = svg.querySelector("#tree-map-img");
-          if (img) img.setAttribute("href", mapTileHref(mapTileTheme()));
+      // Creates one independent family-chart instance rooted at `rootId`,
+      // mounted on `mountEl` (selected via `mountSelector`). Recenter
+      // captures its own fit transform per instance via closures, so each
+      // panel remembers its own pan/zoom independently of its siblings.
+      function createChartInstance(mountSelector, mountEl, rootId, mapUniqueId) {
+        var lastFitTransform = null;
+        var fitCaptureTimer = null;
+
+        // family-chart auto-fits the tree to the viewport on every
+        // updateTree() call, via a d3-zoom transform applied to
+        // #f3Canvas. Snapshot that transform once it settles and offer it
+        // back so a reader who has panned/zoomed off into the leather can
+        // get back without reloading. The vendored bundle's own fit
+        // transition adds a 100ms pre-delay before the setTransitionTime
+        // (600ms) duration even starts, so it actually settles ~700ms
+        // after updateTree() — capture a little past that so Recenter
+        // never restores a still-interpolating transform.
+        function captureFitTransform() {
+          var canvas = mountEl.querySelector("#f3Canvas");
+          if (!canvas || !window.d3) return;
+          if (fitCaptureTimer) window.clearTimeout(fitCaptureTimer);
+          fitCaptureTimer = window.setTimeout(function () {
+            lastFitTransform = window.d3.zoomTransform(canvas);
+          }, FIT_SETTLE_MS);
         }
-        new window.MutationObserver(refreshMapTile).observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ["data-theme"],
+
+        function recenter() {
+          var canvas = mountEl.querySelector("#f3Canvas");
+          if (!canvas || !canvas.__zoomObj || !lastFitTransform || !window.d3) return;
+          window.d3.select(canvas).call(canvas.__zoomObj.transform, lastFitTransform);
+        }
+
+        function installRecenterButton() {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn tree__recenter-btn";
+          btn.textContent = "Recenter";
+          btn.setAttribute("aria-label", "Recenter the family tree");
+          btn.addEventListener("click", recenter);
+          mountEl.appendChild(btn);
+        }
+
+        var chart = window.f3
+          .createChart(mountSelector, familyPeople.map(toDatum))
+          .setTransitionTime(600)
+          .setOrientationVertical()
+          .setSingleParentEmptyCard(false);
+
+        chart
+          .setCardHtml()
+          .setMiniTree(true)
+          .setCardInnerHtmlCreator(cardInnerHtml)
+          .setOnCardClick(onCardClick);
+
+        chart.updateMainId(rootId);
+        chart.updateTree({ initial: true });
+        installMapBackground(mountEl, mapUniqueId);
+        installRecenterButton();
+        captureFitTransform();
+      }
+
+      // Rebuilds the chart area for the current viewLevel. Every level
+      // change can change how many charts are needed (one big pedigree at
+      // level 0, one small hourglass per ancestor couple beyond that), so
+      // instances are always torn down and recreated rather than
+      // reused/re-rooted in place — the same "just rebuild it" approach
+      // renderToolbar already takes.
+      function renderChartArea(levels) {
+        container.innerHTML = "";
+        if (viewLevel === 0) {
+          container.className = "tree__chart f3";
+          createChartInstance("#FamilyChart", container, focusId, "root");
+          return;
+        }
+        container.className = "tree__panels";
+        var groups = window.TreeLogic.coupleGroups(levels[viewLevel - 1] || [], partnersOf);
+        groups.forEach(function (group, idx) {
+          var panelId = "tree-panel-" + idx;
+          var wrap = document.createElement("div");
+          wrap.className = "tree__panel-wrap";
+          var label = document.createElement("p");
+          label.className = "tree__panel-label";
+          label.textContent =
+            "via " +
+            group
+              .map(function (id) {
+                return nameById[id];
+              })
+              .join(" & ");
+          var mount = document.createElement("div");
+          mount.id = panelId;
+          mount.className = "tree__panel tree__chart f3";
+          wrap.appendChild(label);
+          wrap.appendChild(mount);
+          container.appendChild(wrap);
+          createChartInstance("#" + panelId, mount, group[0], "panel-" + idx);
         });
-        var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)");
-        if (mq && mq.addEventListener) mq.addEventListener("change", refreshMapTile);
       }
 
-      // Recenter: family-chart auto-fits the tree to the viewport on every
-      // updateTree() call, via a d3-zoom transform applied to #f3Canvas.
-      // We snapshot that transform each time it settles and offer it back
-      // so a reader who has panned/zoomed off into the leather can get
-      // back without a page reload. The vendored bundle's own fit
-      // transition adds a 100ms pre-delay before the setTransitionTime
-      // (600ms) duration even starts, so it actually settles ~700ms after
-      // updateTree() — capture a little past that so Recenter never
-      // restores a still-interpolating transform.
-      var lastFitTransform = null;
-      var fitCaptureTimer = null;
-      var FIT_SETTLE_MS = 720;
-
-      function captureFitTransform() {
-        var canvas = container.querySelector("#f3Canvas");
-        if (!canvas || !window.d3) return;
-        if (fitCaptureTimer) window.clearTimeout(fitCaptureTimer);
-        fitCaptureTimer = window.setTimeout(function () {
-          lastFitTransform = window.d3.zoomTransform(canvas);
-        }, FIT_SETTLE_MS);
-      }
-
-      function recenter() {
-        var canvas = container.querySelector("#f3Canvas");
-        if (!canvas || !canvas.__zoomObj || !lastFitTransform || !window.d3) return;
-        window.d3.select(canvas).call(canvas.__zoomObj.transform, lastFitTransform);
-      }
-
-      function installRecenterButton() {
-        if (container.querySelector(".tree__recenter-btn")) return;
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "btn tree__recenter-btn";
-        btn.textContent = "Recenter";
-        btn.setAttribute("aria-label", "Recenter the family tree");
-        btn.addEventListener("click", recenter);
-        container.appendChild(btn);
+      function renderView() {
+        var levels = window.TreeLogic.ancestorLevels(focusId, parentsOf, exists);
+        var deepest = levels.length;
+        if (viewLevel > deepest) viewLevel = deepest;
+        if (viewLevel < 0) viewLevel = 0;
+        renderToolbar(levels, deepest);
+        renderChartArea(levels);
+        saveView();
       }
 
       restoreSavedView();
 
-      var chart = window.f3
-        .createChart("#FamilyChart", familyPeople.map(toDatum))
-        .setTransitionTime(600)
-        .setOrientationVertical()
-        .setSingleParentEmptyCard(false);
+      new window.MutationObserver(refreshMapTiles).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
+      var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)");
+      if (mq && mq.addEventListener) mq.addEventListener("change", refreshMapTiles);
 
-      chart
-        .setCardHtml()
-        .setMiniTree(true)
-        .setCardInnerHtmlCreator(cardInnerHtml)
-        .setOnCardClick(onCardClick);
-
-      chart.updateMainId(viewRootId);
-      chart.updateTree({ initial: true });
-      renderToolbar();
-      installMapBackground();
-      installRecenterButton();
-      captureFitTransform();
+      renderView();
     })
     .catch(function () {
       container.textContent = "Could not load the family tree.";

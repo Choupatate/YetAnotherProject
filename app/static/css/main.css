@@ -2448,6 +2448,45 @@ img.family-chip__thumb {
   }
 }
 
+/* Levels ≥ 1 replace the single chart with one small hourglass per
+   ancestor couple at that depth (paternal/maternal branches, etc.), so
+   they can all be read together instead of toggled one at a time. Each
+   panel reuses .tree__chart's map/border/background styling (it carries
+   both classes) — only the height shrinks here to fit several on screen.
+   Stacked on phones; a two-up grid once there's room. */
+.tree__panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+@media (min-width: 700px) {
+  .tree__panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  }
+}
+
+.tree__panel-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tree__panel-label {
+  margin: 0;
+  color: var(--color-text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.tree__panels .tree__chart {
+  height: 40vh;
+  min-height: 16rem;
+}
+
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) .tree__chart {
     background-color: #f4ecdb;
@@ -2468,8 +2507,7 @@ img.family-chip__thumb {
   margin: 0 0 0.75rem;
 }
 
-.tree__views-row,
-.tree__views-branches {
+.tree__views-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -2488,11 +2526,6 @@ img.family-chip__thumb {
 .tree__view-btn[aria-pressed="true"] {
   border-color: var(--color-accent);
   color: var(--color-accent);
-}
-
-.tree__views-branches .tree__view-btn {
-  min-height: 36px;
-  font-size: 0.8125rem;
 }
 
 .tree__empty {
@@ -2726,6 +2759,7 @@ img.family-chip__thumb {
   .tree__back,
   .tree__views,
   .tree__chart,
+  .tree__panels,
   button,
   .btn {
     display: none !important;
