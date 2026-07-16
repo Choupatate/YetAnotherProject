@@ -1,0 +1,7 @@
+{# Script tags for the story and person editors — both mount the same
+   Toast UI widget and share editor.js/author-chips.js/fetch-json.js
+   (FEATURES.md F14: "do not fork editor.js"). #}
+<script src="{{ url_for('static', filename='vendor/toastui/toastui-editor-all.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/fetch-json.js') }}"></script>
+<script src="{{ url_for('static', filename='js/author-chips.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>

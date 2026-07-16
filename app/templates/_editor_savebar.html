@@ -1,0 +1,8 @@
+{# The Save button + spinner + status line at the bottom of the form —
+   shared by the story and person editors. No variables needed. #}
+<div class="editor__save-bar">
+  <button id="save-story" type="submit" class="btn btn--primary editor__save">Save</button>
+  <img class="lasso-spinner" id="editor-spinner" src="{{ url_for('static', filename='img/lasso-ring.png') }}"
+       alt="" width="40" height="40" hidden>
+  <p class="editor__save-message" id="editor-save-message" hidden></p>
+</div>

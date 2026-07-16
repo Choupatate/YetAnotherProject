@@ -1,0 +1,22 @@
+{# Small markup snippets shared across more than one template. #}
+
+{% macro photo_thumb(entity, css_prefix) %}
+{% if entity.photo_url %}
+<img class="{{ css_prefix }}__thumb" src="{{ entity.photo_url }}" alt="" loading="lazy" decoding="async"
+     style="--photo-sepia: {{ entity.photo_sepia }}%;">
+{% else %}
+<span class="{{ css_prefix }}__thumb {{ css_prefix }}__thumb--placeholder" aria-hidden="true">{{ entity.name[0]|upper }}</span>
+{% endif %}
+{% endmacro %}
+
+{% macro author_chip_row(authors, selected_name=none) %}
+<div class="editor__authors" id="editor-authors">
+  {% for a in authors %}
+  <button type="button" class="btn editor__author-chip" data-author-name="{{ a.name }}"
+          style="--author-color: {{ a.color }}"
+          aria-pressed="{{ 'true' if a.name == selected_name else 'false' }}">
+    <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
+  </button>
+  {% endfor %}
+</div>
+{% endmacro %}
