@@ -2548,7 +2548,8 @@ img.family-chip__thumb {
   margin: 0 0 0.75rem;
 }
 
-.tree__others-list {
+.tree__others-list,
+.tree__print-outline-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2557,7 +2558,8 @@ img.family-chip__thumb {
   gap: 0.5rem;
 }
 
-.tree__others-item {
+.tree__others-item,
+.tree__print-outline-item {
   font-family: var(--font-sans);
   font-size: 0.9375rem;
 }
@@ -2595,20 +2597,6 @@ img.family-chip__thumb {
   font-family: var(--font-serif);
   font-size: 1.0625rem;
   margin: 0 0 0.4rem;
-}
-
-.tree__print-outline-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.tree__print-outline-item {
-  font-family: var(--font-sans);
-  font-size: 0.9375rem;
 }
 
 /* The vendor stylesheet paints card faces from these variables (and it

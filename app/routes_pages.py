@@ -422,11 +422,10 @@ def tree_page():
                 ref = _person_ref(people_by_slug, p.slug)
                 if ref is None:
                     continue
+                key = None
                 if anchor:
                     ref["kinship"] = kinship.kinship_label(graph, anchor, p.slug)
                     key = kinship.generation_offset(graph, anchor, p.slug)
-                else:
-                    key = "unanchored"
                 buckets.setdefault(key, []).append(ref)
                 continue
             friend_refs = [_person_ref(people_by_slug, s) for s in graph.friend_of.get(p.slug, [])]
@@ -446,7 +445,7 @@ def tree_page():
             if None in buckets:
                 generations.append({"heading": "Other family", "people": buckets[None]})
         elif buckets:
-            generations.append({"heading": "Family", "people": buckets["unanchored"]})
+            generations.append({"heading": "Family", "people": buckets[None]})
 
     return render_template(
         "tree.html", has_family_links=has_family_links, others=others, generations=generations,

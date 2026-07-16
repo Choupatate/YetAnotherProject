@@ -151,6 +151,19 @@ def _blood_kinship(graph: Graph, anchor_slug: str, person_slug: str) -> Optional
     return _label_for_updown(graph, person_slug, updown[0], updown[1])
 
 
+def _partner_blood_updown(graph: Graph, anchor_slug: str, person_slug: str) -> Optional[tuple]:
+    """The nearest blood-related partner of `person_slug`, as `(partner_slug,
+    (up, down))` — the one-hop-through-marriage fallback shared by
+    `kinship_label` ("your uncle's wife") and `generation_offset` (same
+    generation bucket as the blood relative). None if no partner has a
+    blood path to the anchor."""
+    for partner_slug in sorted(graph.partners.get(person_slug, ())):
+        updown = _blood_updown(graph, anchor_slug, partner_slug)
+        if updown is not None:
+            return partner_slug, updown
+    return None
+
+
 def kinship_label(graph: Graph, anchor_slug: Optional[str], person_slug: str) -> Optional[str]:
     """The label for `person_slug` relative to `anchor_slug` — always about
     the person, from the anchor's point of view ("your uncle"), never the
@@ -165,8 +178,10 @@ def kinship_label(graph: Graph, anchor_slug: Optional[str], person_slug: str) ->
         return label
 
     # One hop: partner of a labeled blood relative, e.g. "your uncle's wife".
-    for partner_slug in sorted(graph.partners.get(person_slug, ())):
-        relative_label = _blood_kinship(graph, anchor_slug, partner_slug)
+    partner_match = _partner_blood_updown(graph, anchor_slug, person_slug)
+    if partner_match is not None:
+        partner_slug, updown = partner_match
+        relative_label = _label_for_updown(graph, partner_slug, updown[0], updown[1])
         if relative_label:
             word = _gender_word(graph, person_slug, "husband", "wife", "partner")
             return f"{relative_label}'s {word}"
@@ -193,10 +208,9 @@ def generation_offset(graph: Graph, anchor_slug: Optional[str], person_slug: str
     if updown is not None:
         return updown[0] - updown[1]
 
-    for partner_slug in sorted(graph.partners.get(person_slug, ())):
-        partner_updown = _blood_updown(graph, anchor_slug, partner_slug)
-        if partner_updown is not None:
-            return partner_updown[0] - partner_updown[1]
+    partner_match = _partner_blood_updown(graph, anchor_slug, person_slug)
+    if partner_match is not None:
+        return partner_match[1][0] - partner_match[1][1]
     return None
 
 
@@ -212,4 +226,4 @@ def generation_group_label(offset: int, anchor_name: str) -> str:
     else:
         word = "children" if offset == -1 else f"{great}grandchildren"
         possessive = f"{word}’s"
-    return f"{possessive[0].upper()}{possessive[1:]} generation"
+    return f"{possessive.capitalize()} generation"

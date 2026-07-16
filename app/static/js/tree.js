@@ -104,7 +104,7 @@
         return btn;
       }
 
-      function renderToolbar(levels, deepest) {
+      function renderToolbar(levels) {
         if (!viewsNav) return;
         // Rebuilding replaces every button node below, which would drop
         // keyboard focus out of the toolbar entirely on every click —
@@ -117,6 +117,7 @@
           return;
         }
         viewsNav.hidden = false;
+        var deepest = levels.length;
 
         var row = document.createElement("div");
         row.className = "tree__views-row";
@@ -212,12 +213,13 @@
       // The survey map lives INSIDE the chart's pan/zoom group so it
       // translates and scales in lockstep with the tree (a CSS background
       // on the container stays put while the chart moves), at 1024 chart
-      // units per tile (1:1 pixels at zoom 1). `uniqueId` keeps each
-      // panel's <pattern>/<image> ids distinct — SVG `url(#id)` resolves
-      // against the whole document, not just the local subtree, so
-      // reusing one id across several simultaneous panels would make them
-      // all paint whichever panel's pattern happened to register first.
-      function installMapBackground(mountEl, uniqueId) {
+      // units per tile (1:1 pixels at zoom 1). Keying the pattern id off
+      // `mountEl.id` keeps each panel's <pattern>/<image> ids distinct —
+      // SVG `url(#id)` resolves against the whole document, not just the
+      // local subtree, so reusing one id across several simultaneous
+      // panels would make them all paint whichever panel's pattern
+      // happened to register first.
+      function installMapBackground(mountEl) {
         var svg = mountEl.querySelector("svg.main_svg");
         var view = svg && svg.querySelector("g.view");
         if (!svg || !view) {
@@ -229,7 +231,7 @@
           }
           return;
         }
-        var gridId = "tree-map-grid-" + uniqueId;
+        var gridId = "tree-map-grid-" + mountEl.id;
         svg.insertAdjacentHTML(
           "afterbegin",
           '<defs><pattern id="' + gridId + '" patternUnits="userSpaceOnUse" width="1024" height="1024">' +
@@ -250,10 +252,11 @@
       }
 
       // Creates one independent family-chart instance rooted at `rootId`,
-      // mounted on `mountEl` (selected via `mountSelector`). Recenter
-      // captures its own fit transform per instance via closures, so each
-      // panel remembers its own pan/zoom independently of its siblings.
-      function createChartInstance(mountSelector, mountEl, rootId, mapUniqueId) {
+      // mounted on `mountEl` (which must already have a unique `id`).
+      // Recenter captures its own fit transform per instance via
+      // closures, so each panel remembers its own pan/zoom independently
+      // of its siblings.
+      function createChartInstance(mountEl, rootId, chartData) {
         var lastFitTransform = null;
         var fitCaptureTimer = null;
 
@@ -292,7 +295,7 @@
         }
 
         var chart = window.f3
-          .createChart(mountSelector, familyPeople.map(toDatum))
+          .createChart("#" + mountEl.id, chartData)
           .setTransitionTime(600)
           .setOrientationVertical()
           .setSingleParentEmptyCard(false);
@@ -305,7 +308,7 @@
 
         chart.updateMainId(rootId);
         chart.updateTree({ initial: true });
-        installMapBackground(mountEl, mapUniqueId);
+        installMapBackground(mountEl);
         installRecenterButton();
         captureFitTransform();
       }
@@ -318,15 +321,15 @@
       // renderToolbar already takes.
       function renderChartArea(levels) {
         container.innerHTML = "";
+        var chartData = familyPeople.map(toDatum);
         if (viewLevel === 0) {
           container.className = "tree__chart f3";
-          createChartInstance("#FamilyChart", container, focusId, "root");
+          createChartInstance(container, focusId, chartData);
           return;
         }
         container.className = "tree__panels";
         var groups = window.TreeLogic.coupleGroups(levels[viewLevel - 1] || [], partnersOf);
         groups.forEach(function (group, idx) {
-          var panelId = "tree-panel-" + idx;
           var wrap = document.createElement("div");
           wrap.className = "tree__panel-wrap";
           var label = document.createElement("p");
@@ -339,12 +342,12 @@
               })
               .join(" & ");
           var mount = document.createElement("div");
-          mount.id = panelId;
+          mount.id = "tree-panel-" + idx;
           mount.className = "tree__panel tree__chart f3";
           wrap.appendChild(label);
           wrap.appendChild(mount);
           container.appendChild(wrap);
-          createChartInstance("#" + panelId, mount, group[0], "panel-" + idx);
+          createChartInstance(mount, group[0], chartData);
         });
       }
 
@@ -353,7 +356,7 @@
         var deepest = levels.length;
         if (viewLevel > deepest) viewLevel = deepest;
         if (viewLevel < 0) viewLevel = 0;
-        renderToolbar(levels, deepest);
+        renderToolbar(levels);
         renderChartArea(levels);
         saveView();
       }
