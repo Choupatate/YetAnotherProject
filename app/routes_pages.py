@@ -64,8 +64,33 @@ def _serve_media(root_dir, id_value, filename):
     return send_from_directory(media_dir, filename, max_age=_media_max_age(filename))
 
 
+# Fallback color for an account-mode author who hasn't picked their own
+# yet (person.author_color unset) — every entry _authors_and_colors hands
+# to timeline.html's legend/dots needs a real value, since that template
+# (shared with F1) renders `--author-color: {{ a.color }}` unconditionally
+# for legend chips, unlike the per-story byline lookups which already
+# guard on the color being present.
+DEFAULT_AUTHOR_COLOR = "#9c8a6a"
+
+
 def _authors_and_colors():
-    authors = current_app.config.get("AUTHORS") or []
+    """The (authors, author_colors) pair every timeline/book/story render
+    needs for bylines and the legend. Two sources depending on mode
+    (FEATURES.md F19 Phase 4): in accounts mode, every Person with a bound
+    account — real identity, not config; otherwise the original
+    STORYBOOK_AUTHORS list, untouched."""
+    if current_app.config["ACCOUNTS_ENABLED"]:
+        people_dir = storage.people_dir(current_app.config["STORIES_DIR"])
+        people_by_slug = {p.slug: p for p in people.list_people(people_dir)}
+        authors = []
+        for account in accounts.list_accounts(people_dir):
+            person = people_by_slug.get(account.person_slug)
+            if person:
+                authors.append(
+                    {"name": person.name, "color": person.author_color or DEFAULT_AUTHOR_COLOR}
+                )
+    else:
+        authors = current_app.config.get("AUTHORS") or []
     author_colors = {a["name"]: a["color"] for a in authors}
     return authors, author_colors
 
@@ -471,7 +496,10 @@ def _other_people_refs(exclude_slug=None):
 @bp.route("/new-person")
 @login_required
 def new_person():
-    return render_template("person_editor.html", person=None, other_people=_other_people_refs())
+    return render_template(
+        "person_editor.html", person=None, other_people=_other_people_refs(),
+        default_author_color=DEFAULT_AUTHOR_COLOR,
+    )
 
 
 @bp.route("/edit-person/<slug>")
@@ -479,7 +507,8 @@ def new_person():
 def edit_person(slug):
     p = _get_person_or_404(_people_dir(), slug)
     return render_template(
-        "person_editor.html", person=p, other_people=_other_people_refs(exclude_slug=slug)
+        "person_editor.html", person=p, other_people=_other_people_refs(exclude_slug=slug),
+        default_author_color=DEFAULT_AUTHOR_COLOR,
     )
 
 

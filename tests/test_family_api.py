@@ -23,6 +23,26 @@ def test_create_person_invalid_gender_returns_400(auth_client):
     assert resp.status_code == 400
 
 
+def test_create_person_with_author_color(auth_client, stories_dir):
+    resp = auth_client.post("/api/people", json={"name": "Papi", "author_color": "#d9a441"})
+    assert resp.status_code == 200
+    p = people.get_person(_people_dir(stories_dir), "papi")
+    assert p.author_color == "#d9a441"
+
+
+def test_create_person_invalid_author_color_returns_400(auth_client):
+    resp = auth_client.post("/api/people", json={"name": "Papi", "author_color": "not-a-color"})
+    assert resp.status_code == 400
+
+
+def test_update_person_author_color_empty_string_clears(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone", author_color="#d9a441")
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "author_color": ""})
+    assert resp.status_code == 200
+    assert people.get_person(people_dir, slug).author_color is None
+
+
 def test_create_person_with_parents(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi")

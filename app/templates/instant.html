@@ -15,7 +15,7 @@
          placeholder="One line&hellip;" maxlength="200">
   <input type="date" id="instant-date" name="date" class="instant__date"
          value="{{ today.isoformat() }}" required>
-  {% if authors %}
+  {% if authors and not config.ACCOUNTS_ENABLED %}
   {{ macros.author_chip_row(authors) }}
   {% endif %}
   <div class="instant__save-row">

@@ -2093,6 +2093,22 @@ img.person-family__thumb {
   color: var(--color-text-dim);
 }
 
+.editor__author-color {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.editor__author-color input[type="color"] {
+  width: 3.5rem;
+  height: 2.5rem;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  cursor: pointer;
+}
+
 .editor__family-chips {
   display: flex;
   flex-wrap: wrap;

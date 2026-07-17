@@ -35,6 +35,14 @@
   <input class="editor__relation" id="person-relation" name="relation" type="text"
          placeholder="Relation (e.g. your grandmother)" value="{{ (person.relation or '') if person else '' }}">
 
+  {% if config.ACCOUNTS_ENABLED %}
+  <div class="editor__author-color">
+    <label class="editor__family-label" for="person-author-color">Byline color</label>
+    <input type="color" id="person-author-color" name="author_color"
+           value="{{ (person.author_color if person else none) or default_author_color }}">
+  </div>
+  {% endif %}
+
   <div class="editor__photo" id="editor-photo">
     <p class="editor__family-label">Photo</p>
 

@@ -23,7 +23,7 @@
            value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
   </div>
   <div class="editor__toolrow" id="editor-toolrow">
-    {% if authors %}
+    {% if authors and not config.ACCOUNTS_ENABLED %}
     {{ macros.author_chip_row(authors, story.author if story else none) }}
     {% endif %}
     <div class="editor__toggles">

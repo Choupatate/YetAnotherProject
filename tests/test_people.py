@@ -157,6 +157,60 @@ def test_family_fields_tolerant_of_malformed_frontmatter(stories_dir):
     assert p.gender is None
 
 
+# --- author_color (FEATURES.md F19 Phase 4) -----------------------------------
+
+
+def test_is_valid_author_color():
+    assert people.is_valid_author_color("#d9a441")
+    assert people.is_valid_author_color("#fff")
+    assert not people.is_valid_author_color("d9a441")
+    assert not people.is_valid_author_color("#zzzzzz")
+    assert not people.is_valid_author_color("")
+    assert not people.is_valid_author_color(None)
+
+
+def test_create_person_with_author_color(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Papa", author_color="#d9a441")
+    p = people.get_person(people_dir, slug)
+    assert p.author_color == "#d9a441"
+
+
+def test_create_person_without_author_color_is_none(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Papa")
+    p = people.get_person(people_dir, slug)
+    assert p.author_color is None
+
+
+def test_update_person_author_color_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Papa", author_color="#d9a441")
+    people.update_person(people_dir, slug, "Papa", body="updated")
+    p = people.get_person(people_dir, slug)
+    assert p.author_color == "#d9a441"
+
+
+def test_update_person_author_color_empty_string_clears(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Papa", author_color="#d9a441")
+    people.update_person(people_dir, slug, "Papa", author_color="")
+    p = people.get_person(people_dir, slug)
+    assert p.author_color is None
+
+
+def test_author_color_tolerant_of_malformed_frontmatter(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    person_dir = people_dir / "weird"
+    person_dir.mkdir(parents=True)
+    (person_dir / "index.md").write_text(
+        "---\nname: Weird\nauthor_color: not-a-color\n---\nbody",
+        encoding="utf-8",
+    )
+    p = people.get_person(people_dir, "weird")
+    assert p.author_color is None
+
+
 def test_friend_of_round_trips(stories_dir):
     people_dir = _people_dir(stories_dir)
     slug = people.create_person(people_dir, "Buddy", friend_of=["papa"])

@@ -2,7 +2,7 @@ import zipfile
 from datetime import date as date_cls
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request, url_for
+from flask import Blueprint, current_app, jsonify, request, session, url_for
 
 from . import kinship, people, storage
 from .auth import login_required
@@ -29,7 +29,15 @@ def _validate_author(data):
     Returns (author, error_response). `author` is None when absent (create:
     no author; update: leave unchanged) or empty string when explicitly
     cleared. Unconfigured deployments ignore the field entirely.
+
+    In accounts mode (FEATURES.md F19 Phase 4) this always returns
+    (None, None): authorship is never taken from the client there — see
+    _author_name_for_current_account, which create_story uses instead to
+    derive it from the session, and update_story leaving it None (i.e.
+    unchanged) so editing a story never silently reassigns who wrote it.
     """
+    if current_app.config.get("ACCOUNTS_ENABLED"):
+        return None, None
     configured = current_app.config.get("AUTHORS") or []
     if not configured:
         return None, None
@@ -41,6 +49,21 @@ def _validate_author(data):
         if author not in names:
             return None, _error("Unknown author.", 400)
     return author, None
+
+
+def _author_name_for_current_account():
+    """The display name to auto-attribute a newly created story/instant to,
+    when accounts mode is on and the current session is a real (non-
+    delegate) account bound to a Person. None otherwise — accounts mode
+    off, or a session somehow missing its person_slug — in which case the
+    story is simply created with no author, same as today."""
+    if not current_app.config.get("ACCOUNTS_ENABLED"):
+        return None
+    person_slug = session.get("person_slug")
+    if not person_slug:
+        return None
+    person = people.get_person(storage.people_dir(current_app.config["STORIES_DIR"]), person_slug)
+    return person.name if person else None
 
 
 def _validate_unlock(data):
@@ -134,6 +157,7 @@ def create_story():
     author, error = _validate_author(data)
     if error:
         return error
+    author = _author_name_for_current_account() or author
     unlock, error = _validate_unlock(data)
     if error:
         return error
@@ -352,6 +376,20 @@ def _validate_gender(data):
     return gender, None
 
 
+def _validate_author_color(data):
+    """Resolve and validate the optional 'author_color' field (FEATURES.md
+    F19 Phase 4). None means the field was absent ("leave unchanged" on
+    update); "" clears it. Only meaningful in accounts mode, but validated
+    the same regardless — a person's color isn't harmful to store even
+    when unused."""
+    if "author_color" not in data:
+        return None, None
+    author_color = (data.get("author_color") or "").strip()
+    if author_color and not people.is_valid_author_color(author_color):
+        return None, _error("Color must be a hex value like #d9a441.", 400)
+    return author_color, None
+
+
 def _validate_person_family(data, self_slug):
     """Resolve and validate parents/partners/friend_of/gender together
     (FEATURES.md F18). `self_slug` is None on create (a not-yet-existing
@@ -423,12 +461,16 @@ def create_person():
     fields, _all_people, error = _validate_person_family(data, self_slug=None)
     if error:
         return error
+    author_color, error = _validate_author_color(data)
+    if error:
+        return error
 
     people_dir = _people_dir()
     slug = people.create_person(
         people_dir, name, relation=relation, body=markdown,
         parents=fields["parents"], partners=fields["partners"],
         friend_of=fields["friend_of"], gender=fields["gender"],
+        author_color=author_color,
     )
     _sync_partner_symmetry(people_dir, slug, [], fields["partners"] or [])
     return jsonify({"id": slug, "title": name})
@@ -455,6 +497,10 @@ def update_person(slug):
     if error:
         return error
 
+    author_color, error = _validate_author_color(data)
+    if error:
+        return error
+
     fields, all_people, error = _validate_person_family(data, self_slug=slug)
     if error:
         return error
@@ -469,7 +515,7 @@ def update_person(slug):
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
-            photo_sepia=photo_sepia,
+            photo_sepia=photo_sepia, author_color=author_color,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)

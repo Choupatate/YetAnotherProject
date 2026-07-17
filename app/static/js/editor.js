@@ -34,6 +34,7 @@
   // stays byte-for-byte identical to before; the person editor template
   // supplies the /api/people... equivalents.
   var relationInput = document.getElementById("person-relation");
+  var authorColorInput = document.getElementById("person-author-color");
   var createUrl = form.dataset.createUrl || "/api/stories";
   var updateUrlTemplate = form.dataset.updateUrlTemplate || "/api/stories/__ID__";
   var imageUrlTemplate = form.dataset.imageUrlTemplate || "/api/stories/__ID__/images";
@@ -514,6 +515,7 @@
       archived: isArchived(),
     };
     if (relationInput) payload.relation = relationInput.value.trim();
+    if (authorColorInput) payload.author_color = authorColorInput.value;
     addFamilyFields(payload);
     return payload;
   }

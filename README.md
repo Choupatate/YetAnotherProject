@@ -133,6 +133,13 @@ else in the book visible to them). Links can be single-use or reusable,
 optionally expire, and are revocable at any time by whoever created them
 or by an admin.
 
+With accounts on, every story a family member writes is automatically
+attributed to them — no picker needed, and it can't be spoofed by another
+account. Each person can set their own byline color on their person page
+(**Byline color**), replacing what `STORYBOOK_AUTHORS` does below; a
+family member with no color set yet gets a neutral default rather than no
+color at all.
+
 ### Several narrators
 
 Set `STORYBOOK_AUTHORS` (e.g. `"Papa:#d9a441,Maman:#7ba7d9"`) to let more than
@@ -144,8 +151,11 @@ the story page (a colored byline and title flourish). Pick mid-brightness
 colors that read well on both the dark and light themes.
 
 There are still no accounts or per-author passwords — one shared login, same
-as always. The author is just a label on the story. Leaving `STORYBOOK_AUTHORS`
-unset disables the whole feature: no picker, no bylines, no legend, identical
+as always. The author is just a label on the story. This whole section is
+superseded automatically the moment `STORYBOOK_ACCOUNTS` is on — see above —
+`STORYBOOK_AUTHORS` is simply never read in that mode, whether or not it's
+still set. Leaving `STORYBOOK_AUTHORS` unset (and accounts off) disables the
+whole feature: no picker, no bylines, no legend, identical
 to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.

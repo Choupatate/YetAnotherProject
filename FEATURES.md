@@ -1561,13 +1561,13 @@ text-only cameo-contribution case turns out not to be enough.
 
 ## Interaction with existing features
 
-- **F1 Authors** (`STORYBOOK_AUTHORS`) is untouched in Phase 1 — accounts
-  and F1 are orthogonal right now, both can be on at once. Phase 4 proposes
-  retiring F1 once accounts have been live a while: an account's bound
-  Person becomes the author directly (gaining an `author_color` field to
-  replace the env-config color), removing a second parallel attribution
-  system now that real identity exists. Not done yet, and not required —
-  an install can run F19 forever without ever touching F1.
+- **F1 Authors** (`STORYBOOK_AUTHORS`) is superseded automatically the
+  moment `STORYBOOK_ACCOUNTS` is on (Phase 4): an account's bound Person
+  becomes the author directly, with its own `author_color` replacing the
+  env-config color. `STORYBOOK_AUTHORS` itself is never read in that mode
+  — left set or unset, it makes no difference — so there's no forced
+  migration step; an install that never turns accounts on keeps F1 exactly
+  as it always was.
 - **F14 People / F18 kinship-tree**: no changes. Accounts are additive
   metadata on Persons that already exist; `kinship.py`, `tree.js`, and the
   family-chart rendering stay completely account-unaware.
@@ -1604,8 +1604,8 @@ text-only cameo-contribution case turns out not to be enough.
    gated by the shared password as an invite code, a pending queue, admin
    approve/reject binding to a Person.
 3. **Delegated write-links** (done).
-4. **F1 retirement path** — `author_color` on Person, `STORYBOOK_AUTHORS`
-   deprecation — only once accounts have been live a while.
+4. **F1 retirement path** (done) — `author_color` on Person,
+   `STORYBOOK_AUTHORS` superseded automatically in accounts mode.
 
 ---
 
@@ -1658,8 +1658,9 @@ install): bootstrap → first admin → second (family) account → role-gating
 → disable → immediate lockout → re-login refused while disabled, all
 matching the automated tests.
 
-Not done yet, on purpose: the public request/approve flow (Phase 2),
-delegated write-links (Phase 3), and F1 retirement (Phase 4).
+At the time, Phases 2-4 (the public request/approve flow, delegated
+write-links, and F1 retirement) were not yet built — see their own rounds
+below for what shipped since.
 
 ---
 
@@ -1729,8 +1730,8 @@ shared password stops working → second request queues → admin sees it on
 logs in and is correctly 404'd from admin routes → a third request is
 rejected and disappears from the queue.
 
-Not done yet, on purpose: delegated write-links (Phase 3) and F1
-retirement (Phase 4).
+At the time, delegated write-links (Phase 3) and F1 retirement (Phase 4)
+were not yet built — see their own rounds below for what shipped since.
 
 ---
 
@@ -1807,5 +1808,80 @@ the app title, confirming the scoping is structural (inherited from
 `base.html`'s existing `authed` guard) rather than something that had to
 be bolted on per-page.
 
-Not done yet, on purpose: F1 retirement (Phase 4) — `STORYBOOK_AUTHORS`
-and real accounts still coexist, unrelated to each other.
+At the time, F1 retirement (Phase 4) was not yet built — see its own round
+below for what shipped since, and F19 is now fully built out end to end.
+
+---
+
+### Phase 4 implementation round
+
+Built as specified: real accounts supersede F1 the moment
+`STORYBOOK_ACCOUNTS` is on, with no config migration required and zero
+change to F1 itself when accounts mode stays off.
+
+- **`app/people.py`**: `Person` gains `author_color: Optional[str]`, an
+  optional hex color, same validation shape
+  (`is_valid_author_color`/`_parse_author_color`) and "unset = neutral,
+  malformed on disk = drop to None" tolerance as every other optional
+  field here. Threaded through `create_person`/`update_person`/
+  `_write_index` exactly like `gender` — `None` leaves it unchanged on
+  update, `""` clears it.
+- **`app/routes_api.py`**: `_validate_author` now short-circuits to
+  `(None, None)` whenever accounts mode is on, *before* even looking at
+  `STORYBOOK_AUTHORS` — a client-submitted `author` is never trusted once
+  real identity exists, closing what would otherwise be a spoofing gap (a
+  family account claiming to have written as someone else). A new
+  `_author_name_for_current_account()` resolves the actual author from
+  `session["person_slug"]` and is applied only in `create_story` — never
+  in `update_story`, so editing a story can never silently reassign who
+  wrote it. `_validate_author_color`, mirroring `_validate_gender` exactly,
+  wired into both person create/update handlers.
+- **`app/routes_pages.py`**: `_authors_and_colors()` branches on
+  `ACCOUNTS_ENABLED` — in accounts mode, "authors" becomes every Person
+  with a bound account (not `STORYBOOK_AUTHORS`), colored by their own
+  `author_color` or a new `DEFAULT_AUTHOR_COLOR` fallback. That fallback
+  matters because `timeline.html`'s legend chip renders
+  `--author-color: {{ a.color }}` unconditionally (unlike the per-story
+  byline lookups, which already guard on the color being present) — every
+  entry handed to it must have a real value, and a freshly-approved
+  account has no `author_color` yet until someone visits their person
+  page. Reusing this one function's output is what let every other F1
+  render path (timeline legend/dots, book, story byline) work in accounts
+  mode with *zero* template changes.
+- **Templates**: `editor.html`/`instant.html`'s existing
+  `{% if authors %}` guard around the chip picker gained `and not
+  config.ACCOUNTS_ENABLED` — picking an author from a hand-picked list
+  makes no sense once attribution is automatic from the session.
+  `person_editor.html` gained a native `<input type="color">` for
+  `author_color`, shown only in accounts mode.
+- **`app/static/js/editor.js`**: one new line reading the color input into
+  the shared story/person payload builder — no other JS changes needed.
+  The author-chip-picker JS (`author-chips.js`) already treated a missing
+  root element as "no chips" gracefully (empty array, `getSelected()`
+  stays `null`), from before this feature existed, so hiding the chip
+  markup server-side was sufficient on its own; the client keeps sending
+  an empty `author` field harmlessly, and the server ignores it anyway.
+
+Tests: `tests/test_people.py` and `tests/test_family_api.py` gained
+`author_color` round-trip/validation/clear-on-empty-string/malformed-
+frontmatter-tolerance cases, mirroring the existing `gender` ones exactly.
+`tests/test_accounts_authorship.py` (new) covers the actual behavior
+change: creating a story auto-attributes to the logged-in account;
+a spoofed client-submitted `author` is silently overridden; instants get
+the same treatment; editing a story never reassigns its author even when
+a different account holder makes the edit; the timeline legend shows
+account holders with the default color when unset and a person's own
+color once they set one; the chip picker is absent from both the story
+and instant editors in accounts mode; the color picker only appears on
+the person editor in accounts mode; and — the regression guard for
+everything above — F1's picker and validation are completely unaffected
+on an install that never turns `STORYBOOK_ACCOUNTS` on. Manually verified
+end-to-end (Playwright): created a story with no chip picker visible,
+confirmed it auto-attributed to "Papa," set a custom byline color through
+the actual JS-driven person editor (not just the API directly), and
+watched that exact color render on the real timeline's legend and byline.
+
+F19 is now fully built: admin/family accounts, the public request/approve
+queue, delegated write-links, and real per-account authorship superseding
+F1 — all gated behind one `STORYBOOK_ACCOUNTS` flag, every install that
+leaves it unset unaffected by any of it.
