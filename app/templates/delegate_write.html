@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Write for {{ person_name }} — {{ app_title }}{% endblock %}
+{% block body_class %}page-login{% endblock %}
+{% block content %}
+<div class="login">
+  <h1 class="login__title">Write for {{ person_name }}</h1>
+  <p class="login__subtitle">
+    Your story is added straight to their book. You won't see anything
+    else here, and this page won't show it back to you afterward.
+  </p>
+  <form class="login__form" method="post" action="{{ url_for('pages.delegate_write') }}">
+    <label class="login__label" for="delegate-title">Title</label>
+    <input class="login__input" type="text" id="delegate-title" name="title" autofocus required>
+
+    <label class="login__label" for="delegate-date">Date</label>
+    <input class="login__input" type="date" id="delegate-date" name="date" value="{{ today.isoformat() }}" required>
+
+    <label class="login__label" for="delegate-body">Story</label>
+    <textarea class="login__input login__textarea" id="delegate-body" name="markdown" rows="10"></textarea>
+
+    <button class="btn btn--primary login__submit" type="submit">Add this story</button>
+  </form>
+</div>
+{% endblock %}

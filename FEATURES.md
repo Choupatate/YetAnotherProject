@@ -1535,19 +1535,29 @@ see the Phase 2 round below.)
 ## Delegated write-links (Phase 3 — "give access to someone so they write
 for them")
 
-Not built yet; specified here so Phase 1's data model doesn't paint it into
-a corner. A family/admin account holder generates a share-to-write link (a
+A family/admin account holder generates a share-to-write link (a
 `secrets.token_urlsafe` bearer token, stored hashed) from their own account
-page. Opening it sets a session scoped to creating one story attributed to
+page. Opening it sets a session scoped to submitting one story attributed to
 the granting Person — deliberately *not* `session["authed"]`, so it's
-structurally distinct from a real login and can't reach anything but "start
-a story" and "edit a story created through this same link." No username,
-no password, no admin approval — matching "no account access as such"
-literally. Revocable at any time by the person who issued it or by an
-admin. Considered and rejected: a delegate-created sub-login (reads like
-exactly what "no account access as such" rules out), and literally sharing
-one's own login (no audit trail, revoking it logs the owner out of their
-own devices too).
+structurally distinct from a real login and can't reach anything else in the
+app. No username, no password, no admin approval to get one — matching "no
+account access as such" literally. Revocable at any time by the person who
+issued it or by an admin. Considered and rejected: a delegate-created
+sub-login (reads like exactly what "no account access as such" rules out),
+and literally sharing one's own login (no audit trail, revoking it logs the
+owner out of their own devices too).
+
+Two scope trims from the original idea, made for proportionality rather
+than found necessary along the way: **no editing after submission** (a
+multi-use link lets someone come back and write *another new* story, not
+revise a previous one — tracking per-story edit authorization for a
+one-shot contribution is real complexity for a marginal case, and the
+person who granted the link can always fix a typo themselves afterward),
+and **text-only, no photos** (the real editor's photo upload is a
+multi-step JS flow built around a story already having an id to attach
+images to; reusing it for a scoped delegate session was a much bigger lift
+than the rest of Phase 3 combined). Both are easy to revisit later if the
+text-only cameo-contribution case turns out not to be enough.
 
 ## Interaction with existing features
 
@@ -1593,7 +1603,7 @@ own devices too).
 2. **Public request/approve flow** (done) — a "request an account" form
    gated by the shared password as an invite code, a pending queue, admin
    approve/reject binding to a Person.
-3. **Delegated write-links.**
+3. **Delegated write-links** (done).
 4. **F1 retirement path** — `author_color` on Person, `STORYBOOK_AUTHORS`
    deprecation — only once accounts have been live a while.
 
@@ -1721,3 +1731,81 @@ rejected and disappears from the queue.
 
 Not done yet, on purpose: delegated write-links (Phase 3) and F1
 retirement (Phase 4).
+
+---
+
+### Phase 3 implementation round
+
+Built with the two scope trims noted above (no post-submission editing,
+text-only). New standalone module rather than folding into
+`app/accounts.py`: a write-link isn't a credential or an identity, it's a
+capability token with its own lifecycle (expiry, single-use, revocation,
+usage tracking) — different enough in shape to earn its own file.
+
+- **`app/write_links.py`** (new): `WriteLink` dataclass and
+  `create_link`/`list_links`/`get_link`/`revoke_link`/`mark_used`/
+  `find_by_token`/`is_link_valid`/`list_all_active`, stored as
+  `people/<slug>/write_links.json`. Tokens are hashed with plain SHA-256
+  (`hashlib`, not `werkzeug.security`'s slow password hash) — a
+  `secrets.token_urlsafe(32)` token already has ~192 bits of entropy, so a
+  fast deterministic hash is the right tool, the same reasoning GitHub/GitLab
+  use for personal access tokens. Each link also gets its own non-secret
+  `id` (`secrets.token_hex(8)`) used everywhere a link needs to be
+  referenced (revoke URLs, admin lists) so the real bearer token is never
+  echoed back anywhere after the moment it's created.
+- **`app/auth.py`**: new `delegate_required`, parallel to `login_required`/
+  `admin_required` — checks `session["delegate_person_slug"]`/
+  `["delegate_link_id"]` and re-validates the link's status from disk on
+  *every* request (not just at the initial `/w/<token>` hit), so a
+  revoked/expired/used-up link locks out an already-open delegate session
+  immediately, same reasoning as the disabled-account check from Phase 1.
+- **`app/routes_pages.py`**: `/account/write-links` (GET/POST, any logged-in
+  account — create a link, see history, revoke); `/account/write-links/
+  <person_slug>/<link_id>/revoke` (owner or admin only); `/w/<token>`
+  (public — validates and opens a delegate session, `session.clear()`-ing
+  first so a real account holder accidentally opening their own share link
+  can't end up with mixed session state); `/w/write` (delegate-only — the
+  entire delegate experience, one form, no nav out).
+- **`admin_accounts.html`** gained a third section, "Active write-links"
+  (only currently-valid ones — revoked/expired/used links aren't
+  actionable and would just be dashboard noise), so an admin can shut down
+  a link they didn't issue themselves.
+- **Templates**: `account_write_links.html`, `delegate_write.html`,
+  `delegate_thanks.html`, `write_link_invalid.html` — all deliberately
+  thin, no site-nav links out of the delegate ones (they inherit
+  `base.html`'s nav, which already hides every link behind
+  `session.get('authed')`, and a delegate session never sets that, so this
+  needed no special-casing in the shared template).
+- A delegate-created story's `author` field is set to the granting
+  Person's name directly, bypassing F1's `STORYBOOK_AUTHORS`-membership
+  check entirely (that check lives in the `/api/stories` route layer, not
+  in `storage.create_story` itself, and this flow calls the latter
+  directly) — it renders as a plain neutral-color byline if the name isn't
+  a configured F1 author, exactly the graceful fallback F1 already
+  documented for a renamed/removed author.
+
+Tests: `tests/test_write_links.py` (new) — the pure `write_links.py` API:
+round-trip creation, expiry math, `is_link_valid`'s three failure modes
+(revoked/expired/used-up-single-use) versus a multi-use link staying valid
+after one use, `find_by_token` only matching a real token, and
+`list_all_active` excluding everything not currently valid.
+`tests/test_write_link_routes.py` (new) — the full HTTP surface: creating a
+link and seeing its URL exactly once, single-use-checkbox semantics, owner
+and admin revocation, a non-owner family account correctly 404'd trying to
+revoke someone else's link, the `/w/<token>` → `/w/write` handoff, a
+submitted story landing in `storage.list_stories` with the right author, a
+single-use link refusing a second submission (and the token itself going
+dead), a multi-use link accepting a second story, revoking a link locking
+out an already-open delegate session immediately, a delegate session unable
+to reach any real app route, and opening a link clearing a pre-existing
+real login session. Manually verified end-to-end (curl and Playwright,
+screenshots): create a labeled single-use link → open it in a fresh
+browser context → submit a story → it appears correctly on the real
+timeline with the right author byline → re-opening the same link shows
+"isn't valid anymore" → the delegate's nav bar never showed anything but
+the app title, confirming the scoping is structural (inherited from
+`base.html`'s existing `authed` guard) rather than something that had to
+be bolted on per-page.
+
+Not done yet, on purpose: F1 retirement (Phase 4) — `STORYBOOK_AUTHORS`
+and real accounts still coexist, unrelated to each other.

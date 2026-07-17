@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Thank you — {{ app_title }}{% endblock %}
+{% block body_class %}page-login{% endblock %}
+{% block content %}
+<div class="login">
+  <h1 class="login__title">Thank you</h1>
+  <p class="login__subtitle">
+    Your story for {{ person_name }} has been added to the book.
+  </p>
+</div>
+{% endblock %}

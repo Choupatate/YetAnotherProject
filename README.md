@@ -126,6 +126,13 @@ with no admin yet to review it, it auto-approves immediately as admin.
 Disabling an account (from the same page) takes effect immediately, not
 whenever its browser session would otherwise expire.
 
+Any account holder can also generate a **write link** from **Write links**
+in the nav — a one-off URL that lets someone write a single story for
+them without an account of their own (no username, no password, nothing
+else in the book visible to them). Links can be single-use or reusable,
+optionally expire, and are revocable at any time by whoever created them
+or by an admin.
+
 ### Several narrators
 
 Set `STORYBOOK_AUTHORS` (e.g. `"Papa:#d9a441,Maman:#7ba7d9"`) to let more than

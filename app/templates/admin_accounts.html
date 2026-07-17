@@ -47,5 +47,20 @@
     {% endfor %}
   </ul>
   {% endif %}
+  {% if link_rows %}
+  <h2 class="admin__subtitle">Active write-links</h2>
+  <ul class="admin__list">
+    {% for row in link_rows %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ row.person.name if row.person else row.link.person_slug }}</span>
+      <span class="admin__row-username">{{ row.link.label or "(no label)" }}</span>
+      <form method="post"
+            action="{{ url_for('pages.revoke_write_link', person_slug=row.link.person_slug, link_id=row.link.id) }}">
+        <button type="submit" class="btn admin__row-action">Revoke</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
 </div>
 {% endblock %}

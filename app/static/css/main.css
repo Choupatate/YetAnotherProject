@@ -414,6 +414,13 @@ mark {
   color: var(--color-text-dim);
 }
 
+.login__textarea {
+  padding: 0.6rem 0.75rem;
+  min-height: 10rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Timeline page                                                           */
 /* ---------------------------------------------------------------------- */
@@ -1071,6 +1078,14 @@ img.people__portrait {
   border: none;
   padding: 0;
   margin: 0;
+}
+
+.admin__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--color-text);
 }
 
 /* ---------------------------------------------------------------------- */

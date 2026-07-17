@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Link not valid — {{ app_title }}{% endblock %}
+{% block body_class %}page-login{% endblock %}
+{% block content %}
+<div class="login">
+  <h1 class="login__title">{{ app_title }}</h1>
+  <p class="login__subtitle">
+    This link isn't valid anymore — it may have already been used,
+    revoked, or expired. Ask whoever sent it to you for a new one.
+  </p>
+</div>
+{% endblock %}

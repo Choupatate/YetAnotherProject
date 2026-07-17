@@ -1,4 +1,5 @@
-"""Login/logout and the @login_required / @admin_required decorators.
+"""Login/logout and the @login_required / @admin_required /
+@delegate_required decorators.
 
 Two modes, selected by STORYBOOK_ACCOUNTS (FEATURES.md F19):
 
@@ -8,6 +9,13 @@ Two modes, selected by STORYBOOK_ACCOUNTS (FEATURES.md F19):
   admin role. STORYBOOK_PASSWORD never logs anyone in here — once accounts
   mode is on, it's only the invite code required on pages.request_account,
   and the very first submitted request auto-approves as admin (see there).
+
+A third, much narrower kind of session exists alongside those two: a
+delegate session (Phase 3 write-links, app/write_links.py), opened by
+visiting a bearer-token link a real account holder issued. It never sets
+session["authed"], so login_required rejects it exactly like a logged-out
+visitor — it only unlocks the handful of routes gated by
+@delegate_required instead.
 """
 
 import hmac
@@ -26,7 +34,7 @@ from flask import (
     url_for,
 )
 
-from . import accounts, storage
+from . import accounts, storage, write_links
 
 bp = Blueprint("auth", __name__)
 
@@ -66,6 +74,26 @@ def admin_required(view):
         return view(*args, **kwargs)
 
     return login_required(wrapped_view)
+
+
+def delegate_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        person_slug = session.get("delegate_person_slug")
+        link_id = session.get("delegate_link_id")
+        if not person_slug or not link_id:
+            abort(404)
+        people_dir = storage.people_dir(current_app.config["STORIES_DIR"])
+        link = write_links.get_link(people_dir, person_slug, link_id)
+        if link is None or not write_links.is_link_valid(link):
+            # Re-checked every request, same reasoning as login_required's
+            # disabled-account check: a revoked/expired/used-up link must
+            # stop working immediately, not just refuse new /w/<token> hits.
+            session.clear()
+            abort(404)
+        return view(*args, **kwargs)
+
+    return wrapped_view
 
 
 @bp.route("/login", methods=["GET", "POST"])
