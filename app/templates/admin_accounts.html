@@ -42,6 +42,20 @@
         </select>
         <button type="submit" class="btn admin__row-action">Set</button>
       </form>
+      {% if unbound_people %}
+      <form class="admin__row-role-form" method="post"
+            action="{{ url_for('pages.admin_set_account_person', person_slug=row.account.person_slug) }}">
+        <select class="login__input" name="target_person_slug">
+          <option value="{{ row.account.person_slug }}" selected>
+            {{ row.person.name if row.person else row.account.person_slug }} (current)
+          </option>
+          {% for p in unbound_people %}
+          <option value="{{ p.slug }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn admin__row-action">Link</button>
+      </form>
+      {% endif %}
       <a class="btn admin__row-action"
          href="{{ url_for('pages.admin_reset_password', person_slug=row.account.person_slug) }}">Reset password</a>
       {% if row.account.status == 'active' %}

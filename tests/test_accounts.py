@@ -186,6 +186,51 @@ def test_set_role_rejects_unknown_person(people_dir):
         accounts.set_role(people_dir, "nobody", "admin")
 
 
+def test_set_person_moves_account_json_and_leaves_old_person_unbound(people_dir):
+    duplicate = people.create_person(people_dir, "Papa (new)")
+    real = people.create_person(people_dir, "Papa")
+    account = accounts.create_account(people_dir, duplicate, "papa", "hunter22", "admin")
+
+    accounts.set_person(people_dir, duplicate, real)
+
+    assert accounts.get_account(people_dir, duplicate) is None
+    moved = accounts.get_account(people_dir, real)
+    assert moved is not None
+    assert moved.person_slug == real
+    assert moved.username == account.username
+    assert moved.role == account.role
+    assert moved.password_hash == account.password_hash
+
+
+def test_set_person_is_a_noop_for_the_same_slug(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    accounts.set_person(people_dir, papa, papa)
+    assert accounts.get_account(people_dir, papa).username == "papa"
+
+
+def test_set_person_rejects_a_target_that_already_has_an_account(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    maman = people.create_person(people_dir, "Maman")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    accounts.create_account(people_dir, maman, "maman", "hunter22", "family")
+
+    with pytest.raises(ValueError):
+        accounts.set_person(people_dir, papa, maman)
+    assert accounts.get_account(people_dir, papa).username == "papa"
+    assert accounts.get_account(people_dir, maman).username == "maman"
+
+
+def test_set_person_rejects_unknown_slugs(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+
+    with pytest.raises(FileNotFoundError):
+        accounts.set_person(people_dir, papa, "nobody")
+    with pytest.raises(FileNotFoundError):
+        accounts.set_person(people_dir, "nobody", papa)
+
+
 def test_set_password_changes_hash_and_bumps_session_version(people_dir):
     papa = people.create_person(people_dir, "Papa")
     account = accounts.create_account(people_dir, papa, "papa", "hunter22", "family")

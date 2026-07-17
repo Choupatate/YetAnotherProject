@@ -1955,3 +1955,51 @@ form and confirmed the session survived; promoted a family account to
 admin, demoted the original admin now that a second one existed, then
 attempted to demote the last remaining admin and watched the guard
 message render correctly instead of crashing.
+
+### Follow-up round: re-link an account to a different person
+
+A gap surfaced by real deployment, not by design review: `/request-account`
+auto-approves the very first submitted request as admin, and since there's
+no admin yet at that point to pick from the family, it always binds the
+new account to a brand-new Person built from the display name
+(`request_account`'s `new_person_name=pending.display_name`) — even when
+the real family member already had a Person page from before accounts
+were turned on. Result: a duplicate Person, with no way to fix it short of
+hand-editing `account.json`.
+
+- **`app/accounts.py`**: `set_person(people_dir, person_slug,
+  new_person_slug)` moves an account's `account.json` from one Person's
+  folder to another's — `account.person_slug` is reassigned and the file
+  rewritten at the new path via the existing `_write_account`, then the
+  old path is unlinked. Deliberately never deletes the old Person itself
+  (this app has no person-deletion machinery anywhere, by design — see
+  the "book, not blog" restraint in `CLAUDE.md`); it's simply left
+  unbound afterward, same as any family member who never gets an
+  account. Raises `FileNotFoundError` for an unknown source/target slug,
+  `ValueError` if the target Person already has its own account, and is
+  a no-op when the two slugs match.
+- **`app/routes_pages.py`**: `admin_accounts()` now also collects
+  `unbound_people` (Persons with no `account.json`); new
+  `/admin/accounts/<slug>/link-person` (admin-only, POST) calls
+  `set_person` and flashes on error, matching every other admin account
+  action's error-handling shape. If the account being re-linked is the
+  *current* session's own account (true for the common case — the
+  bootstrap admin fixing their own duplicate), it updates
+  `session["person_slug"]` in place so the session doesn't keep pointing
+  at the stale Person until the next login; unlike a password change,
+  nothing else about the session (role, username, session_version)
+  changes, so a full `set_session_for_account()` reset isn't needed here.
+- **`app/templates/admin_accounts.html`**: each account row gets a second
+  inline form (visible only when at least one unbound Person exists) — a
+  `<select>` defaulted to the currently-linked Person plus every unbound
+  Person as alternatives, and a "Link" button.
+
+Tests: `tests/test_accounts.py` covers `set_person` moving the file
+correctly, the same-slug no-op, rejecting a target that already has an
+account, and rejecting unknown slugs. `tests/test_account_self_service.py`
+covers the route: an admin re-linking their own just-bootstrapped account
+onto a pre-existing Person (the motivating scenario, reproduced end-to-end:
+bootstrap, create a second "real" Person, re-link, confirm the old
+duplicate has no account and the new Person does, and the session stays
+logged in against the new Person), the already-has-an-account rejection,
+and non-admins 404ing.

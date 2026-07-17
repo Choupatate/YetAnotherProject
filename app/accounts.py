@@ -243,6 +243,37 @@ def set_role(people_dir, person_slug: str, role: str) -> None:
     _write_account(people_dir, account)
 
 
+def set_person(people_dir, person_slug: str, new_person_slug: str) -> None:
+    """Re-bind an existing account to a different Person — for the common
+    case where an account ended up attached to the wrong Person (most
+    often the very first account: it auto-approves with no admin yet
+    around to pick from the family, so it always creates a brand-new
+    Person from the display name, even when the real family member
+    already existed). Moves account.json from the old Person's folder to
+    the new one's; the old Person is left in place, just unbound, exactly
+    like any other family member with no login — this never deletes a
+    Person, matching the app's no-deletion stance elsewhere.
+
+    Raises FileNotFoundError if either slug isn't real; ValueError if the
+    target Person already has an account of its own. A no-op if the two
+    slugs are the same.
+    """
+    people_dir = Path(people_dir)
+    account = get_account(people_dir, person_slug)
+    if account is None:
+        raise FileNotFoundError(person_slug)
+    if not (people_dir / new_person_slug).is_dir():
+        raise FileNotFoundError(new_person_slug)
+    if new_person_slug == person_slug:
+        return
+    if get_account(people_dir, new_person_slug) is not None:
+        raise ValueError("That family member already has an account.")
+
+    account.person_slug = new_person_slug
+    _write_account(people_dir, account)
+    _account_path(people_dir, person_slug).unlink(missing_ok=True)
+
+
 def set_password(people_dir, person_slug: str, new_password: str) -> None:
     """Set a new password, bumping session_version so every other
     already-open session for this account is invalidated on its next

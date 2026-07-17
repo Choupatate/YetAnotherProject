@@ -562,6 +562,7 @@ def admin_accounts():
     stories_dir = current_app.config["STORIES_DIR"]
     people_dir = storage.people_dir(stories_dir)
     people_by_slug = {p.slug: p for p in people.list_people(people_dir)}
+    unbound_people = [p for p in people_by_slug.values() if accounts.get_account(people_dir, p.slug) is None]
     rows = [
         {"account": a, "person": people_by_slug.get(a.person_slug)}
         for a in accounts.list_accounts(people_dir)
@@ -572,7 +573,7 @@ def admin_accounts():
     ]
     return render_template(
         "admin_accounts.html", rows=rows, pending=accounts.list_pending(stories_dir),
-        link_rows=link_rows, roles=accounts.ROLES,
+        link_rows=link_rows, roles=accounts.ROLES, unbound_people=unbound_people,
     )
 
 
@@ -601,6 +602,25 @@ def admin_set_role(person_slug):
         accounts.set_role(_people_dir(), person_slug, role)
     except (ValueError, FileNotFoundError) as exc:
         flash(str(exc), "error")
+    return redirect(url_for("pages.admin_accounts"))
+
+
+@bp.route("/admin/accounts/<person_slug>/link-person", methods=["POST"])
+@admin_required
+def admin_set_account_person(person_slug):
+    """Re-bind an account to a different (unbound) Person — the fix for an
+    account that ended up attached to the wrong Person, most commonly the
+    very first account auto-creating a brand-new Person instead of
+    reusing one that already existed (see accounts.set_person)."""
+    target_slug = request.form.get("target_person_slug") or ""
+    people_dir = _people_dir()
+    try:
+        accounts.set_person(people_dir, person_slug, target_slug)
+    except (ValueError, FileNotFoundError) as exc:
+        flash(str(exc), "error")
+    else:
+        if session.get("person_slug") == person_slug:
+            session["person_slug"] = target_slug
     return redirect(url_for("pages.admin_accounts"))
 
 

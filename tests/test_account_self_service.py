@@ -244,6 +244,61 @@ def test_disabling_the_only_admin_fails_gracefully_not_a_500(accounts_client, ac
     assert b"only remaining admin" in resp.data
 
 
+# --- admin re-link account to a different person -------------------------------
+
+
+def test_admin_can_relink_account_to_a_different_person(accounts_client, accounts_app):
+    """The scenario that motivated this: the very first account auto-approves
+    with no admin around to pick from the family, so it always creates a
+    brand-new Person from the display name — even when the real person
+    already existed, leaving a duplicate. This is the fix."""
+    _bootstrap_admin(accounts_client)
+    _login(accounts_client, "papa", "hunter22")
+    papa_account = accounts.get_account_by_username(_people_dir(accounts_app), "papa")
+    duplicate_slug = papa_account.person_slug
+
+    from app import people as people_module
+    real_slug = people_module.create_person(_people_dir(accounts_app), "Papa")
+
+    resp = accounts_client.post(
+        f"/admin/accounts/{duplicate_slug}/link-person",
+        data={"target_person_slug": real_slug},
+    )
+    assert resp.status_code == 302
+    assert accounts.get_account(_people_dir(accounts_app), duplicate_slug) is None
+    relinked = accounts.get_account(_people_dir(accounts_app), real_slug)
+    assert relinked is not None
+    assert relinked.username == "papa"
+
+    # The session that made the change stays logged in, now pointing at the
+    # newly-linked person rather than the stale duplicate.
+    resp = accounts_client.get("/account")
+    assert resp.status_code == 200
+
+
+def test_admin_relink_rejects_a_person_that_already_has_an_account(accounts_client, accounts_app):
+    _bootstrap_admin(accounts_client)
+    _login(accounts_client, "papa", "hunter22")
+    papa_account = accounts.get_account_by_username(_people_dir(accounts_app), "papa")
+    maman_slug = _create_family_account(accounts_app, "maman", "hunter22")
+
+    resp = accounts_client.post(
+        f"/admin/accounts/{papa_account.person_slug}/link-person",
+        data={"target_person_slug": maman_slug},
+        follow_redirects=True,
+    )
+    assert b"already has an account" in resp.data
+    assert accounts.get_account(_people_dir(accounts_app), papa_account.person_slug) is not None
+
+
+def test_non_admin_gets_404_relinking_account(accounts_client, accounts_app):
+    _bootstrap_admin(accounts_client)
+    slug = _create_family_account(accounts_app, "maman", "hunter22")
+    _login(accounts_client, "maman", "hunter22")
+    resp = accounts_client.post(f"/admin/accounts/{slug}/link-person", data={"target_person_slug": slug})
+    assert resp.status_code == 404
+
+
 def test_non_admin_gets_404_changing_role(accounts_client, accounts_app):
     _bootstrap_admin(accounts_client)
     slug = _create_family_account(accounts_app, "maman", "hunter22")
