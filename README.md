@@ -121,7 +121,11 @@ binding it to an existing family member or creating a new one on the
 spot, with an admin or family role — or rejects it. Admins can also create
 an account directly, skipping the request queue, for a family member who
 won't submit their own. The very first request ever submitted is special:
-with no admin yet to review it, it auto-approves immediately as admin.
+with no admin yet to review it, it auto-approves immediately as admin,
+bound to a brand-new person page built from the display name — if that
+duplicates a person who already existed, an admin can re-link the account
+to the existing person page from **Accounts** at any time, leaving the
+duplicate in place but unbound rather than deleting anything.
 
 Disabling an account, resetting its password, or changing its role (from
 the same page) all take effect immediately, not whenever its browser
