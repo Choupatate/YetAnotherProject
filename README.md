@@ -100,6 +100,28 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
 | `STORYBOOK_TITLE` | Optional. The app's display name — nav, page titles, install manifest, book cover. Defaults to `Storybook`. |
 | `STORYBOOK_CHILD` | Optional. The slug of the person page the family tree's kinship labels are computed relative to (see below). Unset by default. |
+| `STORYBOOK_ACCOUNTS` | Optional. Set to `1` for per-person username/password accounts with an admin role, instead of one shared password (see below). Unset by default. |
+
+### Family accounts (optional, off by default)
+
+Set `STORYBOOK_ACCOUNTS=1` to replace the one-shared-password login with
+real per-person accounts: an **admin** role that creates accounts and
+binds each one to a family member's person page, and a **family** role
+that can read/write the whole book like today, plus manage its own
+password. Leaving it unset keeps the app exactly as it's always been —
+this is additive, not a replacement, for families who don't need it.
+
+The very first account is special: with accounts on and none created yet,
+the login page falls back to `STORYBOOK_PASSWORD` one last time, purely to
+create that first admin account. Once it exists, the shared password
+stops working as a login entirely — everyone logs in with their own
+username and password from then on. There's no self-service signup in
+this phase; an admin creates every account directly from **Accounts** in
+the nav (visible to admins only), either binding it to an existing person
+or creating a new one on the spot.
+
+Disabling an account (from the same page) takes effect immediately, not
+whenever its browser session would otherwise expire.
 
 ### Several narrators
 

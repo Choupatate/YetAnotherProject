@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Accounts — {{ app_title }}{% endblock %}
+{% block body_class %}page-admin{% endblock %}
+{% block content %}
+<div class="admin">
+  <p class="admin__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <div class="admin__header">
+    <h1 class="admin__title">Accounts</h1>
+    <a class="btn btn--new" href="{{ url_for('pages.admin_new_account') }}">+ New account</a>
+  </div>
+  {% if not rows %}
+  <p class="admin__empty">No accounts yet.</p>
+  {% else %}
+  <ul class="admin__list">
+    {% for row in rows %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ row.person.name if row.person else row.account.person_slug }}</span>
+      <span class="admin__row-username">{{ row.account.username }}</span>
+      <span class="admin__row-role">{{ row.account.role }}</span>
+      <span class="admin__row-status admin__row-status--{{ row.account.status }}">{{ row.account.status }}</span>
+      {% if row.account.status == 'active' %}
+      <form method="post" action="{{ url_for('pages.admin_disable_account', person_slug=row.account.person_slug) }}">
+        <button type="submit" class="btn admin__row-action">Disable</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('pages.admin_enable_account', person_slug=row.account.person_slug) }}">
+        <button type="submit" class="btn admin__row-action">Enable</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

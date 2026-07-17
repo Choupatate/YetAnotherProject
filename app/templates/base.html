@@ -34,6 +34,9 @@ document.documentElement.classList.add("js");
   {% if session.get('authed') %}
   <div class="site-nav__actions">
     <a class="site-nav__link" href="{{ url_for('pages.people_page') }}">People</a>
+    {% if config.ACCOUNTS_ENABLED and session.get('role') == 'admin' %}
+    <a class="site-nav__link" href="{{ url_for('pages.admin_accounts') }}">Accounts</a>
+    {% endif %}
     <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>
     <a class="btn btn--instant" href="{{ url_for('pages.new_instant') }}">+ Instant</a>
   </div>

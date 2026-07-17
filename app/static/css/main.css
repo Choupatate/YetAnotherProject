@@ -966,6 +966,102 @@ img.people__portrait {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Admin: accounts (F19)                                                   */
+/* ---------------------------------------------------------------------- */
+
+.admin {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.admin__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.admin__title {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  margin: 0;
+}
+
+.admin__hint {
+  color: var(--color-text-dim);
+}
+
+.admin__empty {
+  color: var(--color-text-dim);
+}
+
+.admin__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-bg-raised);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+}
+
+.admin__row-name {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.admin__row-username,
+.admin__row-role {
+  color: var(--color-text-dim);
+  font-size: 0.8125rem;
+}
+
+.admin__row-status {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.admin__row-status--disabled {
+  color: var(--color-error);
+}
+
+.admin__row-action {
+  min-height: 36px;
+  padding: 0 0.75rem;
+}
+
+.admin__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin__field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------- */
 /* Import page                                                             */
 /* ---------------------------------------------------------------------- */
 

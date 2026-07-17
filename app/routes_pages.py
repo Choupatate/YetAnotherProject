@@ -7,17 +7,19 @@ from flask import (
     Blueprint,
     abort,
     current_app,
+    flash,
     jsonify,
     redirect,
     render_template,
     request,
     send_file,
     send_from_directory,
+    session,
     url_for,
 )
 
-from . import epub, kinship, people, prompts, storage
-from .auth import login_required
+from . import accounts, epub, kinship, people, prompts, storage
+from .auth import admin_required, login_required
 from .rendering import render_markdown
 
 bp = Blueprint("pages", __name__)
@@ -476,4 +478,85 @@ def edit_person(slug):
     p = _get_person_or_404(_people_dir(), slug)
     return render_template(
         "person_editor.html", person=p, other_people=_other_people_refs(exclude_slug=slug)
+    )
+
+
+@bp.route("/admin/accounts")
+@admin_required
+def admin_accounts():
+    people_dir = _people_dir()
+    people_by_slug = {p.slug: p for p in people.list_people(people_dir)}
+    rows = [
+        {"account": a, "person": people_by_slug.get(a.person_slug)}
+        for a in accounts.list_accounts(people_dir)
+    ]
+    return render_template("admin_accounts.html", rows=rows)
+
+
+@bp.route("/admin/accounts/<person_slug>/disable", methods=["POST"])
+@admin_required
+def admin_disable_account(person_slug):
+    accounts.set_status(_people_dir(), person_slug, "disabled")
+    return redirect(url_for("pages.admin_accounts"))
+
+
+@bp.route("/admin/accounts/<person_slug>/enable", methods=["POST"])
+@admin_required
+def admin_enable_account(person_slug):
+    accounts.set_status(_people_dir(), person_slug, "active")
+    return redirect(url_for("pages.admin_accounts"))
+
+
+@bp.route("/admin/accounts/new", methods=["GET", "POST"])
+@admin_required
+def admin_new_account():
+    """Admin-direct account creation (FEATURES.md F19 Phase 1) — no public
+    request form yet, so this is also the page a bootstrap admin session
+    lands on to create the very first real account (see auth.login)."""
+    people_dir = _people_dir()
+    is_bootstrap = not session.get("account_username")
+    unbound_people = [
+        p for p in people.list_people(people_dir) if accounts.get_account(people_dir, p.slug) is None
+    ]
+
+    if request.method == "POST":
+        person_slug = request.form.get("person_slug") or None
+        new_person_name = (request.form.get("new_person_name") or "").strip()
+        username = (request.form.get("username") or "").strip().lower()
+        password = request.form.get("password") or ""
+        role = "admin" if is_bootstrap else (request.form.get("role") or "family")
+
+        error = None
+        if role not in accounts.ROLES:
+            error = "Invalid role."
+        elif not person_slug and not new_person_name:
+            error = "Pick an existing family member, or enter a name for a new one."
+        elif person_slug and person_slug not in {p.slug for p in unbound_people}:
+            error = "That family member already has an account."
+
+        account = None
+        if error is None:
+            if not person_slug:
+                person_slug = people.create_person(people_dir, new_person_name)
+            try:
+                account = accounts.create_account(
+                    people_dir, person_slug, username, password, role,
+                    approved_by=session.get("account_username"),
+                )
+            except (ValueError, FileNotFoundError) as exc:
+                error = str(exc)
+
+        if error:
+            flash(error, "error")
+        elif is_bootstrap:
+            session["account_username"] = account.username
+            session["person_slug"] = account.person_slug
+            session["role"] = account.role
+            return redirect(url_for("pages.timeline"))
+        else:
+            return redirect(url_for("pages.admin_accounts"))
+
+    return render_template(
+        "admin_new_account.html", unbound_people=unbound_people, is_bootstrap=is_bootstrap,
+        roles=accounts.ROLES,
     )

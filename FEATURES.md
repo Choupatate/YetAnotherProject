@@ -1416,3 +1416,235 @@ cover-thumbnail URL assertion; `tests/test_family_pages.py`'s family-thumb
 test updated to expect the `.thumb.` URL; `tests/test_rendering.py`
 gained a test that repeated calls with different `media_base` values
 never leak into each other now that the parser is reused.
+
+---
+
+# Feature spec — F19: family accounts, admin approval, delegated writing
+
+Multi-user accounts is one of the items README's "Ideas for later" lists as
+deliberately out of scope, "if any of these become worth doing, they belong
+here first, not as a surprise addition." This is that discussion, written up
+before implementation the way F1 was. Same ground rule as F1: no accounts
+system should make this feel less like a book and more like a web app with
+users — restraint over features, still no comments/reactions/search/tags,
+still one shared timeline, still plain files on disk, nothing here changes
+that.
+
+## Why this is a bigger deal than it sounds, and how the design resolves it
+
+Storybook's whole design rests on: no database, one trust level, one shared
+password, "book not blog." Real accounts pull against all three. That's not
+a reason to avoid it, but it means the design should be the least new
+machinery that satisfies the actual requirement, not a generic auth system
+bolted on. Three choices carry that principle through the whole feature:
+
+1. **Fully opt-in, off by default**, gated by `STORYBOOK_ACCOUNTS` — same
+   pattern as `STORYBOOK_AUTHORS`/`STORYBOOK_BIRTHDATE`. A family that wants
+   the one-shared-password simplicity forever just never sets it, and
+   nothing about their install changes, ever.
+2. **An account is not a new identity system — it's a login bolted onto an
+   existing Person.** `people.py` already models "the cast of the book."
+   Every account (admin or family) is required to bind to a Person, so "who
+   can log in" and "who this book is about" stay the same graph instead of
+   becoming two things an admin has to keep in sync.
+3. **Still no database.** Credentials live in plain files under `stories/`,
+   same as everything else — readable, backed up with everything else,
+   survives the app being deleted. (A password hash is safe to sit in a
+   plain file; the plaintext never is.)
+
+## Roles
+
+| Role | Bound to a Person? | Can do |
+|---|---|---|
+| **Admin** | Yes, always | Everything Family can do, plus: create accounts, bind them to a Person (existing or new), disable/re-enable accounts |
+| **Family** | Yes, always | Full read/write on the whole timeline/tree/book — unchanged from today's single-password trust model, not a permissions system; manage their own password; (Phase 3) create/revoke their own delegated write-links |
+| **Delegate** (Phase 3, write-link) | No — scoped to whoever granted the link | Submit one new story, attributed to the granting Person. Nothing else. |
+
+Admin isn't a separate kind of identity, it's a capability flag on a
+Person-bound account — in practice the person who deploys the app approves
+themselves as the first admin and usually also writes stories.
+
+**Permissions decision, stated explicitly since it's a values call and not
+derivable from anything above:** once someone has an approved Family
+account, they can edit/delete *any* story, exactly like today. The account
+system answers who gets in the door and how they're attributed, not who can
+touch what once they're in — a permission-walled model would be a bigger,
+more blog-like feature than anything else in this app.
+
+## Data model
+
+`app/accounts.py`, same shape as `people.py`: pure functions taking the
+people directory as their first argument, no hidden state.
+
+```
+stories/
+  people/
+    papa/
+      index.md          # existing Person file, untouched
+      account.json       # only exists if papa has an account
+    milo/
+      index.md            # a Person with no account.json is just a person —
+                           # most people in the book never log in
+```
+
+Credentials live in a sibling file, not new `index.md` frontmatter keys:
+`index.md` is read by every page render, kinship walk, and tree JSON build,
+so keeping the password hash out of it shrinks the blast radius of any
+future bug that logs or dumps a `Person`. Plain JSON, not YAML: this is
+small structured data with no prose body, and stdlib `json` avoids leaning
+on python-frontmatter's transitive PyYAML dependency for something new.
+Hashing is `werkzeug.security` (`generate_password_hash`/
+`check_password_hash`) — already installed transitively via Flask, so this
+is one dependency avoided, not added.
+
+```json
+{
+  "username": "papa",
+  "password_hash": "scrypt:...",
+  "role": "admin",
+  "status": "active",
+  "created_at": "2026-07-20T18:32:00",
+  "approved_by": null
+}
+```
+
+## Authentication & sessions
+
+`auth.login()` grows a second mode selected by `STORYBOOK_ACCOUNTS`. Off:
+untouched, single shared password. On: username+password, verified via
+`accounts.verify_login`, setting `session["account_username"]`,
+`session["person_slug"]`, `session["role"]`.
+
+`login_required` re-checks the account's `status` from disk on every
+request when accounts mode is on, rather than trusting the session cookie
+alone — sessions here are client-signed with no server-side store, so a
+disabled account must lock out immediately, not whenever its 90-day cookie
+happens to expire. `admin_required` layers a role check on top.
+
+**Bootstrap:** the first account has no admin to create it. While accounts
+mode is on and zero accounts exist yet, `STORYBOOK_PASSWORD` still logs in
+— as a one-time bootstrap admin session — landing on the account-creation
+page so that first real account can be made. The moment it exists, the
+shared password stops working as a login at all; only individual accounts
+can log in from then on. This needed no separate bootstrap env var:
+already knowing the shared password is already the proof-of-ownership the
+app needs.
+
+## Delegated write-links (Phase 3 — "give access to someone so they write
+for them")
+
+Not built yet; specified here so Phase 1's data model doesn't paint it into
+a corner. A family/admin account holder generates a share-to-write link (a
+`secrets.token_urlsafe` bearer token, stored hashed) from their own account
+page. Opening it sets a session scoped to creating one story attributed to
+the granting Person — deliberately *not* `session["authed"]`, so it's
+structurally distinct from a real login and can't reach anything but "start
+a story" and "edit a story created through this same link." No username,
+no password, no admin approval — matching "no account access as such"
+literally. Revocable at any time by the person who issued it or by an
+admin. Considered and rejected: a delegate-created sub-login (reads like
+exactly what "no account access as such" rules out), and literally sharing
+one's own login (no audit trail, revoking it logs the owner out of their
+own devices too).
+
+## Interaction with existing features
+
+- **F1 Authors** (`STORYBOOK_AUTHORS`) is untouched in Phase 1 — accounts
+  and F1 are orthogonal right now, both can be on at once. Phase 4 proposes
+  retiring F1 once accounts have been live a while: an account's bound
+  Person becomes the author directly (gaining an `author_color` field to
+  replace the env-config color), removing a second parallel attribution
+  system now that real identity exists. Not done yet, and not required —
+  an install can run F19 forever without ever touching F1.
+- **F14 People / F18 kinship-tree**: no changes. Accounts are additive
+  metadata on Persons that already exist; `kinship.py`, `tree.js`, and the
+  family-chart rendering stay completely account-unaware.
+- Existing installs: with `STORYBOOK_ACCOUNTS` unset, zero behavior change,
+  zero migration required, `story.author` strings keep rendering exactly as
+  they do today.
+
+## Security checklist
+
+- `hmac.compare_digest` for the shared/bootstrap password (already the
+  pattern), `check_password_hash`'s constant-time comparison for account
+  passwords.
+- `verify_login` hashes a dummy password on an unknown-username lookup so
+  that path costs roughly the same CPU time as a real check, keeping
+  username validity untimeable.
+- Failed logins keep the existing `time.sleep(1)` throttle; a per-account
+  lockout counter is a reasonable future addition but deliberately not a
+  dependency like Flask-Limiter — one household, not internet scale.
+- State-changing routes (create/disable account) are POST-only, relying on
+  the existing `SESSION_COOKIE_SAMESITE="Lax"` — this app has no CSRF
+  tokens anywhere today and F19 doesn't introduce a token system just for
+  itself, but the stakes of a gap are higher now (CSRF could create/disable
+  an account, not just re-submit an already-known password), worth
+  revisiting if a request-based public flow (Phase 2) ships.
+- Usernames are validated against a strict allowlist (`^[a-z0-9-]{3,32}$`),
+  same spirit as `storage.is_valid_story_id`.
+
+## Phasing
+
+1. **Data model + `app/accounts.py` + admin/family login** (this round).
+   No public request flow yet — an admin creates every account directly,
+   for dogfooding.
+2. **Public request/approve flow** — a "request an account" form gated by
+   the shared password as an invite code, a pending queue, admin
+   approve/reject binding to a Person.
+3. **Delegated write-links.**
+4. **F1 retirement path** — `author_color` on Person, `STORYBOOK_AUTHORS`
+   deprecation — only once accounts have been live a while.
+
+---
+
+### Phase 1 implementation round
+
+Built exactly as specified above, feature-flagged behind
+`STORYBOOK_ACCOUNTS` (default off — every existing test and install is
+unaffected; the whole suite passes with the flag never set).
+
+- **`app/accounts.py`** (new): `Account` dataclass, `create_account`,
+  `get_account`/`get_account_by_username`, `list_accounts`,
+  `any_accounts_exist`, `is_username_taken`/`is_valid_username`,
+  `set_status`, `verify_login` — as specified, JSON sibling files under
+  `people/<slug>/account.json`.
+- **`app/auth.py`**: `login()` branches on `ACCOUNTS_ENABLED` and whether
+  any account exists yet (bootstrap); `login_required` re-validates account
+  status from disk each request when accounts mode is on; new
+  `admin_required` (404s a non-admin rather than revealing the admin
+  section exists, consistent with this app having no 403 pattern anywhere
+  else).
+- **`app/routes_pages.py`**: `/admin/accounts` (list, admin-only),
+  `/admin/accounts/new` (GET/POST — also the bootstrap admin's landing
+  page; creating an account while bootstrapped upgrades the current
+  session in place rather than requiring a second login),
+  `/admin/accounts/<slug>/disable` and `/enable`.
+- **Templates**: `login.html` grows a conditional username field (bootstrap
+  mode shows the old password-only form with an explanatory note); new
+  `admin_accounts.html` (list + enable/disable) and
+  `admin_new_account.html` (bind to an existing unbound Person or create a
+  new one, username/password/role); `base.html` nav gains an "Accounts"
+  link, visible only to a logged-in admin when accounts mode is on.
+- **`app/__init__.py`**: `STORYBOOK_ACCOUNTS=1` → `config["ACCOUNTS_ENABLED"]`,
+  same fail-open pattern as the other optional `STORYBOOK_*` vars (no value
+  is a hard requirement, no startup `RuntimeError` path needed since there's
+  nothing to parse/validate at boot, unlike `STORYBOOK_AUTHORS`/
+  `STORYBOOK_BIRTHDATE`).
+
+Tests: `tests/test_accounts.py` (new) — the pure `app/accounts.py` API:
+round-trip creation, username validation/lowercasing/uniqueness, password
+length, disable/enable, `verify_login` for correct/wrong/unknown/disabled.
+`tests/test_account_auth.py` (new) — the full HTTP flow: bootstrap login,
+first-admin creation, shared password retiring afterward, family-account
+login, 404 on admin routes for non-admins and for logged-out visitors,
+binding to an existing unbound Person vs. creating a new one, duplicate-
+username/no-person-selected validation errors, and the immediate-lockout
+behavior (an already-active session is redirected to `/login` on its very
+next request after an admin disables it, not after its cookie expires).
+Manually verified end-to-end over HTTP (curl, a fresh `STORYBOOK_ACCOUNTS=1`
+install): bootstrap → first admin → second (family) account → role-gating
+→ disable → immediate lockout → re-login refused while disabled, all
+matching the automated tests.
+
+Not done yet, on purpose: the public request/approve flow (Phase 2),
+delegated write-links (Phase 3), and F1 retirement (Phase 4).
