@@ -1044,8 +1044,7 @@ img.people__portrait {
   margin-right: auto;
 }
 
-.admin__row-username,
-.admin__row-role {
+.admin__row-username {
   color: var(--color-text-dim);
   font-size: 0.8125rem;
 }
@@ -1063,6 +1062,17 @@ img.people__portrait {
 .admin__row-action {
   min-height: 36px;
   padding: 0 0.75rem;
+}
+
+.admin__row-role-form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin__row-role-form select {
+  min-height: 36px;
+  padding: 0 0.5rem;
 }
 
 .admin__form {

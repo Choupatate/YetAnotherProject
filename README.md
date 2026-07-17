@@ -123,11 +123,17 @@ an account directly, skipping the request queue, for a family member who
 won't submit their own. The very first request ever submitted is special:
 with no admin yet to review it, it auto-approves immediately as admin.
 
-Disabling an account (from the same page) takes effect immediately, not
-whenever its browser session would otherwise expire.
+Disabling an account, resetting its password, or changing its role (from
+the same page) all take effect immediately, not whenever its browser
+session would otherwise expire — and there's always at least one admin
+left standing: demoting or disabling the last one is refused rather than
+locking everyone out. Every account holder can change their own password
+from **Account** in the nav, which also logs out any other device they're
+signed into; there's no email in this app, so if someone forgets their
+password an admin resetting it from **Accounts** is the only way back in.
 
-Any account holder can also generate a **write link** from **Write links**
-in the nav — a one-off URL that lets someone write a single story for
+Any account holder can also generate a **write link** from **Account** →
+**Write links** — a one-off URL that lets someone write a single story for
 them without an account of their own (no username, no password, nothing
 else in the book visible to them). Links can be single-use or reusable,
 optionally expire, and are revocable at any time by whoever created them

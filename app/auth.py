@@ -46,6 +46,20 @@ def _safe_next_url(next_url):
     return next_url
 
 
+def set_session_for_account(account):
+    """Populate a fresh session for a real (non-delegate) account — shared
+    by login() and any route that changes the current user's own password
+    (which bumps session_version and would otherwise immediately lock the
+    very session that just requested the change)."""
+    session.clear()
+    session["authed"] = True
+    session["account_username"] = account.username
+    session["person_slug"] = account.person_slug
+    session["role"] = account.role
+    session["session_version"] = account.session_version
+    session.permanent = True
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -53,12 +67,16 @@ def login_required(view):
             return redirect(url_for("auth.login", next=request.path))
         if current_app.config["ACCOUNTS_ENABLED"] and session.get("account_username"):
             # Sessions are client-signed cookies with no server-side store,
-            # so a disabled account must be re-checked on every request to
-            # take effect immediately rather than whenever its 90-day
-            # cookie happens to expire.
+            # so a disabled account, or one whose password just changed,
+            # must be re-checked on every request to take effect
+            # immediately rather than whenever its 90-day cookie expires.
             people_dir = storage.people_dir(current_app.config["STORIES_DIR"])
             account = accounts.get_account_by_username(people_dir, session["account_username"])
-            if account is None or account.status != "active":
+            if (
+                account is None
+                or account.status != "active"
+                or session.get("session_version") != account.session_version
+            ):
                 session.clear()
                 return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
@@ -107,12 +125,7 @@ def login():
             password = request.form.get("password", "")
             account = accounts.verify_login(people_dir, username, password)
             if account:
-                session.clear()
-                session["authed"] = True
-                session["account_username"] = account.username
-                session["person_slug"] = account.person_slug
-                session["role"] = account.role
-                session.permanent = True
+                set_session_for_account(account)
                 return redirect(_safe_next_url(request.args.get("next", "")))
             time.sleep(1)
             flash("Incorrect username or password.", "error")

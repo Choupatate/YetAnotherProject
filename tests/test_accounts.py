@@ -115,6 +115,101 @@ def test_set_status_rejects_unknown_person(people_dir):
         accounts.set_status(people_dir, "nobody", "disabled")
 
 
+def test_set_status_refuses_to_disable_the_only_admin(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    with pytest.raises(ValueError):
+        accounts.set_status(people_dir, papa, "disabled")
+    assert accounts.get_account(people_dir, papa).status == "active"
+
+
+def test_set_status_allows_disabling_an_admin_when_another_remains(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    maman = people.create_person(people_dir, "Maman")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    accounts.create_account(people_dir, maman, "maman", "hunter22", "admin")
+    accounts.set_status(people_dir, papa, "disabled")
+    assert accounts.get_account(people_dir, papa).status == "disabled"
+
+
+def test_set_status_allows_disabling_a_family_account_when_it_is_the_only_account(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "family")
+    accounts.set_status(people_dir, papa, "disabled")
+    assert accounts.get_account(people_dir, papa).status == "disabled"
+
+
+def test_set_role_promotes_and_demotes(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    maman = people.create_person(people_dir, "Maman")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    accounts.create_account(people_dir, maman, "maman", "hunter22", "family")
+
+    accounts.set_role(people_dir, maman, "admin")
+    assert accounts.get_account(people_dir, maman).role == "admin"
+
+    accounts.set_role(people_dir, papa, "family")
+    assert accounts.get_account(people_dir, papa).role == "family"
+
+
+def test_set_role_refuses_to_demote_the_only_admin(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    with pytest.raises(ValueError):
+        accounts.set_role(people_dir, papa, "family")
+    assert accounts.get_account(people_dir, papa).role == "admin"
+
+
+def test_set_role_ignores_a_disabled_admin_when_counting(people_dir):
+    """A disabled admin doesn't count as 'remaining' — they can't do
+    anything anyway, so demoting the last *active* admin must still be
+    refused even if a disabled one also has the admin role."""
+    papa = people.create_person(people_dir, "Papa")
+    maman = people.create_person(people_dir, "Maman")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "admin")
+    accounts.create_account(people_dir, maman, "maman", "hunter22", "admin")
+    accounts.set_status(people_dir, maman, "disabled")
+
+    with pytest.raises(ValueError):
+        accounts.set_role(people_dir, papa, "family")
+
+
+def test_set_role_rejects_bad_role(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "family")
+    with pytest.raises(ValueError):
+        accounts.set_role(people_dir, papa, "superuser")
+
+
+def test_set_role_rejects_unknown_person(people_dir):
+    with pytest.raises(FileNotFoundError):
+        accounts.set_role(people_dir, "nobody", "admin")
+
+
+def test_set_password_changes_hash_and_bumps_session_version(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    account = accounts.create_account(people_dir, papa, "papa", "hunter22", "family")
+    assert account.session_version == 0
+
+    accounts.set_password(people_dir, papa, "new-password1")
+    updated = accounts.get_account(people_dir, papa)
+    assert updated.session_version == 1
+    assert accounts.verify_login(people_dir, "papa", "new-password1") is not None
+    assert accounts.verify_login(people_dir, "papa", "hunter22") is None
+
+
+def test_set_password_rejects_short_password(people_dir):
+    papa = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, papa, "papa", "hunter22", "family")
+    with pytest.raises(ValueError):
+        accounts.set_password(people_dir, papa, "short")
+
+
+def test_set_password_rejects_unknown_person(people_dir):
+    with pytest.raises(FileNotFoundError):
+        accounts.set_password(people_dir, "nobody", "new-password1")
+
+
 def test_verify_login_correct_credentials(people_dir):
     papa = people.create_person(people_dir, "Papa")
     accounts.create_account(people_dir, papa, "papa", "hunter22", "family")

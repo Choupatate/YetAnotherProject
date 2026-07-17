@@ -1885,3 +1885,73 @@ F19 is now fully built: admin/family accounts, the public request/approve
 queue, delegated write-links, and real per-account authorship superseding
 F1 — all gated behind one `STORYBOOK_ACCOUNTS` flag, every install that
 leaves it unset unaffected by any of it.
+
+---
+
+### Follow-up round: self-service password change and role management
+
+Two gaps found by explicitly auditing "is everything actually reachable
+from the web UI, with no need to hand-edit `account.json`" after F19
+shipped: there was no way to change your own password, and no way to
+promote/demote an existing account's role. Both required manual file
+editing to work around — exactly what this whole module exists to avoid.
+Closed in this round, plus one related footgun caught while building the
+fix (see below).
+
+- **`app/accounts.py`**: `Account` gains `session_version: int = 0`.
+  `set_password(people_dir, person_slug, new_password)` re-hashes and
+  **bumps** `session_version` — the point of changing a password is that
+  every other already-open session for that account stops working too,
+  not just that a new password now also happens to log in. `set_role`
+  promotes/demotes, validating the role like `create_account` already
+  does. Both `set_role` and the pre-existing `set_status` gained a shared
+  `_active_admin_count()` guard: **neither will demote nor disable the
+  last active admin.** That specific footgun wasn't part of the original
+  ask — it surfaced while writing `set_role` (a demote is symmetrically
+  as dangerous as a disable, and `set_status` already had the exact same
+  unguarded lockout risk from Phase 1) — fixed in the same round rather
+  than filed as a separate gap, since it's the identical failure mode
+  this whole round exists to close.
+- **`app/auth.py`**: `login_required`'s existing per-request re-check
+  (previously just account status) now also compares
+  `session["session_version"]` against the account's current value, so a
+  password change invalidates other sessions on their very next request —
+  same reasoning and same code path as the disabled-account check from
+  Phase 1, just one more field. New `set_session_for_account()` factors
+  out the "populate a fresh session" logic `login()` already had, so the
+  self-service password-change route can refresh *its own* session's
+  `session_version` after changing it — without that, the very session
+  that requested the change would immediately lock itself out on its next
+  request, which is not what "change your own password" should do to you.
+- **`app/routes_pages.py`**: `/account` (a small hub, replacing the bare
+  "Write links" nav link with "Account"), `/account/password`
+  (self-service — requires the current password, matching password-change
+  UX conventions generally, and refreshes the session as above),
+  `/admin/accounts/<slug>/reset-password` (admin-set, no current password
+  needed — the only account-recovery path this app has, since it has no
+  email), `/admin/accounts/<slug>/role`. `admin_disable_account` — which
+  could previously crash with an unhandled 500 the moment `set_status`
+  gained its guard — now catches `ValueError`/`FileNotFoundError` and
+  flashes instead, same pattern every other admin action here already
+  used.
+- **Templates**: new `account_home.html`, `account_password.html`,
+  `admin_reset_password.html`; `admin_accounts.html`'s account rows gained
+  an inline role `<select>` + "Set" button and a "Reset password" link
+  alongside the existing disable/enable action.
+
+Tests: `tests/test_accounts.py` gained `set_password`/`set_role` coverage
+(hash change, session_version bump, validation) and the last-admin guard
+for both `set_role` and `set_status` (including a disabled admin not
+counting as "remaining"). `tests/test_account_self_service.py` (new)
+covers the full HTTP surface: wrong-current-password and mismatched-
+confirmation rejections, a successful change keeping the *current* session
+logged in while logging out a *second* open session for the same account,
+admin reset without needing the old password (and it also invalidates
+open sessions), non-admins 404'd from both admin routes, and — the
+regression tests for the crash this round fixed — demoting or disabling
+the only admin redirects with a flash message rather than a 500. Manually
+verified end-to-end (Playwright): changed a password through the actual
+form and confirmed the session survived; promoted a family account to
+admin, demoted the original admin now that a second one existed, then
+attempted to demote the last remaining admin and watched the guard
+message render correctly instead of crashing.

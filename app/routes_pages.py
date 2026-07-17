@@ -21,7 +21,7 @@ from flask import (
 )
 
 from . import accounts, epub, kinship, people, prompts, storage, write_links
-from .auth import admin_required, delegate_required, login_required
+from .auth import admin_required, delegate_required, login_required, set_session_for_account
 from .rendering import render_markdown
 
 bp = Blueprint("pages", __name__)
@@ -572,14 +572,17 @@ def admin_accounts():
     ]
     return render_template(
         "admin_accounts.html", rows=rows, pending=accounts.list_pending(stories_dir),
-        link_rows=link_rows,
+        link_rows=link_rows, roles=accounts.ROLES,
     )
 
 
 @bp.route("/admin/accounts/<person_slug>/disable", methods=["POST"])
 @admin_required
 def admin_disable_account(person_slug):
-    accounts.set_status(_people_dir(), person_slug, "disabled")
+    try:
+        accounts.set_status(_people_dir(), person_slug, "disabled")
+    except (ValueError, FileNotFoundError) as exc:
+        flash(str(exc), "error")
     return redirect(url_for("pages.admin_accounts"))
 
 
@@ -588,6 +591,52 @@ def admin_disable_account(person_slug):
 def admin_enable_account(person_slug):
     accounts.set_status(_people_dir(), person_slug, "active")
     return redirect(url_for("pages.admin_accounts"))
+
+
+@bp.route("/admin/accounts/<person_slug>/role", methods=["POST"])
+@admin_required
+def admin_set_role(person_slug):
+    role = request.form.get("role") or ""
+    try:
+        accounts.set_role(_people_dir(), person_slug, role)
+    except (ValueError, FileNotFoundError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("pages.admin_accounts"))
+
+
+@bp.route("/admin/accounts/<person_slug>/reset-password", methods=["GET", "POST"])
+@admin_required
+def admin_reset_password(person_slug):
+    """An admin setting a new password directly — the only recovery path
+    for a family member who's forgotten theirs, since this app has no
+    email and therefore no self-service reset flow. Unlike a self-service
+    change, this never needs the old password."""
+    people_dir = _people_dir()
+    account = accounts.get_account(people_dir, person_slug)
+    if account is None:
+        abort(404)
+    person = people.get_person(people_dir, person_slug)
+
+    if request.method == "POST":
+        new_password = request.form.get("new_password") or ""
+        confirm_password = request.form.get("confirm_password") or ""
+        error = None
+        if new_password != confirm_password:
+            error = "Passwords don't match."
+        else:
+            try:
+                accounts.set_password(people_dir, person_slug, new_password)
+            except ValueError as exc:
+                error = str(exc)
+        if error:
+            flash(error, "error")
+        else:
+            return redirect(url_for("pages.admin_accounts"))
+
+    return render_template(
+        "admin_reset_password.html", account=account,
+        person_name=person.name if person else account.username,
+    )
 
 
 def _bind_and_create(people_dir, person_slug, new_person_name):
@@ -698,6 +747,61 @@ def admin_reject_pending(username):
     return redirect(url_for("pages.admin_accounts"))
 
 
+# --- Account self-service (password change) ---------------------------------
+
+
+def _own_account_or_404():
+    """Guard shared by every /account/* route: accounts mode on and a real
+    (non-delegate) account logged in — session["person_slug"] is only ever
+    set by those. Returns the people_dir for convenience."""
+    if not current_app.config["ACCOUNTS_ENABLED"] or not session.get("person_slug"):
+        abort(404)
+    return _people_dir()
+
+
+@bp.route("/account")
+@login_required
+def account_home():
+    _own_account_or_404()
+    return render_template("account_home.html")
+
+
+@bp.route("/account/password", methods=["GET", "POST"])
+@login_required
+def account_password():
+    people_dir = _own_account_or_404()
+    success = False
+
+    if request.method == "POST":
+        current_password = request.form.get("current_password") or ""
+        new_password = request.form.get("new_password") or ""
+        confirm_password = request.form.get("confirm_password") or ""
+
+        error = None
+        if accounts.verify_login(people_dir, session["account_username"], current_password) is None:
+            error = "Current password is incorrect."
+        elif new_password != confirm_password:
+            error = "New passwords don't match."
+        else:
+            try:
+                accounts.set_password(people_dir, session["person_slug"], new_password)
+            except ValueError as exc:
+                error = str(exc)
+
+        if error:
+            flash(error, "error")
+        else:
+            # Refresh this session's own session_version — set_password just
+            # bumped it, and without this the very next request would lock
+            # out the person who just successfully changed their password,
+            # not only (as intended) every other already-open session.
+            account = accounts.get_account_by_username(people_dir, session["account_username"])
+            set_session_for_account(account)
+            success = True
+
+    return render_template("account_password.html", success=success)
+
+
 # --- Delegated write-links (FEATURES.md F19 Phase 3) ------------------------
 
 
@@ -717,11 +821,8 @@ def _link_status(link):
 @login_required
 def account_write_links():
     """A logged-in account holder's own share-to-write links: create one,
-    see history, revoke. Requires accounts mode and a real (non-delegate)
-    account — session["person_slug"] is only ever set by those."""
-    if not current_app.config["ACCOUNTS_ENABLED"] or not session.get("person_slug"):
-        abort(404)
-    people_dir = _people_dir()
+    see history, revoke."""
+    people_dir = _own_account_or_404()
     person_slug = session["person_slug"]
     new_link_url = None
 

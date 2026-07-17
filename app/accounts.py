@@ -45,6 +45,7 @@ class Account:
     status: str  # "active" | "disabled"
     created_at: Optional[datetime] = None
     approved_by: Optional[str] = None
+    session_version: int = 0  # bumped by set_password; see auth.login_required
 
 
 def is_valid_username(username: str) -> bool:
@@ -70,6 +71,7 @@ def _account_from_dict(person_slug: str, data: dict) -> Account:
         status=data.get("status", "active"),
         created_at=created_at,
         approved_by=data.get("approved_by"),
+        session_version=data.get("session_version", 0),
     )
 
 
@@ -82,6 +84,7 @@ def _write_account(people_dir, account: Account) -> None:
         "status": account.status,
         "created_at": (account.created_at or datetime.now()).isoformat(),
         "approved_by": account.approved_by,
+        "session_version": account.session_version,
     }
     tmp_path = path.with_suffix(".json.tmp")
     tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -185,17 +188,76 @@ def create_account(
     return account
 
 
+def _active_admin_count(people_dir, exclude_slug: Optional[str] = None) -> int:
+    """How many active admin accounts exist, optionally not counting one
+    person — the check set_status/set_role use to refuse an action that
+    would leave nobody able to manage accounts at all (which would then
+    require hand-editing account.json to recover from, exactly what this
+    module exists to avoid)."""
+    return sum(
+        1 for a in list_accounts(people_dir)
+        if a.role == "admin" and a.status == "active" and a.person_slug != exclude_slug
+    )
+
+
 def set_status(people_dir, person_slug: str, status: str) -> None:
     """Enable/disable an account in place. Disabling takes effect
     immediately (auth.login_required re-checks status on every request,
     since sessions here are client-signed cookies with no server-side
-    store to revoke)."""
+    store to revoke).
+
+    Raises ValueError rather than disabling the last active admin — with
+    nobody left to re-enable anyone, that's a lockout only fixable by
+    hand-editing account.json.
+    """
     if status not in ("active", "disabled"):
         raise ValueError(f"Invalid status: {status!r}")
     account = get_account(people_dir, person_slug)
     if account is None:
         raise FileNotFoundError(person_slug)
+    if (
+        status == "disabled" and account.role == "admin"
+        and _active_admin_count(people_dir, exclude_slug=person_slug) == 0
+    ):
+        raise ValueError("Can't disable the only remaining admin.")
     account.status = status
+    _write_account(people_dir, account)
+
+
+def set_role(people_dir, person_slug: str, role: str) -> None:
+    """Promote/demote an account's role in place.
+
+    Raises ValueError for a bad role, or for demoting the last active
+    admin (same lockout reasoning as set_status)."""
+    if role not in ROLES:
+        raise ValueError(f"Invalid role: {role!r}")
+    account = get_account(people_dir, person_slug)
+    if account is None:
+        raise FileNotFoundError(person_slug)
+    if (
+        account.role == "admin" and role != "admin"
+        and _active_admin_count(people_dir, exclude_slug=person_slug) == 0
+    ):
+        raise ValueError("Can't demote the only remaining admin.")
+    account.role = role
+    _write_account(people_dir, account)
+
+
+def set_password(people_dir, person_slug: str, new_password: str) -> None:
+    """Set a new password, bumping session_version so every other
+    already-open session for this account is invalidated on its next
+    request (auth.login_required compares it) — the point of changing a
+    password is that old sessions stop working too, not just that a new
+    password now also happens to work. The caller who initiated this
+    change (self-service or admin) must refresh its own session's
+    session_version afterward if it should stay logged in."""
+    if len(new_password or "") < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+    account = get_account(people_dir, person_slug)
+    if account is None:
+        raise FileNotFoundError(person_slug)
+    account.password_hash = generate_password_hash(new_password)
+    account.session_version += 1
     _write_account(people_dir, account)
 
 
