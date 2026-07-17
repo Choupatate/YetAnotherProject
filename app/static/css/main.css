@@ -408,6 +408,12 @@ mark {
   margin-top: 0.5rem;
 }
 
+.login__request-link {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Timeline page                                                           */
 /* ---------------------------------------------------------------------- */
@@ -988,6 +994,12 @@ img.people__portrait {
   font-family: var(--font-serif);
   font-size: 1.75rem;
   margin: 0;
+}
+
+.admin__subtitle {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  margin: 1.5rem 0 0.75rem;
 }
 
 .admin__hint {

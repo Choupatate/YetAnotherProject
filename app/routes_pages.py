@@ -1,5 +1,7 @@
+import hmac
 import random
 import tempfile
+import time
 import zipfile
 from datetime import date, datetime
 
@@ -481,16 +483,63 @@ def edit_person(slug):
     )
 
 
+@bp.route("/request-account", methods=["GET", "POST"])
+def request_account():
+    """Public, unauthenticated (FEATURES.md F19 Phase 2): anyone who knows
+    the invite code (STORYBOOK_PASSWORD, repurposed once accounts mode is
+    on — it no longer logs anyone in) can queue a request. The very first
+    request ever submitted auto-approves as admin, bound to a brand-new
+    Person from its display name — there's no admin yet to review it, and
+    already knowing the invite code is the only proof of ownership this
+    self-hosted app has."""
+    if not current_app.config["ACCOUNTS_ENABLED"]:
+        abort(404)
+    stories_dir = current_app.config["STORIES_DIR"]
+    people_dir = storage.people_dir(stories_dir)
+
+    if request.method == "POST":
+        invite_code = request.form.get("invite_code", "")
+        display_name = (request.form.get("display_name") or "").strip()
+        username = (request.form.get("username") or "").strip().lower()
+        password = request.form.get("password") or ""
+        note = request.form.get("note") or ""
+
+        if not hmac.compare_digest(invite_code, current_app.config["PASSWORD"]):
+            time.sleep(1)
+            flash("Incorrect invite code.", "error")
+        else:
+            try:
+                pending = accounts.create_pending_request(
+                    stories_dir, username, password, display_name, note
+                )
+            except ValueError as exc:
+                flash(str(exc), "error")
+            else:
+                auto_approved = not accounts.any_accounts_exist(people_dir)
+                if auto_approved:
+                    accounts.approve_pending(
+                        stories_dir, pending.username, "admin", new_person_name=pending.display_name
+                    )
+                return render_template(
+                    "request_account.html", submitted=True, auto_approved=auto_approved
+                )
+
+    return render_template("request_account.html", submitted=False)
+
+
 @bp.route("/admin/accounts")
 @admin_required
 def admin_accounts():
-    people_dir = _people_dir()
+    stories_dir = current_app.config["STORIES_DIR"]
+    people_dir = storage.people_dir(stories_dir)
     people_by_slug = {p.slug: p for p in people.list_people(people_dir)}
     rows = [
         {"account": a, "person": people_by_slug.get(a.person_slug)}
         for a in accounts.list_accounts(people_dir)
     ]
-    return render_template("admin_accounts.html", rows=rows)
+    return render_template(
+        "admin_accounts.html", rows=rows, pending=accounts.list_pending(stories_dir)
+    )
 
 
 @bp.route("/admin/accounts/<person_slug>/disable", methods=["POST"])
@@ -507,14 +556,28 @@ def admin_enable_account(person_slug):
     return redirect(url_for("pages.admin_accounts"))
 
 
+def _bind_and_create(people_dir, person_slug, new_person_name):
+    """Shared validation for admin_new_account/admin_review_pending: pick
+    an existing unbound Person or create a new one from a name. Returns
+    (resolved_person_slug, error_message_or_None)."""
+    unbound_slugs = {
+        p.slug for p in people.list_people(people_dir) if accounts.get_account(people_dir, p.slug) is None
+    }
+    if not person_slug and not new_person_name:
+        return None, "Pick an existing family member, or enter a name for a new one."
+    if person_slug and person_slug not in unbound_slugs:
+        return None, "That family member already has an account."
+    if not person_slug:
+        person_slug = people.create_person(people_dir, new_person_name)
+    return person_slug, None
+
+
 @bp.route("/admin/accounts/new", methods=["GET", "POST"])
 @admin_required
 def admin_new_account():
-    """Admin-direct account creation (FEATURES.md F19 Phase 1) — no public
-    request form yet, so this is also the page a bootstrap admin session
-    lands on to create the very first real account (see auth.login)."""
+    """Admin-direct account creation, bypassing the request queue entirely
+    — for a family member who won't submit their own request."""
     people_dir = _people_dir()
-    is_bootstrap = not session.get("account_username")
     unbound_people = [
         p for p in people.list_people(people_dir) if accounts.get_account(people_dir, p.slug) is None
     ]
@@ -524,22 +587,17 @@ def admin_new_account():
         new_person_name = (request.form.get("new_person_name") or "").strip()
         username = (request.form.get("username") or "").strip().lower()
         password = request.form.get("password") or ""
-        role = "admin" if is_bootstrap else (request.form.get("role") or "family")
+        role = request.form.get("role") or "family"
 
         error = None
         if role not in accounts.ROLES:
             error = "Invalid role."
-        elif not person_slug and not new_person_name:
-            error = "Pick an existing family member, or enter a name for a new one."
-        elif person_slug and person_slug not in {p.slug for p in unbound_people}:
-            error = "That family member already has an account."
+        else:
+            person_slug, error = _bind_and_create(people_dir, person_slug, new_person_name)
 
-        account = None
         if error is None:
-            if not person_slug:
-                person_slug = people.create_person(people_dir, new_person_name)
             try:
-                account = accounts.create_account(
+                accounts.create_account(
                     people_dir, person_slug, username, password, role,
                     approved_by=session.get("account_username"),
                 )
@@ -548,15 +606,59 @@ def admin_new_account():
 
         if error:
             flash(error, "error")
-        elif is_bootstrap:
-            session["account_username"] = account.username
-            session["person_slug"] = account.person_slug
-            session["role"] = account.role
-            return redirect(url_for("pages.timeline"))
         else:
             return redirect(url_for("pages.admin_accounts"))
 
     return render_template(
-        "admin_new_account.html", unbound_people=unbound_people, is_bootstrap=is_bootstrap,
+        "admin_new_account.html", unbound_people=unbound_people, roles=accounts.ROLES
+    )
+
+
+@bp.route("/admin/accounts/pending/<username>", methods=["GET", "POST"])
+@admin_required
+def admin_review_pending(username):
+    stories_dir = current_app.config["STORIES_DIR"]
+    people_dir = storage.people_dir(stories_dir)
+    pending = accounts.get_pending(stories_dir, username)
+    if pending is None:
+        abort(404)
+    unbound_people = [
+        p for p in people.list_people(people_dir) if accounts.get_account(people_dir, p.slug) is None
+    ]
+
+    if request.method == "POST":
+        person_slug = request.form.get("person_slug") or None
+        new_person_name = (request.form.get("new_person_name") or "").strip()
+        role = request.form.get("role") or "family"
+
+        error = None
+        if role not in accounts.ROLES:
+            error = "Invalid role."
+        else:
+            person_slug, error = _bind_and_create(people_dir, person_slug, new_person_name)
+
+        if error is None:
+            try:
+                accounts.approve_pending(
+                    stories_dir, username, role, person_slug=person_slug,
+                    approved_by=session.get("account_username"),
+                )
+            except (ValueError, FileNotFoundError) as exc:
+                error = str(exc)
+
+        if error:
+            flash(error, "error")
+        else:
+            return redirect(url_for("pages.admin_accounts"))
+
+    return render_template(
+        "admin_review_pending.html", pending=pending, unbound_people=unbound_people,
         roles=accounts.ROLES,
     )
+
+
+@bp.route("/admin/accounts/pending/<username>/reject", methods=["POST"])
+@admin_required
+def admin_reject_pending(username):
+    accounts.reject_pending(current_app.config["STORIES_DIR"], username)
+    return redirect(url_for("pages.admin_accounts"))

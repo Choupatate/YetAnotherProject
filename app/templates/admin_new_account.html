@@ -1,34 +1,13 @@
 {% extends "base.html" %}
+{% import "_macros.html" as macros %}
 {% block title %}New account — {{ app_title }}{% endblock %}
 {% block body_class %}page-admin{% endblock %}
 {% block content %}
 <div class="admin">
-  {% if not is_bootstrap %}
   <p class="admin__back"><a href="{{ url_for('pages.admin_accounts') }}">&lsaquo; Accounts</a></p>
-  {% endif %}
-  <h1 class="admin__title">
-    {% if is_bootstrap %}Create the first admin account{% else %}New account{% endif %}
-  </h1>
-  {% if is_bootstrap %}
-  <p class="admin__hint">
-    This becomes your own login going forward — the shared password won't
-    work again once it's created.
-  </p>
-  {% endif %}
+  <h1 class="admin__title">New account</h1>
   <form class="admin__form" method="post" action="{{ url_for('pages.admin_new_account') }}">
-    <fieldset class="admin__field-group">
-      <legend class="login__label">Family member</legend>
-      {% if unbound_people %}
-      <select class="login__input" name="person_slug" id="admin-person-slug">
-        <option value="">— Create a new person —</option>
-        {% for p in unbound_people %}
-        <option value="{{ p.slug }}">{{ p.name }}</option>
-        {% endfor %}
-      </select>
-      {% endif %}
-      <input class="login__input" type="text" name="new_person_name"
-             id="admin-new-person-name" placeholder="Name, if creating a new person">
-    </fieldset>
+    {{ macros.person_picker(unbound_people) }}
 
     <label class="login__label" for="admin-username">Username</label>
     <input class="login__input" type="text" id="admin-username" name="username"
@@ -38,14 +17,12 @@
     <input class="login__input" type="password" id="admin-password" name="password"
            autocomplete="new-password" minlength="8" required>
 
-    {% if not is_bootstrap %}
     <label class="login__label" for="admin-role">Role</label>
     <select class="login__input" id="admin-role" name="role">
       {% for role in roles %}
       <option value="{{ role }}">{{ role|capitalize }}</option>
       {% endfor %}
     </select>
-    {% endif %}
 
     <button class="btn btn--primary login__submit" type="submit">Create account</button>
   </form>

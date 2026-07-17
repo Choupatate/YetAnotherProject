@@ -5,11 +5,9 @@ Two modes, selected by STORYBOOK_ACCOUNTS (FEATURES.md F19):
 - Off (default): a single shared password, no accounts, no roles — exactly
   the original behavior, untouched.
 - On: per-person username/password accounts (app/accounts.py), with an
-  admin role. Until the very first account exists, the shared
-  STORYBOOK_PASSWORD still logs in — as a one-time bootstrap admin session
-  used only to create that first account — after which the shared password
-  stops working as a login at all; only individual accounts can log in
-  from then on.
+  admin role. STORYBOOK_PASSWORD never logs anyone in here — once accounts
+  mode is on, it's only the invite code required on pages.request_account,
+  and the very first submitted request auto-approves as admin (see there).
 """
 
 import hmac
@@ -73,11 +71,10 @@ def admin_required(view):
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     accounts_enabled = current_app.config["ACCOUNTS_ENABLED"]
-    people_dir = storage.people_dir(current_app.config["STORIES_DIR"])
-    bootstrap = accounts_enabled and not accounts.any_accounts_exist(people_dir)
 
     if request.method == "POST":
-        if accounts_enabled and not bootstrap:
+        if accounts_enabled:
+            people_dir = storage.people_dir(current_app.config["STORIES_DIR"])
             username = request.form.get("username", "").strip().lower()
             password = request.form.get("password", "")
             account = accounts.verify_login(people_dir, username, password)
@@ -98,16 +95,16 @@ def login():
                 session.clear()
                 session["authed"] = True
                 session.permanent = True
-                if bootstrap:
-                    # Temporary: valid only until the account created on
-                    # this page fills in account_username/person_slug.
-                    session["role"] = "admin"
-                    return redirect(url_for("pages.admin_new_account"))
                 return redirect(_safe_next_url(request.args.get("next", "")))
             time.sleep(1)
             flash("Incorrect password.", "error")
 
-    return render_template("login.html", accounts_enabled=accounts_enabled, bootstrap=bootstrap)
+    no_accounts_yet = accounts_enabled and not accounts.any_accounts_exist(
+        storage.people_dir(current_app.config["STORIES_DIR"])
+    )
+    return render_template(
+        "login.html", accounts_enabled=accounts_enabled, no_accounts_yet=no_accounts_yet
+    )
 
 
 @bp.route("/logout", methods=["POST"])

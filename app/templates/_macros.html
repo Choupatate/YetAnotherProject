@@ -20,3 +20,19 @@
   {% endfor %}
 </div>
 {% endmacro %}
+
+{% macro person_picker(unbound_people) %}
+<fieldset class="admin__field-group">
+  <legend class="login__label">Family member</legend>
+  {% if unbound_people %}
+  <select class="login__input" name="person_slug" id="admin-person-slug">
+    <option value="">— Create a new person —</option>
+    {% for p in unbound_people %}
+    <option value="{{ p.slug }}">{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  <input class="login__input" type="text" name="new_person_name"
+         id="admin-new-person-name" placeholder="Name, if creating a new person">
+</fieldset>
+{% endmacro %}

@@ -8,6 +8,22 @@
     <h1 class="admin__title">Accounts</h1>
     <a class="btn btn--new" href="{{ url_for('pages.admin_new_account') }}">+ New account</a>
   </div>
+  {% if pending %}
+  <h2 class="admin__subtitle">Pending requests</h2>
+  <ul class="admin__list">
+    {% for p in pending %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ p.display_name }}</span>
+      <span class="admin__row-username">{{ p.username }}</span>
+      <a class="btn admin__row-action" href="{{ url_for('pages.admin_review_pending', username=p.username) }}">Review</a>
+      <form method="post" action="{{ url_for('pages.admin_reject_pending', username=p.username) }}">
+        <button type="submit" class="btn admin__row-action">Reject</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if pending %}<h2 class="admin__subtitle">Accounts</h2>{% endif %}
   {% if not rows %}
   <p class="admin__empty">No accounts yet.</p>
   {% else %}

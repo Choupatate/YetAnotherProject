@@ -1521,14 +1521,16 @@ alone — sessions here are client-signed with no server-side store, so a
 disabled account must lock out immediately, not whenever its 90-day cookie
 happens to expire. `admin_required` layers a role check on top.
 
-**Bootstrap:** the first account has no admin to create it. While accounts
-mode is on and zero accounts exist yet, `STORYBOOK_PASSWORD` still logs in
-— as a one-time bootstrap admin session — landing on the account-creation
-page so that first real account can be made. The moment it exists, the
-shared password stops working as a login at all; only individual accounts
-can log in from then on. This needed no separate bootstrap env var:
-already knowing the shared password is already the proof-of-ownership the
-app needs.
+**Bootstrap:** the first account has no admin to create it. `STORYBOOK_PASSWORD`
+never logs anyone in once accounts mode is on — instead it's the invite
+code required on the public request form (Phase 2), and the very first
+request ever submitted auto-approves as admin instead of joining the
+pending queue. This needed no separate bootstrap env var: already knowing
+the shared password is already the proof-of-ownership the app needs.
+(Phase 1, before the request form existed, used a simpler stopgap: the
+shared password logged in directly as a one-time bootstrap admin session.
+Phase 2 replaced that outright rather than keeping both paths alive —
+see the Phase 2 round below.)
 
 ## Delegated write-links (Phase 3 — "give access to someone so they write
 for them")
@@ -1585,11 +1587,11 @@ own devices too).
 
 ## Phasing
 
-1. **Data model + `app/accounts.py` + admin/family login** (this round).
-   No public request flow yet — an admin creates every account directly,
-   for dogfooding.
-2. **Public request/approve flow** — a "request an account" form gated by
-   the shared password as an invite code, a pending queue, admin
+1. **Data model + `app/accounts.py` + admin/family login** (done). No
+   public request flow yet — an admin creates every account directly, for
+   dogfooding.
+2. **Public request/approve flow** (done) — a "request an account" form
+   gated by the shared password as an invite code, a pending queue, admin
    approve/reject binding to a Person.
 3. **Delegated write-links.**
 4. **F1 retirement path** — `author_color` on Person, `STORYBOOK_AUTHORS`
@@ -1648,3 +1650,74 @@ matching the automated tests.
 
 Not done yet, on purpose: the public request/approve flow (Phase 2),
 delegated write-links (Phase 3), and F1 retirement (Phase 4).
+
+---
+
+### Phase 2 implementation round
+
+Built as specified, and **replaces** Phase 1's shared-password bootstrap
+login outright rather than keeping both paths alive — once a public
+request form exists, a second "or just type the shared password into
+`/login`" bootstrap route would be redundant machinery and a second thing
+to reason about securely. `auth.login()` is simpler after this round than
+it was after Phase 1: no more bootstrap branch, no more session
+self-upgrade mid-request — it always expects username+password when
+accounts mode is on, full stop.
+
+- **`app/accounts.py`**: new `PendingRequest` dataclass and
+  `list_pending`/`get_pending`/`create_pending_request`/`reject_pending`/
+  `approve_pending`/`is_username_reserved`, stored as one shared
+  `stories/pending_accounts.json` (not one-file-per-request — a request
+  queue is meant to be reviewed and cleared quickly, never expected to
+  pile into the hundreds unnoticed, so a single small file is simpler than
+  an index). These take `stories_dir`, not `people_dir` like the rest of
+  the module — the queue lives at the stories root since a pending request
+  has no Person to be a sibling of yet. `approve_pending` requires exactly
+  one of an existing unbound Person slug or a new person's name, creates
+  the Person if needed, writes the real `account.json`, and removes the
+  request from the queue in the same call.
+- **`app/auth.py`**: `login()` loses the bootstrap branch entirely —
+  `STORYBOOK_PASSWORD` now only matters when accounts mode is *off*. A
+  `no_accounts_yet` hint (still computed, just for copy on the login page)
+  is all that's left of the old bootstrap flag.
+- **`app/routes_pages.py`**: `/request-account` (GET/POST, public — 404s
+  when accounts mode is off) creates a pending request after checking the
+  invite code with `hmac.compare_digest`; auto-approves as admin inline
+  when `accounts.any_accounts_exist()` is still false. `/admin/accounts`
+  now also lists the pending queue. `/admin/accounts/pending/<username>`
+  (GET/POST, admin-only) reviews and approves one request;
+  `/admin/accounts/pending/<username>/reject` removes it. The
+  bind-to-existing-or-new-person validation that both this and
+  `admin_new_account` need was pulled into a shared `_bind_and_create`
+  helper rather than duplicated.
+- **Templates**: new `request_account.html` (the public form, plus a
+  submitted/auto-approved confirmation state instead of redirecting away)
+  and `admin_review_pending.html`; `admin_accounts.html` gained a pending
+  section above the accounts list; the "pick an existing Person or create
+  one" fieldset used by both `admin_new_account.html` and
+  `admin_review_pending.html` was pulled into a `person_picker` macro in
+  `_macros.html` rather than duplicated a third time; `login.html` lost
+  its bootstrap-specific form branch and gained a "request one"/"request
+  the first one" link instead.
+
+Tests: `tests/test_accounts.py` gained the pending-request API — round
+trip, validation (bad username/short password/blank name), uniqueness
+enforced *across* pending and bound accounts together, approve binding to
+a new vs. existing person, reject, and the "exactly one of person_slug/
+new_person_name" contract. `tests/test_account_auth.py`'s bootstrap tests
+were rewritten around `/request-account` (the old login-based bootstrap
+helper no longer exists): first request auto-approves as admin and
+creates its Person; a second request goes to the pending queue instead;
+wrong invite code and duplicate-pending-username are rejected; admin
+approve (both binding shapes) and reject; a non-admin family account gets
+404 reviewing a pending request; the shared password never logs anyone in
+once accounts mode is on, before or after any account exists. Manually
+verified end-to-end over HTTP (curl and Playwright, a fresh
+`STORYBOOK_ACCOUNTS=1` install): first request auto-approves as admin →
+shared password stops working → second request queues → admin sees it on
+`/admin/accounts` → approves, binding to a brand-new Person → that account
+logs in and is correctly 404'd from admin routes → a third request is
+rejected and disappears from the queue.
+
+Not done yet, on purpose: delegated write-links (Phase 3) and F1
+retirement (Phase 4).

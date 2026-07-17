@@ -139,3 +139,135 @@ def test_verify_login_disabled_account(people_dir):
     accounts.create_account(people_dir, papa, "papa", "hunter22", "family")
     accounts.set_status(people_dir, papa, "disabled")
     assert accounts.verify_login(people_dir, "papa", "hunter22") is None
+
+
+# --- pending requests (FEATURES.md F19 Phase 2) -----------------------------
+
+
+def test_create_pending_request_round_trips(stories_dir):
+    pending = accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa", "note here")
+    assert pending.username == "papa"
+    assert pending.display_name == "Papa"
+    assert pending.note == "note here"
+    assert pending.password_hash != "hunter22"
+
+    fetched = accounts.get_pending(stories_dir, "papa")
+    assert fetched.username == "papa"
+    assert fetched.display_name == "Papa"
+
+
+def test_create_pending_request_lowercases_username_and_blank_note(stories_dir):
+    pending = accounts.create_pending_request(stories_dir, "PaPa", "hunter22", "Papa", "  ")
+    assert pending.username == "papa"
+    assert pending.note is None
+
+
+def test_create_pending_request_rejects_bad_username(stories_dir):
+    with pytest.raises(ValueError):
+        accounts.create_pending_request(stories_dir, "Not Valid", "hunter22", "Papa")
+
+
+def test_create_pending_request_rejects_short_password(stories_dir):
+    with pytest.raises(ValueError):
+        accounts.create_pending_request(stories_dir, "papa", "short", "Papa")
+
+
+def test_create_pending_request_rejects_blank_display_name(stories_dir):
+    with pytest.raises(ValueError):
+        accounts.create_pending_request(stories_dir, "papa", "hunter22", "  ")
+
+
+def test_create_pending_request_rejects_username_taken_by_bound_account(stories_dir, people_dir):
+    slug = people.create_person(people_dir, "Papa")
+    accounts.create_account(people_dir, slug, "papa", "hunter22", "admin")
+    with pytest.raises(ValueError):
+        accounts.create_pending_request(stories_dir, "papa", "hunter22", "Someone Else")
+
+
+def test_create_pending_request_rejects_username_already_pending(stories_dir):
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    with pytest.raises(ValueError):
+        accounts.create_pending_request(stories_dir, "papa", "hunter22", "Someone Else")
+
+
+def test_list_pending_empty_and_ordered(stories_dir):
+    assert accounts.list_pending(stories_dir) == []
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    accounts.create_pending_request(stories_dir, "maman", "hunter22", "Maman")
+    assert [p.username for p in accounts.list_pending(stories_dir)] == ["papa", "maman"]
+
+
+def test_get_pending_unknown_returns_none(stories_dir):
+    assert accounts.get_pending(stories_dir, "nobody") is None
+
+
+def test_reject_pending_removes_it(stories_dir):
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    accounts.reject_pending(stories_dir, "papa")
+    assert accounts.get_pending(stories_dir, "papa") is None
+
+
+def test_reject_pending_unknown_username_is_a_noop(stories_dir):
+    accounts.reject_pending(stories_dir, "nobody")  # does not raise
+
+
+def test_approve_pending_creates_new_person(stories_dir, people_dir):
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    account = accounts.approve_pending(stories_dir, "papa", "admin", new_person_name="Papa")
+
+    assert account.role == "admin"
+    assert account.username == "papa"
+    fetched = accounts.get_account(people_dir, account.person_slug)
+    assert fetched.username == "papa"
+    assert accounts.get_pending(stories_dir, "papa") is None
+
+
+def test_approve_pending_binds_to_existing_person(stories_dir, people_dir):
+    milo = people.create_person(people_dir, "Milo")
+    accounts.create_pending_request(stories_dir, "milo", "hunter22", "Milo")
+    account = accounts.approve_pending(stories_dir, "milo", "family", person_slug=milo)
+    assert account.person_slug == milo
+
+
+def test_approve_pending_rejects_unknown_username(stories_dir):
+    with pytest.raises(FileNotFoundError):
+        accounts.approve_pending(stories_dir, "nobody", "family", new_person_name="Someone")
+
+
+def test_approve_pending_rejects_bad_role(stories_dir):
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    with pytest.raises(ValueError):
+        accounts.approve_pending(stories_dir, "papa", "superuser", new_person_name="Papa")
+
+
+def test_approve_pending_rejects_both_person_args(stories_dir, people_dir):
+    milo = people.create_person(people_dir, "Milo")
+    accounts.create_pending_request(stories_dir, "milo", "hunter22", "Milo")
+    with pytest.raises(ValueError):
+        accounts.approve_pending(
+            stories_dir, "milo", "family", person_slug=milo, new_person_name="Milo"
+        )
+
+
+def test_approve_pending_rejects_neither_person_arg(stories_dir):
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    with pytest.raises(ValueError):
+        accounts.approve_pending(stories_dir, "papa", "family")
+
+
+def test_approve_pending_rejects_person_already_bound(stories_dir, people_dir):
+    milo = people.create_person(people_dir, "Milo")
+    accounts.create_account(people_dir, milo, "milo-existing", "hunter22", "family")
+    accounts.create_pending_request(stories_dir, "milo", "hunter22", "Milo")
+    with pytest.raises(ValueError):
+        accounts.approve_pending(stories_dir, "milo", "family", person_slug=milo)
+
+
+def test_is_username_reserved_across_pending_and_bound(stories_dir, people_dir):
+    assert accounts.is_username_reserved(stories_dir, "papa") is False
+    accounts.create_pending_request(stories_dir, "papa", "hunter22", "Papa")
+    assert accounts.is_username_reserved(stories_dir, "papa") is True
+
+    slug = people.create_person(people_dir, "Maman")
+    accounts.create_account(people_dir, slug, "maman", "hunter22", "family")
+    assert accounts.is_username_reserved(stories_dir, "maman") is True

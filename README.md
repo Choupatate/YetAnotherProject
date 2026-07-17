@@ -111,14 +111,17 @@ that can read/write the whole book like today, plus manage its own
 password. Leaving it unset keeps the app exactly as it's always been —
 this is additive, not a replacement, for families who don't need it.
 
-The very first account is special: with accounts on and none created yet,
-the login page falls back to `STORYBOOK_PASSWORD` one last time, purely to
-create that first admin account. Once it exists, the shared password
-stops working as a login entirely — everyone logs in with their own
-username and password from then on. There's no self-service signup in
-this phase; an admin creates every account directly from **Accounts** in
-the nav (visible to admins only), either binding it to an existing person
-or creating a new one on the spot.
+`STORYBOOK_PASSWORD` never logs anyone in once this is on — instead it
+becomes the invite code required on the **Request an account** page
+(linked from the login page), so a stranger who finds the URL can't queue
+requests without knowing it. Anyone who submits one picks their own
+username and password up front; an admin then reviews it from
+**Accounts** in the nav (visible to admins only) and either approves it —
+binding it to an existing family member or creating a new one on the
+spot, with an admin or family role — or rejects it. Admins can also create
+an account directly, skipping the request queue, for a family member who
+won't submit their own. The very first request ever submitted is special:
+with no admin yet to review it, it auto-approves immediately as admin.
 
 Disabling an account (from the same page) takes effect immediately, not
 whenever its browser session would otherwise expire.

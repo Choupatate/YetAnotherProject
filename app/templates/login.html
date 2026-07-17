@@ -8,19 +8,25 @@
   <img class="illo login__illo" src="{{ url_for('static', filename='img/login-campfire.jpg') }}"
        alt="" loading="lazy" decoding="async" width="856" height="735">
   <form class="login__form" method="post" action="{{ url_for('auth.login') }}">
-    {% if accounts_enabled and not bootstrap %}
+    {% if accounts_enabled %}
     <label class="login__label" for="username">Username</label>
     <input class="login__input" type="text" id="username" name="username" autocomplete="username" autofocus required>
     <label class="login__label" for="password">Password</label>
     <input class="login__input" type="password" id="password" name="password" autocomplete="current-password" required>
     {% else %}
-    {% if bootstrap %}
-    <p class="login__subtitle">No accounts yet — enter the shared password to create the first admin account.</p>
-    {% endif %}
     <label class="login__label" for="password">Password</label>
     <input class="login__input" type="password" id="password" name="password" autocomplete="current-password" autofocus required>
     {% endif %}
     <button class="btn btn--primary login__submit" type="submit">Log in</button>
   </form>
+  {% if accounts_enabled %}
+  <p class="login__request-link">
+    {% if no_accounts_yet %}
+    No accounts yet — <a href="{{ url_for('pages.request_account') }}">request the first one</a> to get started.
+    {% else %}
+    Don't have an account? <a href="{{ url_for('pages.request_account') }}">Request one.</a>
+    {% endif %}
+  </p>
+  {% endif %}
 </div>
 {% endblock %}
