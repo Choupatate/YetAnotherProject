@@ -1,18 +1,8 @@
 """Tests for FEATURES.md F13: instants (photo + one line, fifteen seconds)."""
 
 from datetime import date
-from io import BytesIO
-
-from PIL import Image
 
 from app import storage
-
-
-def _jpeg_bytes():
-    buf = BytesIO()
-    Image.new("RGB", (100, 100), color="green").save(buf, format="JPEG")
-    buf.seek(0)
-    return buf
 
 
 # --- storage round-trip -------------------------------------------------------
@@ -114,11 +104,11 @@ def test_api_update_cannot_change_kind(auth_client, stories_dir):
     assert story.kind == "instant"
 
 
-def test_api_update_cover_accepts_existing_file(auth_client, stories_dir):
+def test_api_update_cover_accepts_existing_file(auth_client, stories_dir, jpeg_bytes):
     story_id = storage.create_story(stories_dir, "Story", date(2026, 1, 1), "body")
     upload_resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     filename = upload_resp.get_json()["filename"]
@@ -157,11 +147,11 @@ def test_api_update_cover_rejects_invalid_filename(auth_client, stories_dir):
     assert resp.status_code == 400
 
 
-def test_api_update_cover_absent_key_keeps_existing(auth_client, stories_dir):
+def test_api_update_cover_absent_key_keeps_existing(auth_client, stories_dir, jpeg_bytes):
     story_id = storage.create_story(stories_dir, "Story", date(2026, 1, 1), "body")
     upload_resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     filename = upload_resp.get_json()["filename"]
@@ -182,7 +172,7 @@ def test_api_update_cover_absent_key_keeps_existing(auth_client, stories_dir):
 # --- Full capture flow (mirrors instant.js: create -> upload -> set cover) ----
 
 
-def test_full_instant_capture_flow(auth_client, stories_dir):
+def test_full_instant_capture_flow(auth_client, stories_dir, jpeg_bytes):
     create_resp = auth_client.post(
         "/api/stories",
         json={
@@ -195,7 +185,7 @@ def test_full_instant_capture_flow(auth_client, stories_dir):
 
     upload_resp = auth_client.post(
         f"/api/stories/{created['id']}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     filename = upload_resp.get_json()["filename"]
@@ -230,13 +220,13 @@ def test_new_instant_page_requires_auth(client):
     assert resp.status_code == 302
 
 
-def test_timeline_shows_compact_instant_entry(auth_client, stories_dir):
+def test_timeline_shows_compact_instant_entry(auth_client, stories_dir, jpeg_bytes):
     story_id = storage.create_story(
         stories_dir, "A little moment", date(2026, 1, 1), "A little moment", kind="instant"
     )
     upload_resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     filename = upload_resp.get_json()["filename"]
@@ -293,13 +283,13 @@ def test_instant_own_page_has_no_prev_next(auth_client, stories_dir):
 # --- Inclusion: F10 book (compact) --------------------------------------------------
 
 
-def test_book_includes_instant_compactly(auth_client, stories_dir):
+def test_book_includes_instant_compactly(auth_client, stories_dir, jpeg_bytes):
     story_id = storage.create_story(
         stories_dir, "A little moment", date(2026, 1, 1), "A little moment", kind="instant"
     )
     upload_resp = auth_client.post(
         f"/api/stories/{story_id}/images",
-        data={"file": (_jpeg_bytes(), "photo.jpg")},
+        data={"file": (jpeg_bytes(color="green", size=(100, 100)), "photo.jpg")},
         content_type="multipart/form-data",
     )
     filename = upload_resp.get_json()["filename"]

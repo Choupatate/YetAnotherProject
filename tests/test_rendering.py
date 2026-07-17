@@ -33,3 +33,17 @@ def test_tables_and_lists_extensions_work():
 def test_basic_paragraph_and_emphasis():
     html = render_markdown("Hello *world*.", "/story/2026-01-01-story/media")
     assert "<em>world</em>" in html
+
+
+def test_repeated_calls_do_not_leak_media_base_or_parse_state():
+    """render_markdown reuses one Markdown parser per thread (perf); each
+    call must still be fully independent of the last."""
+    first = render_markdown("![a](photo-001.jpg)", "/story/one/media")
+    second = render_markdown("![b](photo-002.jpg)", "/people/two/media")
+    third = render_markdown("Hello *world*.", "/story/one/media")
+
+    assert 'src="/story/one/media/photo-001.jpg"' in first
+    assert 'src="/people/two/media/photo-002.jpg"' in second
+    assert "/story/one/media" not in second
+    assert "<em>world</em>" in third
+    assert "<figure>" not in third

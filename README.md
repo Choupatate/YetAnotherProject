@@ -100,6 +100,51 @@ All configuration is via environment variables — see `.env.example`:
 | `STORYBOOK_BIRTHDATE` | Optional. The child's birth date (`YYYY-MM-DD`). Shows the child's age at each memory (see below). Unset by default. |
 | `STORYBOOK_TITLE` | Optional. The app's display name — nav, page titles, install manifest, book cover. Defaults to `Storybook`. |
 | `STORYBOOK_CHILD` | Optional. The slug of the person page the family tree's kinship labels are computed relative to (see below). Unset by default. |
+| `STORYBOOK_ACCOUNTS` | Optional. Set to `1` for per-person username/password accounts with an admin role, instead of one shared password (see below). Unset by default. |
+
+### Family accounts (optional, off by default)
+
+Set `STORYBOOK_ACCOUNTS=1` to replace the one-shared-password login with
+real per-person accounts: an **admin** role that creates accounts and
+binds each one to a family member's person page, and a **family** role
+that can read/write the whole book like today, plus manage its own
+password. Leaving it unset keeps the app exactly as it's always been —
+this is additive, not a replacement, for families who don't need it.
+
+`STORYBOOK_PASSWORD` never logs anyone in once this is on — instead it
+becomes the invite code required on the **Request an account** page
+(linked from the login page), so a stranger who finds the URL can't queue
+requests without knowing it. Anyone who submits one picks their own
+username and password up front; an admin then reviews it from
+**Accounts** in the nav (visible to admins only) and either approves it —
+binding it to an existing family member or creating a new one on the
+spot, with an admin or family role — or rejects it. Admins can also create
+an account directly, skipping the request queue, for a family member who
+won't submit their own. The very first request ever submitted is special:
+with no admin yet to review it, it auto-approves immediately as admin.
+
+Disabling an account, resetting its password, or changing its role (from
+the same page) all take effect immediately, not whenever its browser
+session would otherwise expire — and there's always at least one admin
+left standing: demoting or disabling the last one is refused rather than
+locking everyone out. Every account holder can change their own password
+from **Account** in the nav, which also logs out any other device they're
+signed into; there's no email in this app, so if someone forgets their
+password an admin resetting it from **Accounts** is the only way back in.
+
+Any account holder can also generate a **write link** from **Account** →
+**Write links** — a one-off URL that lets someone write a single story for
+them without an account of their own (no username, no password, nothing
+else in the book visible to them). Links can be single-use or reusable,
+optionally expire, and are revocable at any time by whoever created them
+or by an admin.
+
+With accounts on, every story a family member writes is automatically
+attributed to them — no picker needed, and it can't be spoofed by another
+account. Each person can set their own byline color on their person page
+(**Byline color**), replacing what `STORYBOOK_AUTHORS` does below; a
+family member with no color set yet gets a neutral default rather than no
+color at all.
 
 ### Several narrators
 
@@ -112,8 +157,11 @@ the story page (a colored byline and title flourish). Pick mid-brightness
 colors that read well on both the dark and light themes.
 
 There are still no accounts or per-author passwords — one shared login, same
-as always. The author is just a label on the story. Leaving `STORYBOOK_AUTHORS`
-unset disables the whole feature: no picker, no bylines, no legend, identical
+as always. The author is just a label on the story. This whole section is
+superseded automatically the moment `STORYBOOK_ACCOUNTS` is on — see above —
+`STORYBOOK_AUTHORS` is simply never read in that mode, whether or not it's
+still set. Leaving `STORYBOOK_AUTHORS` unset (and accounts off) disables the
+whole feature: no picker, no bylines, no legend, identical
 to running without it. Renaming an author in this variable does not rewrite
 already-saved stories; a story whose `author` no longer matches a configured
 name still shows its byline, just in the neutral default color.

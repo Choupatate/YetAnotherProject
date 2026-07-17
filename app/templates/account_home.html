@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Account — {{ app_title }}{% endblock %}
+{% block body_class %}page-admin{% endblock %}
+{% block content %}
+<div class="admin">
+  <p class="admin__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <h1 class="admin__title">Account</h1>
+  <ul class="admin__list">
+    <li class="admin__row">
+      <a class="admin__row-name" href="{{ url_for('pages.account_password') }}">Change password</a>
+    </li>
+    <li class="admin__row">
+      <a class="admin__row-name" href="{{ url_for('pages.account_write_links') }}">Write links</a>
+    </li>
+  </ul>
+</div>
+{% endblock %}

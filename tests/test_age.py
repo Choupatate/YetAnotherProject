@@ -72,18 +72,8 @@ def test_birthdate_malformed_raises(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def dated_app(tmp_path):
-    stories_dir = tmp_path / "stories"
-    stories_dir.mkdir()
-    return create_app(
-        test_config={
-            "STORIES_DIR": stories_dir,
-            "TESTING": True,
-            "PASSWORD": "test-password",
-            "SECRET_KEY": "test-secret-key",
-            "BIRTHDATE": date(2020, 6, 18),
-        }
-    )
+def dated_app(app_factory):
+    return app_factory(BIRTHDATE=date(2020, 6, 18))
 
 
 @pytest.fixture

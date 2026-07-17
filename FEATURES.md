@@ -1229,14 +1229,106 @@ Tests: `tests/js/tree_logic_test.mjs` gained coverage for
 collapse case; a new `tests/js/safe_storage_test.mjs` covers the
 storage wrapper (including simulated private-mode/quota failures).
 
-- **Still open, deliberately not attempted:** the hourglass renderer can
-  only show one root at a time, so two branches at the same depth
-  (paternal vs. maternal grandparents) still can't appear together in a
-  single "Whole family" view — only reachable one at a time via the
-  branch chips. Fixing that needs a different chart layout entirely and
-  is out of scope here. A dedicated print/PDF layout for the tree itself
-  is also still out of scope (see the original Layer 3 section above);
-  print continues to show only the "Friends & others" list and a note.
+### Multi-branch rendering round
+
+The branch-chip toggle above let a reader see one ancestor couple's
+descendants at a time, but never two at once — so paternal and maternal
+grandparents (or any two couples at the same depth) could never appear
+together on screen, only reached one at a time. Rooting the chart
+directly at the focus person (level 0, "Direct line") was never actually
+broken this way: a person has at most two parents, so a pedigree rooted
+at them already recurses through both sides simultaneously. The gap was
+specific to levels ≥ 1, which exist to reveal *lateral* relatives
+(aunts/uncles/cousins) by re-rooting at a specific ancestor to show
+*their* descendants — and one ancestor's descendants are a different,
+disjoint subtree from their partner-couple's counterpart on the other
+side. No single-root hourglass can show two disjoint subtrees in one
+drawing.
+
+Fixed by replacing the single chart + branch-chip switcher with one
+independent `family-chart` instance **per ancestor couple** at the
+chosen level, rendered together — stacked on phones, a `repeat(auto-fit,
+minmax(20rem, 1fr))` grid from `700px` up (`.tree__panels` /
+`.tree__panel` in `main.css`), each captioned "via Name & Name" and each
+fully interactive (its own pan/zoom, mini-tree re-root, Recenter). Level
+0 is untouched — still the single big chart. This reuses the
+already-vendored, network-audited `family-chart` + `d3` bundle as
+multiple independent mounts; no new dependency, no vendored-file changes.
+
+This also deleted code rather than adding much: with every couple at a
+level shown at once, there's no more "which branch is selected" to
+track, so `tree-logic.js`'s `ancestorPath`, `isValidChain`, and
+`chainToLevel` — and the `chain[]`/branch-chip machinery in `tree.js`
+built around them — are gone. View state is now just `{focusId,
+viewLevel}`; `ancestorLevels` and `coupleGroups` (unchanged) are enough
+to compute which panels a level needs on every render. Charts are always
+torn down and rebuilt on a level or focus change rather than re-rooted
+in place — the same "just rebuild it" approach `renderToolbar()` already
+used — since the number of panels needed can change between any two
+levels. One consequence: the injected ranch-map SVG pattern/image ids
+(`tree-map-grid-*`) are now suffixed per panel, since `url(#id)`
+resolves against the whole document and several simultaneous panels
+would otherwise fight over one id; the `MutationObserver`/
+`prefers-color-scheme` listener that refreshes them on a theme change
+was hoisted to run once for the page instead of once per chart instance,
+which would have leaked a new observer on every rebuild.
+
+Tests: `tests/js/tree_logic_test.mjs` dropped the now-dead
+`ancestorPath`/`isValidChain`/`chainToLevel` coverage and gained a
+`coupleGroups` case asserting the paternal and maternal branches land in
+separate groups, which is what the multi-panel view depends on.
+
+### Print outline round — closing the print/PDF gap
+
+`/tree` never had a print representation of the family itself — only
+"Friends & others" and a static note survived `@media print`, since the
+interactive chart obviously can't. Rather than trying to make an SVG
+chart survive print, the note is replaced with a plain-text generation
+outline, server-rendered (works without JS, like every other family
+page): headings such as "Great-grandparents' generation" / "Parents'
+generation" / "Milo's generation" / "Children's generation", oldest
+first, each listing names with their existing computed kinship label
+("Papi Paul — your grandfather").
+
+Each in-family person gets a **generation offset** relative to
+`STORYBOOK_CHILD`: positive toward ancestors, negative toward
+descendants, 0 for the anchor's own generation. This is measured from
+each person's own nearest common ancestor with the anchor (`kinship.py`'s
+existing `_blood_updown`, extracted out of `_blood_kinship` — same
+`(up, down)` pair `kinship_label` already computes, just exposed as a new
+`generation_offset()` alongside it) — deliberately **not** a structural
+"depth from the deepest recorded root," which would misfile a grandparent
+a whole generation off whenever their own parents aren't recorded (the
+fixture family already has exactly this shape on the maternal side). An
+offset bucket like "Parents' generation" intentionally mixes real parents
+with aunts/uncles (same net distance) — that's colloquially accurate, not
+a bug, and the per-person kinship label still gives the precise relation.
+A person reachable only via one hop of partnership (e.g. an uncle's wife
+with no blood link of her own) inherits her partner's offset, mirroring
+`kinship_label`'s existing "your uncle's wife" fallback; someone
+reachable by neither blood nor that one hop (an isolated in-law couple
+with no connection to the family's blood graph) lands in a final "Other
+family" bucket rather than silently vanishing. Without `STORYBOOK_CHILD`
+set, generation math doesn't apply — everyone in-family lands in one
+plain "Family" bucket, same as kinship labels already disappearing
+app-wide without an anchor.
+
+`routes_pages.py`'s `tree_page()` folds this into the loop that already
+built the `others` list (no second pass over `all_people`), bucketing by
+`kinship.generation_offset()` and sorting real offsets descending
+(oldest generation first) before rendering. `tree.html` renders it as
+`.tree__print-outline`, `display: none` on screen and forced to `display:
+block` inside `main.css`'s existing `@media print` block, the same
+shape `.tree__print-note` used before it.
+
+Tests: `tests/test_kinship.py` gained a `generation_offset` table
+parametrized against the same 16-person fixture the kinship-label table
+already uses (including the great-uncle/uncle's-wife/cousin cases, plus
+an isolated-partner-pair case for the "no path at all" `None` result) and
+a `generation_group_label` table; `tests/test_family_pages.py` gained
+`/tree` cases for the anchored multi-generation outline, the unanchored
+single-bucket fallback, and confirming friends/unlinked people never leak
+into the outline.
 
 ### Tests (second round)
 
@@ -1273,3 +1365,593 @@ person pages still show the full Family section; zero external network
 requests with the tree page open (the vendored bundle must be re-audited
 by watching the network panel during pan/zoom/expand); hand-inspect one
 person's index.md — the only new lines are the plain optional fields.
+
+---
+
+## Performance round: photo thumbnails and markdown parser reuse
+
+Two contained optimizations found during a codebase-wide audit, no
+behavior change beyond what's noted below.
+
+**Dedicated avatar thumbnails.** `storage.save_image_to` (shared by F11's
+photo pipeline) now generates a second, small copy alongside the existing
+full-size re-encode: `photo-NNN.thumb.<ext>`, capped at
+`THUMB_MAX_EDGE = 320` (vs. `MAX_IMAGE_EDGE = 2000` for the full photo),
+same PNG-vs-JPEG-q85 rule as the full image. Before this, the small
+avatar-style contexts — `.timeline__thumb` (72px/56px story-cover
+thumbnails) and the `photo_thumb` macro's `.person-family__thumb`/
+`.family-chip__thumb` (32px/24px) — were downloading the full 2000px
+photo just to paint a tiny circle, real bandwidth waste on a mobile-first
+app. `timeline.html` and `routes_pages._person_ref` now point at
+`thumb_filename(...)` for those contexts only; every other photo usage
+(story/person cover, book pages, epub, lightbox, the body of a story)
+is untouched and still serves the full-size image.
+
+Photos uploaded before this change have no `.thumb.` sibling on disk yet.
+Rather than a migration, `_serve_media` (the shared story_media/
+person_media handler) falls back to serving the full-size original when
+a requested `.thumb.` filename doesn't exist on disk — the same "files
+outlive app changes" tolerance the rest of storage.py already follows
+elsewhere (e.g. `_parse_unlock`). `storage.thumb_filename` /
+`original_filename_from_thumb` are the pure filename transforms behind
+this; `_next_photo_number`'s `photo-*` glob already tolerates the new
+`.thumb.` sibling since it matches the same leading `photo-NNN.` prefix.
+
+**Markdown parser reuse.** `rendering.render_markdown` used to construct
+a brand-new `markdown.Markdown()` instance (full extension chain,
+including the story-image treeprocessor) on every single call — real
+waste given `/book` and `/book.epub` call it once per readable story in a
+loop. It now keeps one parser per thread in a `threading.local()` (not a
+single shared module-global — a threaded production WSGI deployment must
+never have two requests racing on the same parser's `media_base`/parse
+state), resetting it between conversions via the documented `md.reset()`
+API and updating the story-image treeprocessor's `media_base` in place
+before each `.convert()` call.
+
+Tests: `tests/test_storage.py` gained thumbnail-file assertions on the
+existing JPEG/PNG upload tests plus a `thumb_filename`/
+`original_filename_from_thumb` round-trip test; `tests/test_pages.py`
+gained a `_serve_media` fallback-to-full-size test and a stronger
+cover-thumbnail URL assertion; `tests/test_family_pages.py`'s family-thumb
+test updated to expect the `.thumb.` URL; `tests/test_rendering.py`
+gained a test that repeated calls with different `media_base` values
+never leak into each other now that the parser is reused.
+
+---
+
+# Feature spec — F19: family accounts, admin approval, delegated writing
+
+Multi-user accounts is one of the items README's "Ideas for later" lists as
+deliberately out of scope, "if any of these become worth doing, they belong
+here first, not as a surprise addition." This is that discussion, written up
+before implementation the way F1 was. Same ground rule as F1: no accounts
+system should make this feel less like a book and more like a web app with
+users — restraint over features, still no comments/reactions/search/tags,
+still one shared timeline, still plain files on disk, nothing here changes
+that.
+
+## Why this is a bigger deal than it sounds, and how the design resolves it
+
+Storybook's whole design rests on: no database, one trust level, one shared
+password, "book not blog." Real accounts pull against all three. That's not
+a reason to avoid it, but it means the design should be the least new
+machinery that satisfies the actual requirement, not a generic auth system
+bolted on. Three choices carry that principle through the whole feature:
+
+1. **Fully opt-in, off by default**, gated by `STORYBOOK_ACCOUNTS` — same
+   pattern as `STORYBOOK_AUTHORS`/`STORYBOOK_BIRTHDATE`. A family that wants
+   the one-shared-password simplicity forever just never sets it, and
+   nothing about their install changes, ever.
+2. **An account is not a new identity system — it's a login bolted onto an
+   existing Person.** `people.py` already models "the cast of the book."
+   Every account (admin or family) is required to bind to a Person, so "who
+   can log in" and "who this book is about" stay the same graph instead of
+   becoming two things an admin has to keep in sync.
+3. **Still no database.** Credentials live in plain files under `stories/`,
+   same as everything else — readable, backed up with everything else,
+   survives the app being deleted. (A password hash is safe to sit in a
+   plain file; the plaintext never is.)
+
+## Roles
+
+| Role | Bound to a Person? | Can do |
+|---|---|---|
+| **Admin** | Yes, always | Everything Family can do, plus: create accounts, bind them to a Person (existing or new), disable/re-enable accounts |
+| **Family** | Yes, always | Full read/write on the whole timeline/tree/book — unchanged from today's single-password trust model, not a permissions system; manage their own password; (Phase 3) create/revoke their own delegated write-links |
+| **Delegate** (Phase 3, write-link) | No — scoped to whoever granted the link | Submit one new story, attributed to the granting Person. Nothing else. |
+
+Admin isn't a separate kind of identity, it's a capability flag on a
+Person-bound account — in practice the person who deploys the app approves
+themselves as the first admin and usually also writes stories.
+
+**Permissions decision, stated explicitly since it's a values call and not
+derivable from anything above:** once someone has an approved Family
+account, they can edit/delete *any* story, exactly like today. The account
+system answers who gets in the door and how they're attributed, not who can
+touch what once they're in — a permission-walled model would be a bigger,
+more blog-like feature than anything else in this app.
+
+## Data model
+
+`app/accounts.py`, same shape as `people.py`: pure functions taking the
+people directory as their first argument, no hidden state.
+
+```
+stories/
+  people/
+    papa/
+      index.md          # existing Person file, untouched
+      account.json       # only exists if papa has an account
+    milo/
+      index.md            # a Person with no account.json is just a person —
+                           # most people in the book never log in
+```
+
+Credentials live in a sibling file, not new `index.md` frontmatter keys:
+`index.md` is read by every page render, kinship walk, and tree JSON build,
+so keeping the password hash out of it shrinks the blast radius of any
+future bug that logs or dumps a `Person`. Plain JSON, not YAML: this is
+small structured data with no prose body, and stdlib `json` avoids leaning
+on python-frontmatter's transitive PyYAML dependency for something new.
+Hashing is `werkzeug.security` (`generate_password_hash`/
+`check_password_hash`) — already installed transitively via Flask, so this
+is one dependency avoided, not added.
+
+```json
+{
+  "username": "papa",
+  "password_hash": "scrypt:...",
+  "role": "admin",
+  "status": "active",
+  "created_at": "2026-07-20T18:32:00",
+  "approved_by": null
+}
+```
+
+## Authentication & sessions
+
+`auth.login()` grows a second mode selected by `STORYBOOK_ACCOUNTS`. Off:
+untouched, single shared password. On: username+password, verified via
+`accounts.verify_login`, setting `session["account_username"]`,
+`session["person_slug"]`, `session["role"]`.
+
+`login_required` re-checks the account's `status` from disk on every
+request when accounts mode is on, rather than trusting the session cookie
+alone — sessions here are client-signed with no server-side store, so a
+disabled account must lock out immediately, not whenever its 90-day cookie
+happens to expire. `admin_required` layers a role check on top.
+
+**Bootstrap:** the first account has no admin to create it. `STORYBOOK_PASSWORD`
+never logs anyone in once accounts mode is on — instead it's the invite
+code required on the public request form (Phase 2), and the very first
+request ever submitted auto-approves as admin instead of joining the
+pending queue. This needed no separate bootstrap env var: already knowing
+the shared password is already the proof-of-ownership the app needs.
+(Phase 1, before the request form existed, used a simpler stopgap: the
+shared password logged in directly as a one-time bootstrap admin session.
+Phase 2 replaced that outright rather than keeping both paths alive —
+see the Phase 2 round below.)
+
+## Delegated write-links (Phase 3 — "give access to someone so they write
+for them")
+
+A family/admin account holder generates a share-to-write link (a
+`secrets.token_urlsafe` bearer token, stored hashed) from their own account
+page. Opening it sets a session scoped to submitting one story attributed to
+the granting Person — deliberately *not* `session["authed"]`, so it's
+structurally distinct from a real login and can't reach anything else in the
+app. No username, no password, no admin approval to get one — matching "no
+account access as such" literally. Revocable at any time by the person who
+issued it or by an admin. Considered and rejected: a delegate-created
+sub-login (reads like exactly what "no account access as such" rules out),
+and literally sharing one's own login (no audit trail, revoking it logs the
+owner out of their own devices too).
+
+Two scope trims from the original idea, made for proportionality rather
+than found necessary along the way: **no editing after submission** (a
+multi-use link lets someone come back and write *another new* story, not
+revise a previous one — tracking per-story edit authorization for a
+one-shot contribution is real complexity for a marginal case, and the
+person who granted the link can always fix a typo themselves afterward),
+and **text-only, no photos** (the real editor's photo upload is a
+multi-step JS flow built around a story already having an id to attach
+images to; reusing it for a scoped delegate session was a much bigger lift
+than the rest of Phase 3 combined). Both are easy to revisit later if the
+text-only cameo-contribution case turns out not to be enough.
+
+## Interaction with existing features
+
+- **F1 Authors** (`STORYBOOK_AUTHORS`) is superseded automatically the
+  moment `STORYBOOK_ACCOUNTS` is on (Phase 4): an account's bound Person
+  becomes the author directly, with its own `author_color` replacing the
+  env-config color. `STORYBOOK_AUTHORS` itself is never read in that mode
+  — left set or unset, it makes no difference — so there's no forced
+  migration step; an install that never turns accounts on keeps F1 exactly
+  as it always was.
+- **F14 People / F18 kinship-tree**: no changes. Accounts are additive
+  metadata on Persons that already exist; `kinship.py`, `tree.js`, and the
+  family-chart rendering stay completely account-unaware.
+- Existing installs: with `STORYBOOK_ACCOUNTS` unset, zero behavior change,
+  zero migration required, `story.author` strings keep rendering exactly as
+  they do today.
+
+## Security checklist
+
+- `hmac.compare_digest` for the shared/bootstrap password (already the
+  pattern), `check_password_hash`'s constant-time comparison for account
+  passwords.
+- `verify_login` hashes a dummy password on an unknown-username lookup so
+  that path costs roughly the same CPU time as a real check, keeping
+  username validity untimeable.
+- Failed logins keep the existing `time.sleep(1)` throttle; a per-account
+  lockout counter is a reasonable future addition but deliberately not a
+  dependency like Flask-Limiter — one household, not internet scale.
+- State-changing routes (create/disable account) are POST-only, relying on
+  the existing `SESSION_COOKIE_SAMESITE="Lax"` — this app has no CSRF
+  tokens anywhere today and F19 doesn't introduce a token system just for
+  itself, but the stakes of a gap are higher now (CSRF could create/disable
+  an account, not just re-submit an already-known password), worth
+  revisiting if a request-based public flow (Phase 2) ships.
+- Usernames are validated against a strict allowlist (`^[a-z0-9-]{3,32}$`),
+  same spirit as `storage.is_valid_story_id`.
+
+## Phasing
+
+1. **Data model + `app/accounts.py` + admin/family login** (done). No
+   public request flow yet — an admin creates every account directly, for
+   dogfooding.
+2. **Public request/approve flow** (done) — a "request an account" form
+   gated by the shared password as an invite code, a pending queue, admin
+   approve/reject binding to a Person.
+3. **Delegated write-links** (done).
+4. **F1 retirement path** (done) — `author_color` on Person,
+   `STORYBOOK_AUTHORS` superseded automatically in accounts mode.
+
+---
+
+### Phase 1 implementation round
+
+Built exactly as specified above, feature-flagged behind
+`STORYBOOK_ACCOUNTS` (default off — every existing test and install is
+unaffected; the whole suite passes with the flag never set).
+
+- **`app/accounts.py`** (new): `Account` dataclass, `create_account`,
+  `get_account`/`get_account_by_username`, `list_accounts`,
+  `any_accounts_exist`, `is_username_taken`/`is_valid_username`,
+  `set_status`, `verify_login` — as specified, JSON sibling files under
+  `people/<slug>/account.json`.
+- **`app/auth.py`**: `login()` branches on `ACCOUNTS_ENABLED` and whether
+  any account exists yet (bootstrap); `login_required` re-validates account
+  status from disk each request when accounts mode is on; new
+  `admin_required` (404s a non-admin rather than revealing the admin
+  section exists, consistent with this app having no 403 pattern anywhere
+  else).
+- **`app/routes_pages.py`**: `/admin/accounts` (list, admin-only),
+  `/admin/accounts/new` (GET/POST — also the bootstrap admin's landing
+  page; creating an account while bootstrapped upgrades the current
+  session in place rather than requiring a second login),
+  `/admin/accounts/<slug>/disable` and `/enable`.
+- **Templates**: `login.html` grows a conditional username field (bootstrap
+  mode shows the old password-only form with an explanatory note); new
+  `admin_accounts.html` (list + enable/disable) and
+  `admin_new_account.html` (bind to an existing unbound Person or create a
+  new one, username/password/role); `base.html` nav gains an "Accounts"
+  link, visible only to a logged-in admin when accounts mode is on.
+- **`app/__init__.py`**: `STORYBOOK_ACCOUNTS=1` → `config["ACCOUNTS_ENABLED"]`,
+  same fail-open pattern as the other optional `STORYBOOK_*` vars (no value
+  is a hard requirement, no startup `RuntimeError` path needed since there's
+  nothing to parse/validate at boot, unlike `STORYBOOK_AUTHORS`/
+  `STORYBOOK_BIRTHDATE`).
+
+Tests: `tests/test_accounts.py` (new) — the pure `app/accounts.py` API:
+round-trip creation, username validation/lowercasing/uniqueness, password
+length, disable/enable, `verify_login` for correct/wrong/unknown/disabled.
+`tests/test_account_auth.py` (new) — the full HTTP flow: bootstrap login,
+first-admin creation, shared password retiring afterward, family-account
+login, 404 on admin routes for non-admins and for logged-out visitors,
+binding to an existing unbound Person vs. creating a new one, duplicate-
+username/no-person-selected validation errors, and the immediate-lockout
+behavior (an already-active session is redirected to `/login` on its very
+next request after an admin disables it, not after its cookie expires).
+Manually verified end-to-end over HTTP (curl, a fresh `STORYBOOK_ACCOUNTS=1`
+install): bootstrap → first admin → second (family) account → role-gating
+→ disable → immediate lockout → re-login refused while disabled, all
+matching the automated tests.
+
+At the time, Phases 2-4 (the public request/approve flow, delegated
+write-links, and F1 retirement) were not yet built — see their own rounds
+below for what shipped since.
+
+---
+
+### Phase 2 implementation round
+
+Built as specified, and **replaces** Phase 1's shared-password bootstrap
+login outright rather than keeping both paths alive — once a public
+request form exists, a second "or just type the shared password into
+`/login`" bootstrap route would be redundant machinery and a second thing
+to reason about securely. `auth.login()` is simpler after this round than
+it was after Phase 1: no more bootstrap branch, no more session
+self-upgrade mid-request — it always expects username+password when
+accounts mode is on, full stop.
+
+- **`app/accounts.py`**: new `PendingRequest` dataclass and
+  `list_pending`/`get_pending`/`create_pending_request`/`reject_pending`/
+  `approve_pending`/`is_username_reserved`, stored as one shared
+  `stories/pending_accounts.json` (not one-file-per-request — a request
+  queue is meant to be reviewed and cleared quickly, never expected to
+  pile into the hundreds unnoticed, so a single small file is simpler than
+  an index). These take `stories_dir`, not `people_dir` like the rest of
+  the module — the queue lives at the stories root since a pending request
+  has no Person to be a sibling of yet. `approve_pending` requires exactly
+  one of an existing unbound Person slug or a new person's name, creates
+  the Person if needed, writes the real `account.json`, and removes the
+  request from the queue in the same call.
+- **`app/auth.py`**: `login()` loses the bootstrap branch entirely —
+  `STORYBOOK_PASSWORD` now only matters when accounts mode is *off*. A
+  `no_accounts_yet` hint (still computed, just for copy on the login page)
+  is all that's left of the old bootstrap flag.
+- **`app/routes_pages.py`**: `/request-account` (GET/POST, public — 404s
+  when accounts mode is off) creates a pending request after checking the
+  invite code with `hmac.compare_digest`; auto-approves as admin inline
+  when `accounts.any_accounts_exist()` is still false. `/admin/accounts`
+  now also lists the pending queue. `/admin/accounts/pending/<username>`
+  (GET/POST, admin-only) reviews and approves one request;
+  `/admin/accounts/pending/<username>/reject` removes it. The
+  bind-to-existing-or-new-person validation that both this and
+  `admin_new_account` need was pulled into a shared `_bind_and_create`
+  helper rather than duplicated.
+- **Templates**: new `request_account.html` (the public form, plus a
+  submitted/auto-approved confirmation state instead of redirecting away)
+  and `admin_review_pending.html`; `admin_accounts.html` gained a pending
+  section above the accounts list; the "pick an existing Person or create
+  one" fieldset used by both `admin_new_account.html` and
+  `admin_review_pending.html` was pulled into a `person_picker` macro in
+  `_macros.html` rather than duplicated a third time; `login.html` lost
+  its bootstrap-specific form branch and gained a "request one"/"request
+  the first one" link instead.
+
+Tests: `tests/test_accounts.py` gained the pending-request API — round
+trip, validation (bad username/short password/blank name), uniqueness
+enforced *across* pending and bound accounts together, approve binding to
+a new vs. existing person, reject, and the "exactly one of person_slug/
+new_person_name" contract. `tests/test_account_auth.py`'s bootstrap tests
+were rewritten around `/request-account` (the old login-based bootstrap
+helper no longer exists): first request auto-approves as admin and
+creates its Person; a second request goes to the pending queue instead;
+wrong invite code and duplicate-pending-username are rejected; admin
+approve (both binding shapes) and reject; a non-admin family account gets
+404 reviewing a pending request; the shared password never logs anyone in
+once accounts mode is on, before or after any account exists. Manually
+verified end-to-end over HTTP (curl and Playwright, a fresh
+`STORYBOOK_ACCOUNTS=1` install): first request auto-approves as admin →
+shared password stops working → second request queues → admin sees it on
+`/admin/accounts` → approves, binding to a brand-new Person → that account
+logs in and is correctly 404'd from admin routes → a third request is
+rejected and disappears from the queue.
+
+At the time, delegated write-links (Phase 3) and F1 retirement (Phase 4)
+were not yet built — see their own rounds below for what shipped since.
+
+---
+
+### Phase 3 implementation round
+
+Built with the two scope trims noted above (no post-submission editing,
+text-only). New standalone module rather than folding into
+`app/accounts.py`: a write-link isn't a credential or an identity, it's a
+capability token with its own lifecycle (expiry, single-use, revocation,
+usage tracking) — different enough in shape to earn its own file.
+
+- **`app/write_links.py`** (new): `WriteLink` dataclass and
+  `create_link`/`list_links`/`get_link`/`revoke_link`/`mark_used`/
+  `find_by_token`/`is_link_valid`/`list_all_active`, stored as
+  `people/<slug>/write_links.json`. Tokens are hashed with plain SHA-256
+  (`hashlib`, not `werkzeug.security`'s slow password hash) — a
+  `secrets.token_urlsafe(32)` token already has ~192 bits of entropy, so a
+  fast deterministic hash is the right tool, the same reasoning GitHub/GitLab
+  use for personal access tokens. Each link also gets its own non-secret
+  `id` (`secrets.token_hex(8)`) used everywhere a link needs to be
+  referenced (revoke URLs, admin lists) so the real bearer token is never
+  echoed back anywhere after the moment it's created.
+- **`app/auth.py`**: new `delegate_required`, parallel to `login_required`/
+  `admin_required` — checks `session["delegate_person_slug"]`/
+  `["delegate_link_id"]` and re-validates the link's status from disk on
+  *every* request (not just at the initial `/w/<token>` hit), so a
+  revoked/expired/used-up link locks out an already-open delegate session
+  immediately, same reasoning as the disabled-account check from Phase 1.
+- **`app/routes_pages.py`**: `/account/write-links` (GET/POST, any logged-in
+  account — create a link, see history, revoke); `/account/write-links/
+  <person_slug>/<link_id>/revoke` (owner or admin only); `/w/<token>`
+  (public — validates and opens a delegate session, `session.clear()`-ing
+  first so a real account holder accidentally opening their own share link
+  can't end up with mixed session state); `/w/write` (delegate-only — the
+  entire delegate experience, one form, no nav out).
+- **`admin_accounts.html`** gained a third section, "Active write-links"
+  (only currently-valid ones — revoked/expired/used links aren't
+  actionable and would just be dashboard noise), so an admin can shut down
+  a link they didn't issue themselves.
+- **Templates**: `account_write_links.html`, `delegate_write.html`,
+  `delegate_thanks.html`, `write_link_invalid.html` — all deliberately
+  thin, no site-nav links out of the delegate ones (they inherit
+  `base.html`'s nav, which already hides every link behind
+  `session.get('authed')`, and a delegate session never sets that, so this
+  needed no special-casing in the shared template).
+- A delegate-created story's `author` field is set to the granting
+  Person's name directly, bypassing F1's `STORYBOOK_AUTHORS`-membership
+  check entirely (that check lives in the `/api/stories` route layer, not
+  in `storage.create_story` itself, and this flow calls the latter
+  directly) — it renders as a plain neutral-color byline if the name isn't
+  a configured F1 author, exactly the graceful fallback F1 already
+  documented for a renamed/removed author.
+
+Tests: `tests/test_write_links.py` (new) — the pure `write_links.py` API:
+round-trip creation, expiry math, `is_link_valid`'s three failure modes
+(revoked/expired/used-up-single-use) versus a multi-use link staying valid
+after one use, `find_by_token` only matching a real token, and
+`list_all_active` excluding everything not currently valid.
+`tests/test_write_link_routes.py` (new) — the full HTTP surface: creating a
+link and seeing its URL exactly once, single-use-checkbox semantics, owner
+and admin revocation, a non-owner family account correctly 404'd trying to
+revoke someone else's link, the `/w/<token>` → `/w/write` handoff, a
+submitted story landing in `storage.list_stories` with the right author, a
+single-use link refusing a second submission (and the token itself going
+dead), a multi-use link accepting a second story, revoking a link locking
+out an already-open delegate session immediately, a delegate session unable
+to reach any real app route, and opening a link clearing a pre-existing
+real login session. Manually verified end-to-end (curl and Playwright,
+screenshots): create a labeled single-use link → open it in a fresh
+browser context → submit a story → it appears correctly on the real
+timeline with the right author byline → re-opening the same link shows
+"isn't valid anymore" → the delegate's nav bar never showed anything but
+the app title, confirming the scoping is structural (inherited from
+`base.html`'s existing `authed` guard) rather than something that had to
+be bolted on per-page.
+
+At the time, F1 retirement (Phase 4) was not yet built — see its own round
+below for what shipped since, and F19 is now fully built out end to end.
+
+---
+
+### Phase 4 implementation round
+
+Built as specified: real accounts supersede F1 the moment
+`STORYBOOK_ACCOUNTS` is on, with no config migration required and zero
+change to F1 itself when accounts mode stays off.
+
+- **`app/people.py`**: `Person` gains `author_color: Optional[str]`, an
+  optional hex color, same validation shape
+  (`is_valid_author_color`/`_parse_author_color`) and "unset = neutral,
+  malformed on disk = drop to None" tolerance as every other optional
+  field here. Threaded through `create_person`/`update_person`/
+  `_write_index` exactly like `gender` — `None` leaves it unchanged on
+  update, `""` clears it.
+- **`app/routes_api.py`**: `_validate_author` now short-circuits to
+  `(None, None)` whenever accounts mode is on, *before* even looking at
+  `STORYBOOK_AUTHORS` — a client-submitted `author` is never trusted once
+  real identity exists, closing what would otherwise be a spoofing gap (a
+  family account claiming to have written as someone else). A new
+  `_author_name_for_current_account()` resolves the actual author from
+  `session["person_slug"]` and is applied only in `create_story` — never
+  in `update_story`, so editing a story can never silently reassign who
+  wrote it. `_validate_author_color`, mirroring `_validate_gender` exactly,
+  wired into both person create/update handlers.
+- **`app/routes_pages.py`**: `_authors_and_colors()` branches on
+  `ACCOUNTS_ENABLED` — in accounts mode, "authors" becomes every Person
+  with a bound account (not `STORYBOOK_AUTHORS`), colored by their own
+  `author_color` or a new `DEFAULT_AUTHOR_COLOR` fallback. That fallback
+  matters because `timeline.html`'s legend chip renders
+  `--author-color: {{ a.color }}` unconditionally (unlike the per-story
+  byline lookups, which already guard on the color being present) — every
+  entry handed to it must have a real value, and a freshly-approved
+  account has no `author_color` yet until someone visits their person
+  page. Reusing this one function's output is what let every other F1
+  render path (timeline legend/dots, book, story byline) work in accounts
+  mode with *zero* template changes.
+- **Templates**: `editor.html`/`instant.html`'s existing
+  `{% if authors %}` guard around the chip picker gained `and not
+  config.ACCOUNTS_ENABLED` — picking an author from a hand-picked list
+  makes no sense once attribution is automatic from the session.
+  `person_editor.html` gained a native `<input type="color">` for
+  `author_color`, shown only in accounts mode.
+- **`app/static/js/editor.js`**: one new line reading the color input into
+  the shared story/person payload builder — no other JS changes needed.
+  The author-chip-picker JS (`author-chips.js`) already treated a missing
+  root element as "no chips" gracefully (empty array, `getSelected()`
+  stays `null`), from before this feature existed, so hiding the chip
+  markup server-side was sufficient on its own; the client keeps sending
+  an empty `author` field harmlessly, and the server ignores it anyway.
+
+Tests: `tests/test_people.py` and `tests/test_family_api.py` gained
+`author_color` round-trip/validation/clear-on-empty-string/malformed-
+frontmatter-tolerance cases, mirroring the existing `gender` ones exactly.
+`tests/test_accounts_authorship.py` (new) covers the actual behavior
+change: creating a story auto-attributes to the logged-in account;
+a spoofed client-submitted `author` is silently overridden; instants get
+the same treatment; editing a story never reassigns its author even when
+a different account holder makes the edit; the timeline legend shows
+account holders with the default color when unset and a person's own
+color once they set one; the chip picker is absent from both the story
+and instant editors in accounts mode; the color picker only appears on
+the person editor in accounts mode; and — the regression guard for
+everything above — F1's picker and validation are completely unaffected
+on an install that never turns `STORYBOOK_ACCOUNTS` on. Manually verified
+end-to-end (Playwright): created a story with no chip picker visible,
+confirmed it auto-attributed to "Papa," set a custom byline color through
+the actual JS-driven person editor (not just the API directly), and
+watched that exact color render on the real timeline's legend and byline.
+
+F19 is now fully built: admin/family accounts, the public request/approve
+queue, delegated write-links, and real per-account authorship superseding
+F1 — all gated behind one `STORYBOOK_ACCOUNTS` flag, every install that
+leaves it unset unaffected by any of it.
+
+---
+
+### Follow-up round: self-service password change and role management
+
+Two gaps found by explicitly auditing "is everything actually reachable
+from the web UI, with no need to hand-edit `account.json`" after F19
+shipped: there was no way to change your own password, and no way to
+promote/demote an existing account's role. Both required manual file
+editing to work around — exactly what this whole module exists to avoid.
+Closed in this round, plus one related footgun caught while building the
+fix (see below).
+
+- **`app/accounts.py`**: `Account` gains `session_version: int = 0`.
+  `set_password(people_dir, person_slug, new_password)` re-hashes and
+  **bumps** `session_version` — the point of changing a password is that
+  every other already-open session for that account stops working too,
+  not just that a new password now also happens to log in. `set_role`
+  promotes/demotes, validating the role like `create_account` already
+  does. Both `set_role` and the pre-existing `set_status` gained a shared
+  `_active_admin_count()` guard: **neither will demote nor disable the
+  last active admin.** That specific footgun wasn't part of the original
+  ask — it surfaced while writing `set_role` (a demote is symmetrically
+  as dangerous as a disable, and `set_status` already had the exact same
+  unguarded lockout risk from Phase 1) — fixed in the same round rather
+  than filed as a separate gap, since it's the identical failure mode
+  this whole round exists to close.
+- **`app/auth.py`**: `login_required`'s existing per-request re-check
+  (previously just account status) now also compares
+  `session["session_version"]` against the account's current value, so a
+  password change invalidates other sessions on their very next request —
+  same reasoning and same code path as the disabled-account check from
+  Phase 1, just one more field. New `set_session_for_account()` factors
+  out the "populate a fresh session" logic `login()` already had, so the
+  self-service password-change route can refresh *its own* session's
+  `session_version` after changing it — without that, the very session
+  that requested the change would immediately lock itself out on its next
+  request, which is not what "change your own password" should do to you.
+- **`app/routes_pages.py`**: `/account` (a small hub, replacing the bare
+  "Write links" nav link with "Account"), `/account/password`
+  (self-service — requires the current password, matching password-change
+  UX conventions generally, and refreshes the session as above),
+  `/admin/accounts/<slug>/reset-password` (admin-set, no current password
+  needed — the only account-recovery path this app has, since it has no
+  email), `/admin/accounts/<slug>/role`. `admin_disable_account` — which
+  could previously crash with an unhandled 500 the moment `set_status`
+  gained its guard — now catches `ValueError`/`FileNotFoundError` and
+  flashes instead, same pattern every other admin action here already
+  used.
+- **Templates**: new `account_home.html`, `account_password.html`,
+  `admin_reset_password.html`; `admin_accounts.html`'s account rows gained
+  an inline role `<select>` + "Set" button and a "Reset password" link
+  alongside the existing disable/enable action.
+
+Tests: `tests/test_accounts.py` gained `set_password`/`set_role` coverage
+(hash change, session_version bump, validation) and the last-admin guard
+for both `set_role` and `set_status` (including a disabled admin not
+counting as "remaining"). `tests/test_account_self_service.py` (new)
+covers the full HTTP surface: wrong-current-password and mismatched-
+confirmation rejections, a successful change keeping the *current* session
+logged in while logging out a *second* open session for the same account,
+admin reset without needing the old password (and it also invalidates
+open sessions), non-admins 404'd from both admin routes, and — the
+regression tests for the crash this round fixed — demoting or disabling
+the only admin redirects with a flash message rather than a 500. Manually
+verified end-to-end (Playwright): changed a password through the actual
+form and confirmed the session survived; promoted a family account to
+admin, demoted the original admin now that a second one existed, then
+attempted to demote the last remaining admin and watched the guard
+message render correctly instead of crashing.

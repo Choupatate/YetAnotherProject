@@ -2,7 +2,7 @@ import zipfile
 from datetime import date as date_cls
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request, url_for
+from flask import Blueprint, current_app, jsonify, request, session, url_for
 
 from . import kinship, people, storage
 from .auth import login_required
@@ -29,7 +29,15 @@ def _validate_author(data):
     Returns (author, error_response). `author` is None when absent (create:
     no author; update: leave unchanged) or empty string when explicitly
     cleared. Unconfigured deployments ignore the field entirely.
+
+    In accounts mode (FEATURES.md F19 Phase 4) this always returns
+    (None, None): authorship is never taken from the client there — see
+    _author_name_for_current_account, which create_story uses instead to
+    derive it from the session, and update_story leaving it None (i.e.
+    unchanged) so editing a story never silently reassigns who wrote it.
     """
+    if current_app.config.get("ACCOUNTS_ENABLED"):
+        return None, None
     configured = current_app.config.get("AUTHORS") or []
     if not configured:
         return None, None
@@ -41,6 +49,21 @@ def _validate_author(data):
         if author not in names:
             return None, _error("Unknown author.", 400)
     return author, None
+
+
+def _author_name_for_current_account():
+    """The display name to auto-attribute a newly created story/instant to,
+    when accounts mode is on and the current session is a real (non-
+    delegate) account bound to a Person. None otherwise — accounts mode
+    off, or a session somehow missing its person_slug — in which case the
+    story is simply created with no author, same as today."""
+    if not current_app.config.get("ACCOUNTS_ENABLED"):
+        return None
+    person_slug = session.get("person_slug")
+    if not person_slug:
+        return None
+    person = people.get_person(storage.people_dir(current_app.config["STORIES_DIR"]), person_slug)
+    return person.name if person else None
 
 
 def _validate_unlock(data):
@@ -67,22 +90,48 @@ def _validate_kind(data):
     return kind, None
 
 
+def _validate_media_filename(data, field_name, media_dir, noun, not_found_msg):
+    """Resolve and validate an optional filename field referring to a file
+    already uploaded into `media_dir` — a story's `cover`, a person's
+    `photo` (FEATURES.md F14). Absent means "leave unchanged"; empty
+    string clears it; a non-empty value must be a safe filename that
+    already exists there."""
+    if field_name not in data:
+        return None, None
+    value = data.get(field_name)
+    if not value:
+        return "", None
+    if not storage.is_valid_filename(value):
+        return None, _error(f"Invalid {noun} filename.", 400)
+    if not (media_dir / value).is_file():
+        return None, _error(not_found_msg, 400)
+    return value, None
+
+
 def _validate_cover(data, stories_dir, story_id):
     """Resolve and validate the optional 'cover' field on update.
 
     Absent means "leave unchanged"; empty string clears it; a non-empty
     value must be a safe filename that already exists in the story folder.
     """
-    if "cover" not in data:
-        return None, None
-    cover = data.get("cover")
-    if not cover:
-        return "", None
-    if not storage.is_valid_filename(cover):
-        return None, _error("Invalid cover filename.", 400)
-    if not (Path(stories_dir) / story_id / cover).is_file():
-        return None, _error("Cover image not found.", 400)
-    return cover, None
+    return _validate_media_filename(
+        data, "cover", Path(stories_dir) / story_id, "cover", "Cover image not found."
+    )
+
+
+def _parse_story_fields(data):
+    """The raw title/date/markdown/draft/archived fields shared by
+    create/update, plus the one validation rule both apply identically
+    (a valid date is always required). Title is validated separately by
+    each caller — create's rule depends on `kind`, update's doesn't."""
+    title = (data.get("title") or "").strip()
+    story_date = _parse_date(data.get("date"))
+    markdown = data.get("markdown") or ""
+    draft = bool(data.get("draft"))
+    archived = bool(data.get("archived"))
+    if story_date is None:
+        return None, _error("Date must be an ISO date (YYYY-MM-DD).", 400)
+    return (title, story_date, markdown, draft, archived), None
 
 
 @bp.route("/stories", methods=["POST"])
@@ -93,11 +142,10 @@ def create_story():
     if error:
         return error
 
-    title = (data.get("title") or "").strip()
-    story_date = _parse_date(data.get("date"))
-    markdown = data.get("markdown") or ""
-    draft = bool(data.get("draft"))
-    archived = bool(data.get("archived"))
+    fields, error = _parse_story_fields(data)
+    if error:
+        return error
+    title, story_date, markdown, draft, archived = fields
 
     if kind == "instant":
         # FEATURES.md F13: the "line" is optional, so an instant never fails
@@ -105,12 +153,11 @@ def create_story():
         title = title[:60] if title else "Instant"
     elif not title:
         return _error("Title is required.", 400)
-    if story_date is None:
-        return _error("Date must be an ISO date (YYYY-MM-DD).", 400)
 
     author, error = _validate_author(data)
     if error:
         return error
+    author = _author_name_for_current_account() or author
     unlock, error = _validate_unlock(data)
     if error:
         return error
@@ -129,16 +176,12 @@ def update_story(story_id):
         return _error("Story not found.", 404)
 
     data = request.get_json(silent=True) or {}
-    title = (data.get("title") or "").strip()
-    story_date = _parse_date(data.get("date"))
-    markdown = data.get("markdown") or ""
-    draft = bool(data.get("draft"))
-    archived = bool(data.get("archived"))
-
+    fields, error = _parse_story_fields(data)
+    if error:
+        return error
+    title, story_date, markdown, draft, archived = fields
     if not title:
         return _error("Title is required.", 400)
-    if story_date is None:
-        return _error("Date must be an ISO date (YYYY-MM-DD).", 400)
 
     author, error = _validate_author(data)
     if error:
@@ -252,22 +295,15 @@ def delete_memo(story_id, filename):
 
 
 def _people_dir():
-    return current_app.config["STORIES_DIR"] / "people"
+    return storage.people_dir(current_app.config["STORIES_DIR"])
 
 
 def _validate_person_photo(data, slug):
     """Resolve and validate the optional 'photo' field on person update.
     Same rules as a story's `cover` (FEATURES.md F14)."""
-    if "photo" not in data:
-        return None, None
-    photo = data.get("photo")
-    if not photo:
-        return "", None
-    if not storage.is_valid_filename(photo):
-        return None, _error("Invalid photo filename.", 400)
-    if not (_people_dir() / slug / photo).is_file():
-        return None, _error("Photo not found.", 400)
-    return photo, None
+    return _validate_media_filename(
+        data, "photo", _people_dir() / slug, "photo", "Photo not found."
+    )
 
 
 def _validate_person_photo_sepia(data):
@@ -338,6 +374,20 @@ def _validate_gender(data):
     if gender not in ("m", "f", ""):
         return None, _error("Gender must be 'm', 'f', or empty.", 400)
     return gender, None
+
+
+def _validate_author_color(data):
+    """Resolve and validate the optional 'author_color' field (FEATURES.md
+    F19 Phase 4). None means the field was absent ("leave unchanged" on
+    update); "" clears it. Only meaningful in accounts mode, but validated
+    the same regardless — a person's color isn't harmful to store even
+    when unused."""
+    if "author_color" not in data:
+        return None, None
+    author_color = (data.get("author_color") or "").strip()
+    if author_color and not people.is_valid_author_color(author_color):
+        return None, _error("Color must be a hex value like #d9a441.", 400)
+    return author_color, None
 
 
 def _validate_person_family(data, self_slug):
@@ -411,12 +461,16 @@ def create_person():
     fields, _all_people, error = _validate_person_family(data, self_slug=None)
     if error:
         return error
+    author_color, error = _validate_author_color(data)
+    if error:
+        return error
 
     people_dir = _people_dir()
     slug = people.create_person(
         people_dir, name, relation=relation, body=markdown,
         parents=fields["parents"], partners=fields["partners"],
         friend_of=fields["friend_of"], gender=fields["gender"],
+        author_color=author_color,
     )
     _sync_partner_symmetry(people_dir, slug, [], fields["partners"] or [])
     return jsonify({"id": slug, "title": name})
@@ -443,6 +497,10 @@ def update_person(slug):
     if error:
         return error
 
+    author_color, error = _validate_author_color(data)
+    if error:
+        return error
+
     fields, all_people, error = _validate_person_family(data, self_slug=slug)
     if error:
         return error
@@ -457,7 +515,7 @@ def update_person(slug):
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
-            photo_sepia=photo_sepia,
+            photo_sepia=photo_sepia, author_color=author_color,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)
@@ -538,18 +596,11 @@ def api_tree():
     people_dir = _people_dir()
     all_people = people.list_people(people_dir)
     graph = kinship.build_graph(all_people)
-
-    anchor = current_app.config.get("CHILD_SLUG")
-    if anchor not in graph.nodes:
-        anchor = None
+    anchor = kinship.resolve_anchor(current_app.config.get("CHILD_SLUG"), graph)
 
     entries = []
     for p in all_people:
-        in_family = bool(
-            graph.parents.get(p.slug)
-            or graph.partners.get(p.slug)
-            or kinship.children_of(graph, p.slug)
-        )
+        in_family = kinship.is_in_family(graph, p.slug)
         entry = {
             "id": p.slug,
             "name": p.name,

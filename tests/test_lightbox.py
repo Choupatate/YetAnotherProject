@@ -12,19 +12,14 @@ from datetime import date
 from app import storage
 
 
-def test_story_page_cover_and_figure_images_present_for_lightbox(auth_client, stories_dir):
-    from io import BytesIO
-
-    from PIL import Image
+def test_story_page_cover_and_figure_images_present_for_lightbox(auth_client, stories_dir, jpeg_bytes):
     from werkzeug.datastructures import FileStorage
 
     story_id = storage.create_story(
         stories_dir, "Photo story", date(2026, 1, 1),
         "Some text.\n\n![A caption](photo-001.jpg)",
     )
-    buf = BytesIO()
-    Image.new("RGB", (200, 200), color="red").save(buf, format="JPEG")
-    buf.seek(0)
+    buf = jpeg_bytes(color="red", size=(200, 200))
     filename = storage.save_image(stories_dir, story_id, FileStorage(stream=buf, filename="c.jpg"))
     story = storage.get_story(stories_dir, story_id)
     storage.save_story(stories_dir, story_id, story.title, story.date, story.body, cover=filename)

@@ -5,6 +5,7 @@ their first argument, no hidden global state.
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,11 @@ from . import storage
 logger = logging.getLogger(__name__)
 
 DEFAULT_PHOTO_SEPIA = 30
+
+# Same shape as __init__.py's STORYBOOK_AUTHORS color regex — duplicated
+# rather than imported, since importing from the app package's __init__
+# into a module it itself imports would invert the dependency direction.
+_AUTHOR_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 @dataclass
@@ -33,6 +39,7 @@ class Person:
     partners: list = None
     friend_of: list = None
     gender: Optional[str] = None
+    author_color: Optional[str] = None
 
     def __post_init__(self):
         if self.parents is None:
@@ -66,6 +73,20 @@ def _parse_photo_sepia(value) -> Optional[int]:
     return value if is_valid_photo_sepia(value) else None
 
 
+def is_valid_author_color(value) -> bool:
+    """A CSS hex color, 3 or 6 digits — same shape __init__.py already
+    requires of STORYBOOK_AUTHORS colors (FEATURES.md F19 Phase 4: this is
+    the per-person replacement for that env-config color)."""
+    return isinstance(value, str) and bool(_AUTHOR_COLOR_RE.match(value))
+
+
+def _parse_author_color(value) -> Optional[str]:
+    """Malformed values silently drop to None (files outlive edits) —
+    the byline/legend just render neutral for that person, same
+    graceful-degradation F1 already used for an unmatched author name."""
+    return value if is_valid_author_color(value) else None
+
+
 def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Optional[Person]:
     metadata = post.metadata
     name = metadata.get("name")
@@ -97,6 +118,7 @@ def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Option
         partners=_parse_slug_list(metadata.get("partners")),
         friend_of=_parse_slug_list(metadata.get("friend_of")),
         gender=gender,
+        author_color=_parse_author_color(metadata.get("author_color")),
     )
 
 
@@ -150,7 +172,7 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
                   relation: Optional[str], photo: Optional[str], body: str,
                   parents: Optional[list] = None, partners: Optional[list] = None,
                   friend_of: Optional[list] = None, gender: Optional[str] = None,
-                  photo_sepia: Optional[int] = None) -> None:
+                  photo_sepia: Optional[int] = None, author_color: Optional[str] = None) -> None:
     post = frontmatter.Post(body)
     post["name"] = name
     post["created"] = created.isoformat()
@@ -169,6 +191,8 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
         post["friend_of"] = list(friend_of)
     if gender:
         post["gender"] = gender
+    if author_color:
+        post["author_color"] = author_color
     index_path = Path(people_dir) / slug / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -177,7 +201,8 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
 
 def create_person(people_dir, name: str, relation: Optional[str] = None, body: str = "",
                    parents: Optional[list] = None, partners: Optional[list] = None,
-                   friend_of: Optional[list] = None, gender: Optional[str] = None) -> str:
+                   friend_of: Optional[list] = None, gender: Optional[str] = None,
+                   author_color: Optional[str] = None) -> str:
     """Create a new person folder, returning its slug (the folder name).
 
     On slug collision, append -2, -3, ... (same rule as storage.create_story).
@@ -195,7 +220,8 @@ def create_person(people_dir, name: str, relation: Optional[str] = None, body: s
     person_path.mkdir(parents=True)
     now = datetime.now()
     _write_index(people_dir, slug, name, now, now, relation, None, body,
-                 parents=parents, partners=partners, friend_of=friend_of, gender=gender)
+                 parents=parents, partners=partners, friend_of=friend_of, gender=gender,
+                 author_color=author_color)
     return slug
 
 
@@ -203,13 +229,14 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
                    body: str = "", photo: Optional[str] = None,
                    parents: Optional[list] = None, partners: Optional[list] = None,
                    friend_of: Optional[list] = None, gender: Optional[str] = None,
-                   photo_sepia: Optional[int] = None) -> None:
+                   photo_sepia: Optional[int] = None, author_color: Optional[str] = None) -> None:
     """Update an existing person's content in place. The slug never changes.
 
     `photo` of None means "leave unchanged"; an empty string clears it.
-    `parents`/`partners`/`friend_of`/`gender` of None means "leave
-    unchanged". `photo_sepia` of None means "leave unchanged" — pass an
-    explicit int (including 0) to set it.
+    `parents`/`partners`/`friend_of`/`gender`/`author_color` of None means
+    "leave unchanged" — pass an empty string to clear `author_color`.
+    `photo_sepia` of None means "leave unchanged" — pass an explicit int
+    (including 0) to set it.
     """
     if not storage.is_valid_story_id(slug):
         raise storage.InvalidStoryId(slug)
@@ -229,6 +256,8 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
         friend_of = existing.friend_of
     if gender is None:
         gender = existing.gender
+    if author_color is None:
+        author_color = existing.author_color
     _write_index(people_dir, slug, name, created, datetime.now(), relation, photo, body,
                  parents=parents, partners=partners, friend_of=friend_of, gender=gender,
-                 photo_sepia=photo_sepia)
+                 photo_sepia=photo_sepia, author_color=author_color)

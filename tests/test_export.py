@@ -39,15 +39,11 @@ def test_export_excludes_tmp_leftovers(auth_client, stories_dir):
     assert f"{story_id}/index.md.tmp" not in names
 
 
-def test_export_preserves_on_disk_folder_structure(auth_client, stories_dir):
+def test_export_preserves_on_disk_folder_structure(auth_client, stories_dir, jpeg_bytes):
     from werkzeug.datastructures import FileStorage
 
-    from PIL import Image
-
     story_id = storage.create_story(stories_dir, "Photo story", date(2026, 1, 1), "")
-    buf = BytesIO()
-    Image.new("RGB", (50, 50), color="green").save(buf, format="JPEG")
-    buf.seek(0)
+    buf = jpeg_bytes(color="green", size=(50, 50))
     filename = storage.save_image(stories_dir, story_id, FileStorage(stream=buf, filename="p.jpg"))
 
     resp = auth_client.get("/export")

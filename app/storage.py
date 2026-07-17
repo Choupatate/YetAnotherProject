@@ -31,6 +31,7 @@ VERSION_ID_RE = re.compile(r"^\d{8}T\d{6}\d{6}$")
 MEMO_RE = re.compile(r"^memo-(\d{3})\.(webm|m4a|mp3|ogg)$")
 
 MAX_IMAGE_EDGE = 2000
+THUMB_MAX_EDGE = 320
 JPEG_QUALITY = 85
 VERSIONS_DIRNAME = ".versions"
 MAX_VERSIONS = 20
@@ -38,10 +39,6 @@ MEMO_ALLOWED_EXTENSIONS = ("webm", "m4a", "mp3", "ogg")
 
 
 class InvalidStoryId(ValueError):
-    pass
-
-
-class InvalidFilename(ValueError):
     pass
 
 
@@ -89,6 +86,23 @@ def is_valid_filename(filename: str) -> bool:
     return bool(filename) and ".." not in filename and bool(FILENAME_RE.match(filename))
 
 
+def thumb_filename(filename: str) -> str:
+    """The small-thumbnail sibling of an image filename, e.g.
+    "photo-003.jpg" -> "photo-003.thumb.jpg" (see `save_image_to`)."""
+    name, ext = filename.rsplit(".", 1)
+    return f"{name}.thumb.{ext}"
+
+
+def original_filename_from_thumb(filename: str) -> Optional[str]:
+    """Inverse of `thumb_filename`, for the `_serve_media` fallback that
+    serves the full-size photo when a thumbnail hasn't been generated for it
+    (photos uploaded before thumbnails existed). None if `filename` isn't a
+    thumb-shaped name."""
+    if ".thumb." not in filename:
+        return None
+    return filename.replace(".thumb.", ".", 1)
+
+
 def is_valid_version_id(version_id: str) -> bool:
     return bool(version_id) and bool(VERSION_ID_RE.match(version_id))
 
@@ -105,6 +119,12 @@ def _story_dir(stories_dir: Path, story_id: str) -> Path:
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
     return Path(stories_dir) / story_id
+
+
+def people_dir(stories_dir) -> Path:
+    """The "cast of the book" (FEATURES.md F14) lives in a fixed
+    subdirectory of the stories root, same as every other story folder."""
+    return Path(stories_dir) / "people"
 
 
 def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> Story:
@@ -204,6 +224,13 @@ def readable_stories(stories: list[Story], today: Optional[date_cls] = None) -> 
     result = [s for s in stories if not s.draft and not s.archived and not is_sealed(s, today)]
     result.sort(key=lambda s: (s.date, s.created or datetime.min))
     return result
+
+
+def readable_page_stories(stories_dir) -> list[Story]:
+    """`readable_stories` narrowed to `kind == "story"` — the candidate set
+    for anything that turns pages (F15 random, F2 reading order): instants
+    (F13) are a different, feed-like kind and never page-turn targets."""
+    return [s for s in readable_stories(list_stories(stories_dir)) if s.kind == "story"]
 
 
 def _is_leap_year(year: int) -> bool:
@@ -354,11 +381,9 @@ def _snapshot_version(stories_dir, story_id: str) -> None:
     _prune_versions(versions_dir)
 
 
-def _prune_versions(versions_dir: Path, keep: Optional[int] = None) -> None:
-    if keep is None:
-        keep = MAX_VERSIONS
+def _prune_versions(versions_dir: Path) -> None:
     files = sorted(versions_dir.glob("*.md"))
-    for f in files[: max(0, len(files) - keep)]:
+    for f in files[: max(0, len(files) - MAX_VERSIONS)]:
         f.unlink()
 
 
@@ -416,7 +441,10 @@ def _next_photo_number(dir_path: Path) -> int:
 
 
 def save_image_to(dir_path: Path, file_storage) -> str:
-    """Re-encode an uploaded image with Pillow and store it in `dir_path`.
+    """Re-encode an uploaded image with Pillow and store it in `dir_path`,
+    alongside a small `.thumb.` sibling (see `thumb_filename`) for the
+    avatar-sized contexts (timeline, family lists) that don't need the
+    full-size photo.
 
     Returns the new filename (photo-NNN.<ext>). Never deletes existing
     images. Shared by stories and people (FEATURES.md F14) so resize/EXIF/
@@ -428,13 +456,19 @@ def save_image_to(dir_path: Path, file_storage) -> str:
     number = _next_photo_number(dir_path)
     image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
 
+    thumb = image.copy()
+    thumb.thumbnail((THUMB_MAX_EDGE, THUMB_MAX_EDGE))
+
     if is_png:
         filename = f"photo-{number:03d}.png"
         image.save(dir_path / filename, format="PNG")
+        thumb.save(dir_path / thumb_filename(filename), format="PNG")
     else:
         filename = f"photo-{number:03d}.jpg"
-        image = image.convert("RGB")
-        image.save(dir_path / filename, format="JPEG", quality=JPEG_QUALITY)
+        image.convert("RGB").save(dir_path / filename, format="JPEG", quality=JPEG_QUALITY)
+        thumb.convert("RGB").save(
+            dir_path / thumb_filename(filename), format="JPEG", quality=JPEG_QUALITY
+        )
 
     return filename
 

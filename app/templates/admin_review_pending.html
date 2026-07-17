@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block title %}Review request — {{ app_title }}{% endblock %}
+{% block body_class %}page-admin{% endblock %}
+{% block content %}
+<div class="admin">
+  <p class="admin__back"><a href="{{ url_for('pages.admin_accounts') }}">&lsaquo; Accounts</a></p>
+  <h1 class="admin__title">Review request</h1>
+  <p class="admin__hint">
+    <strong>{{ pending.display_name }}</strong> requested the username
+    <strong>{{ pending.username }}</strong>.
+    {% if pending.note %}Note: &ldquo;{{ pending.note }}&rdquo;{% endif %}
+  </p>
+
+  <form class="admin__form" method="post"
+        action="{{ url_for('pages.admin_review_pending', username=pending.username) }}">
+    {{ macros.person_picker(unbound_people) }}
+
+    <label class="login__label" for="admin-role">Role</label>
+    <select class="login__input" id="admin-role" name="role">
+      {% for role in roles %}
+      <option value="{{ role }}">{{ role|capitalize }}</option>
+      {% endfor %}
+    </select>
+
+    <button class="btn btn--primary login__submit" type="submit">Approve</button>
+  </form>
+  <form method="post"
+        action="{{ url_for('pages.admin_reject_pending', username=pending.username) }}">
+    <button type="submit" class="btn">Reject request</button>
+  </form>
+</div>
+{% endblock %}

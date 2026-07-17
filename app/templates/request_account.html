@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Request an account — {{ app_title }}{% endblock %}
+{% block body_class %}page-login{% endblock %}
+{% block content %}
+<div class="login">
+  <h1 class="login__title">{{ app_title }}</h1>
+  {% if submitted %}
+  {% if auto_approved %}
+  <p class="login__subtitle">
+    You're the first account on this book — it's been created as admin.
+  </p>
+  {% else %}
+  <p class="login__subtitle">
+    Thanks — an admin will review your request soon.
+  </p>
+  {% endif %}
+  <p class="login__request-link"><a href="{{ url_for('auth.login') }}">Log in</a></p>
+  {% else %}
+  <p class="login__subtitle">Ask whoever set this up for the invite code.</p>
+  <form class="login__form" method="post" action="{{ url_for('pages.request_account') }}">
+    <label class="login__label" for="display-name">Your name</label>
+    <input class="login__input" type="text" id="display-name" name="display_name" autofocus required>
+
+    <label class="login__label" for="username">Username</label>
+    <input class="login__input" type="text" id="username" name="username"
+           autocomplete="off" pattern="[a-z0-9-]{3,32}" required>
+
+    <label class="login__label" for="password">Password</label>
+    <input class="login__input" type="password" id="password" name="password"
+           autocomplete="new-password" minlength="8" required>
+
+    <label class="login__label" for="note">Note (optional)</label>
+    <input class="login__input" type="text" id="note" name="note" placeholder="e.g. Milo's godmother">
+
+    <label class="login__label" for="invite-code">Invite code</label>
+    <input class="login__input" type="password" id="invite-code" name="invite_code" required>
+
+    <button class="btn btn--primary login__submit" type="submit">Request account</button>
+  </form>
+  <p class="login__request-link"><a href="{{ url_for('auth.login') }}">Back to log in</a></p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -10,10 +10,11 @@
 <meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+<script src="{{ url_for('static', filename='js/safe-storage.js') }}"></script>
 <script>
 document.documentElement.classList.add("js");
 (function () {
-  var stored = localStorage.getItem("storybook-theme");
+  var stored = window.SafeStorage.getString("storybook-theme");
   if (stored === "light" || stored === "dark" || stored === "manuscript") {
     document.documentElement.setAttribute("data-theme", stored);
   }
@@ -33,6 +34,12 @@ document.documentElement.classList.add("js");
   {% if session.get('authed') %}
   <div class="site-nav__actions">
     <a class="site-nav__link" href="{{ url_for('pages.people_page') }}">People</a>
+    {% if config.ACCOUNTS_ENABLED and session.get('role') == 'admin' %}
+    <a class="site-nav__link" href="{{ url_for('pages.admin_accounts') }}">Accounts</a>
+    {% endif %}
+    {% if config.ACCOUNTS_ENABLED and session.get('person_slug') %}
+    <a class="site-nav__link" href="{{ url_for('pages.account_home') }}">Account</a>
+    {% endif %}
     <a class="btn btn--new" href="{{ url_for('pages.new_story') }}">+ New story</a>
     <a class="btn btn--instant" href="{{ url_for('pages.new_instant') }}">+ Instant</a>
   </div>

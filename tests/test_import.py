@@ -86,20 +86,14 @@ def test_import_backup_rejects_bad_zip(stories_dir):
         storage.import_backup(stories_dir, buf)
 
 
-def test_import_backup_includes_images(tmp_path, stories_dir):
-    from io import BytesIO as BIO
-
-    from PIL import Image
+def test_import_backup_includes_images(tmp_path, stories_dir, jpeg_bytes):
     from werkzeug.datastructures import FileStorage
 
     source_dir = tmp_path / "source"
     source_dir.mkdir()
     story_id = storage.create_story(source_dir, "Photo story", date(2026, 1, 1), "")
-    img_buf = BIO()
-    Image.new("RGB", (50, 50), color="blue").save(img_buf, format="JPEG")
-    img_buf.seek(0)
     filename = storage.save_image(
-        source_dir, story_id, FileStorage(stream=img_buf, filename="p.jpg")
+        source_dir, story_id, FileStorage(stream=jpeg_bytes(color="blue", size=(50, 50)), filename="p.jpg")
     )
 
     storage.import_backup(stories_dir, _export_zip(source_dir))

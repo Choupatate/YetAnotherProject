@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as macros %}
 {% block title %}{{ person.name }} — {{ app_title }}{% endblock %}
 {% block body_class %}page-person{% endblock %}
 
@@ -10,12 +11,7 @@
     {% for ref in refs %}
     <li class="person-family__item">
       <a class="person-family__link" href="{{ url_for('pages.person_page', slug=ref.slug) }}">
-        {% if ref.photo_url %}
-        <img class="person-family__thumb" src="{{ ref.photo_url }}" alt="" loading="lazy" decoding="async"
-             style="--photo-sepia: {{ ref.photo_sepia }}%;">
-        {% else %}
-        <span class="person-family__thumb person-family__thumb--placeholder" aria-hidden="true">{{ ref.name[0]|upper }}</span>
-        {% endif %}
+        {{ macros.photo_thumb(ref, "person-family") }}
         <span class="person-family__name">{{ ref.name }}</span>
       </a>
     </li>

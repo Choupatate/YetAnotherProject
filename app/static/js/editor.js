@@ -12,11 +12,17 @@
   var saveMessageEl = document.getElementById("editor-save-message");
   var saveButtonDefaultLabel = saveButton.textContent;
 
-  function showSaveMessage(text) {
-    if (!saveMessageEl) return;
-    saveMessageEl.textContent = text || "";
-    saveMessageEl.hidden = !text;
+  // Shared by every "show/clear a status line" spot below (save, photo,
+  // voice) — each just needs its own element remembered.
+  function makeMessageSetter(el) {
+    return function (text) {
+      if (!el) return;
+      el.textContent = text || "";
+      el.hidden = !text;
+    };
   }
+
+  var showSaveMessage = makeMessageSetter(saveMessageEl);
 
   var storyId = form.dataset.storyId || null;
   var dirty = false;
@@ -28,6 +34,7 @@
   // stays byte-for-byte identical to before; the person editor template
   // supplies the /api/people... equivalents.
   var relationInput = document.getElementById("person-relation");
+  var authorColorInput = document.getElementById("person-author-color");
   var createUrl = form.dataset.createUrl || "/api/stories";
   var updateUrlTemplate = form.dataset.updateUrlTemplate || "/api/stories/__ID__";
   var imageUrlTemplate = form.dataset.imageUrlTemplate || "/api/stories/__ID__/images";
@@ -38,21 +45,17 @@
     return template.replace("__ID__", id);
   }
 
-  if (draftToggle) {
-    draftToggle.addEventListener("click", function () {
-      var pressed = draftToggle.getAttribute("aria-pressed") === "true";
-      draftToggle.setAttribute("aria-pressed", pressed ? "false" : "true");
+  function wireToggleButton(btn) {
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var pressed = btn.getAttribute("aria-pressed") === "true";
+      btn.setAttribute("aria-pressed", pressed ? "false" : "true");
       markDirty();
     });
   }
 
-  if (archiveToggle) {
-    archiveToggle.addEventListener("click", function () {
-      var pressed = archiveToggle.getAttribute("aria-pressed") === "true";
-      archiveToggle.setAttribute("aria-pressed", pressed ? "false" : "true");
-      markDirty();
-    });
-  }
+  wireToggleButton(draftToggle);
+  wireToggleButton(archiveToggle);
 
   if (unlockInput) {
     unlockInput.addEventListener("input", markDirty);
@@ -160,10 +163,10 @@
 
   var hasPhoto = !!(photoPreview && !photoPreview.hidden);
 
-  function showPhotoMessage(text) {
-    if (!photoMessageEl) return;
-    photoMessageEl.textContent = text || "";
-    photoMessageEl.hidden = !text;
+  var showPhotoMessage = makeMessageSetter(photoMessageEl);
+
+  function buildMediaUrl(filename) {
+    return mediaUrlTemplate.replace("__ID__", storyId).replace("__FILENAME__", filename);
   }
 
   function setPhotoSepia(value) {
@@ -386,20 +389,10 @@
       // Pillow/pillow-heif conversion (the same one F11 body-image uploads
       // already use) first, then crop the resulting JPEG.
       showPhotoMessage("Converting photo…");
-      ensureStoryId()
-        .then(function (id) {
-          var formData = new FormData();
-          formData.append("file", file);
-          return fetch(fillUrlTemplate(imageUrlTemplate, id), {
-            method: "POST",
-            body: formData,
-          }).then(handleJsonResponse);
-        })
-        .then(function (data) {
+      uploadImage(file)
+        .then(function (filename) {
           showPhotoMessage("");
-          openCropperFromUrl(
-            mediaUrlTemplate.replace("__ID__", storyId).replace("__FILENAME__", data.filename)
-          );
+          openCropperFromUrl(buildMediaUrl(filename));
         })
         .catch(function (error) {
           showPhotoMessage(error.message || "Could not read that photo.");
@@ -467,14 +460,11 @@
             return fetch(fillUrlTemplate(photoUrlTemplate, id), {
               method: "POST",
               body: formData,
-            }).then(handleJsonResponse);
+            }).then(window.FetchJson.parse);
           });
         })
         .then(function (data) {
-          var mediaUrl = mediaUrlTemplate
-            .replace("__ID__", storyId)
-            .replace("__FILENAME__", data.filename);
-          revealPhoto(mediaUrl);
+          revealPhoto(buildMediaUrl(data.filename));
           if (photoFileInput) photoFileInput.value = "";
           closeCropper();
           markDirty();
@@ -507,6 +497,27 @@
     if (hasPhoto) {
       payload.photo_sepia = photoSepiaRange ? parseInt(photoSepiaRange.value, 10) : 30;
     }
+  }
+
+  // Shared by the placeholder create (ensureStoryId), the autosave
+  // snapshot (currentDraftPayload), and the real save (submit handler) —
+  // each supplies its own title/markdown (the one thing that legitimately
+  // differs: a placeholder needs a fallback title, autosave doesn't) and
+  // layers any extra fields of its own on top of the result.
+  function buildStoryPayload(title, markdown) {
+    var payload = {
+      title: title,
+      date: dateInput ? dateInput.value : "",
+      markdown: markdown,
+      author: authorChipsController.getSelected() || "",
+      draft: isDraft(),
+      unlock: unlockValue(),
+      archived: isArchived(),
+    };
+    if (relationInput) payload.relation = relationInput.value.trim();
+    if (authorColorInput) payload.author_color = authorColorInput.value;
+    addFamilyFields(payload);
+    return payload;
   }
 
   // --- Writing prompt cycling (F16) — never inserted into the story itself.
@@ -544,10 +555,7 @@
     var recordMimeType = null;
     var recordExt = null;
 
-    function showVoiceMessage(text) {
-      voiceMessageEl.textContent = text || "";
-      voiceMessageEl.hidden = !text;
-    }
+    var showVoiceMessage = makeMessageSetter(voiceMessageEl);
 
     function supportsRecording() {
       return !!(
@@ -608,7 +616,7 @@
         return fetch("/api/stories/" + id + "/memos", {
           method: "POST",
           body: formData,
-        }).then(handleJsonResponse);
+        }).then(window.FetchJson.parse);
       });
     }
 
@@ -715,9 +723,7 @@
   }
 
   function isDarkTheme() {
-    var attr = document.documentElement.getAttribute("data-theme");
-    if (attr) return attr === "dark";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return !!window.StorybookTheme && window.StorybookTheme.current() === "dark";
   }
 
   function markDirty() {
@@ -725,41 +731,15 @@
     scheduleAutosave();
   }
 
-  function handleJsonResponse(response) {
-    return response
-      .json()
-      .catch(function () {
-        return {};
-      })
-      .then(function (data) {
-        if (!response.ok) {
-          throw new Error(data.error || "Something went wrong. Please try again.");
-        }
-        return data;
-      });
-  }
-
   function ensureStoryId() {
     if (storyId) return Promise.resolve(storyId);
-    var title = titleInput.value.trim() || "Untitled";
-    var storyDate = dateInput ? dateInput.value : "";
-    var payload = {
-      title: title,
-      date: storyDate,
-      markdown: "",
-      author: authorChipsController.getSelected() || "",
-      draft: isDraft(),
-      unlock: unlockValue(),
-      archived: isArchived(),
-    };
-    if (relationInput) payload.relation = relationInput.value.trim();
-    addFamilyFields(payload);
+    var payload = buildStoryPayload(titleInput.value.trim() || "Untitled", "");
     return fetch(createUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
-      .then(handleJsonResponse)
+      .then(window.FetchJson.parse)
       .then(function (data) {
         storyId = data.id;
         form.dataset.storyId = storyId;
@@ -776,7 +756,7 @@
         method: "POST",
         body: formData,
       })
-        .then(handleJsonResponse)
+        .then(window.FetchJson.parse)
         .then(function (data) {
           return data.filename;
         });
@@ -967,18 +947,8 @@
   var initialMarkdown = sourceTextarea.value;
 
   function currentDraftPayload() {
-    var payload = {
-      title: titleInput.value,
-      date: dateInput ? dateInput.value : "",
-      markdown: editor.getMarkdown(),
-      author: authorChipsController.getSelected() || "",
-      draft: isDraft(),
-      unlock: unlockValue(),
-      archived: isArchived(),
-      savedAt: Date.now(),
-    };
-    if (relationInput) payload.relation = relationInput.value;
-    addFamilyFields(payload);
+    var payload = buildStoryPayload(titleInput.value.trim(), editor.getMarkdown());
+    payload.savedAt = Date.now();
     return payload;
   }
 
@@ -1053,7 +1023,6 @@
     event.preventDefault();
     if (saveButton.disabled) return;
     var title = titleInput.value.trim();
-    var storyDate = dateInput ? dateInput.value : "";
     if (!title) {
       titleInput.focus();
       return;
@@ -1062,18 +1031,7 @@
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";
     if (saveSpinner) saveSpinner.hidden = false;
-    var markdown = editor.getMarkdown();
-    var payload = {
-      title: title,
-      date: storyDate,
-      markdown: markdown,
-      author: authorChipsController.getSelected() || "",
-      draft: isDraft(),
-      unlock: unlockValue(),
-      archived: isArchived(),
-    };
-    if (relationInput) payload.relation = relationInput.value.trim();
-    addFamilyFields(payload);
+    var payload = buildStoryPayload(title, editor.getMarkdown());
 
     // A brand-new story is created with its real content in one request
     // rather than going through ensureStoryId()'s empty-body POST followed
@@ -1092,7 +1050,7 @@
         });
 
     request
-      .then(handleJsonResponse)
+      .then(window.FetchJson.parse)
       .then(function (data) {
         dirty = false;
         clearAutosave();

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Accounts — {{ app_title }}{% endblock %}
+{% block body_class %}page-admin{% endblock %}
+{% block content %}
+<div class="admin">
+  <p class="admin__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <div class="admin__header">
+    <h1 class="admin__title">Accounts</h1>
+    <a class="btn btn--new" href="{{ url_for('pages.admin_new_account') }}">+ New account</a>
+  </div>
+  {% if pending %}
+  <h2 class="admin__subtitle">Pending requests</h2>
+  <ul class="admin__list">
+    {% for p in pending %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ p.display_name }}</span>
+      <span class="admin__row-username">{{ p.username }}</span>
+      <a class="btn admin__row-action" href="{{ url_for('pages.admin_review_pending', username=p.username) }}">Review</a>
+      <form method="post" action="{{ url_for('pages.admin_reject_pending', username=p.username) }}">
+        <button type="submit" class="btn admin__row-action">Reject</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if pending %}<h2 class="admin__subtitle">Accounts</h2>{% endif %}
+  {% if not rows %}
+  <p class="admin__empty">No accounts yet.</p>
+  {% else %}
+  <ul class="admin__list">
+    {% for row in rows %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ row.person.name if row.person else row.account.person_slug }}</span>
+      <span class="admin__row-username">{{ row.account.username }}</span>
+      <span class="admin__row-status admin__row-status--{{ row.account.status }}">{{ row.account.status }}</span>
+      <form class="admin__row-role-form" method="post"
+            action="{{ url_for('pages.admin_set_role', person_slug=row.account.person_slug) }}">
+        <select class="login__input" name="role">
+          {% for role in roles %}
+          <option value="{{ role }}" {% if role == row.account.role %}selected{% endif %}>{{ role|capitalize }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn admin__row-action">Set</button>
+      </form>
+      <a class="btn admin__row-action"
+         href="{{ url_for('pages.admin_reset_password', person_slug=row.account.person_slug) }}">Reset password</a>
+      {% if row.account.status == 'active' %}
+      <form method="post" action="{{ url_for('pages.admin_disable_account', person_slug=row.account.person_slug) }}">
+        <button type="submit" class="btn admin__row-action">Disable</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('pages.admin_enable_account', person_slug=row.account.person_slug) }}">
+        <button type="submit" class="btn admin__row-action">Enable</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if link_rows %}
+  <h2 class="admin__subtitle">Active write-links</h2>
+  <ul class="admin__list">
+    {% for row in link_rows %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ row.person.name if row.person else row.link.person_slug }}</span>
+      <span class="admin__row-username">{{ row.link.label or "(no label)" }}</span>
+      <form method="post"
+            action="{{ url_for('pages.revoke_write_link', person_slug=row.link.person_slug, link_id=row.link.id) }}">
+        <button type="submit" class="btn admin__row-action">Revoke</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

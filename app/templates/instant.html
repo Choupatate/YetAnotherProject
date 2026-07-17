@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as macros %}
 {% block title %}New instant — {{ app_title }}{% endblock %}
 {% block body_class %}page-instant{% endblock %}
 {% block content %}
@@ -14,15 +15,8 @@
          placeholder="One line&hellip;" maxlength="200">
   <input type="date" id="instant-date" name="date" class="instant__date"
          value="{{ today.isoformat() }}" required>
-  {% if authors %}
-  <div class="editor__authors" id="editor-authors">
-    {% for a in authors %}
-    <button type="button" class="editor__author-chip" data-author-name="{{ a.name }}"
-            style="--author-color: {{ a.color }}" aria-pressed="false">
-      <span class="editor__author-dot" aria-hidden="true"></span>{{ a.name }}
-    </button>
-    {% endfor %}
-  </div>
+  {% if authors and not config.ACCOUNTS_ENABLED %}
+  {{ macros.author_chip_row(authors) }}
   {% endif %}
   <div class="instant__save-row">
     <button type="submit" id="instant-save" class="btn btn--primary instant__save">Save</button>
@@ -32,7 +26,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/safe-storage.js') }}"></script>
+<script src="{{ url_for('static', filename='js/fetch-json.js') }}"></script>
 <script src="{{ url_for('static', filename='js/author-chips.js') }}"></script>
 <script src="{{ url_for('static', filename='js/instant.js') }}"></script>
 {% endblock %}

@@ -39,6 +39,20 @@ def children_of(graph: Graph, slug: str) -> list:
     return [s for s in graph.nodes if slug in graph.parents.get(s, [])]
 
 
+def resolve_anchor(configured_slug: Optional[str], graph: Graph) -> Optional[str]:
+    """The configured `STORYBOOK_CHILD` slug, or None if it's unset or no
+    longer a real person in the current graph — the one rule every anchor
+    consumer (person pages, /tree, /api/tree) must apply identically."""
+    return configured_slug if configured_slug in graph.nodes else None
+
+
+def is_in_family(graph: Graph, slug: str) -> bool:
+    """True when `slug` is part of the blood/partner graph — has recorded
+    parents, a partner, or a child — as opposed to a friend-only or fully
+    unlinked person (FEATURES.md F18's "family" vs. "other" split)."""
+    return bool(graph.parents.get(slug) or graph.partners.get(slug) or children_of(graph, slug))
+
+
 def siblings_of(graph: Graph, slug: str) -> list:
     """People sharing at least one parent with `slug`, excluding `slug`."""
     my_parents = set(graph.parents.get(slug, []))
@@ -122,7 +136,15 @@ def _label_for_updown(graph: Graph, person_slug: str, up: int, down: int) -> Opt
     return "your cousin"
 
 
-def _blood_kinship(graph: Graph, anchor_slug: str, person_slug: str) -> Optional[str]:
+def _blood_updown(graph: Graph, anchor_slug: str, person_slug: str) -> Optional[tuple]:
+    """(steps up from anchor, steps down to person) via their nearest
+    shared blood ancestor — or None if anchor/person don't share one.
+    Deliberately per-pair: two ancestors "at the same depth" on paper can
+    have very different recorded depths of their OWN ancestry (one side
+    researched further back than the other), so this must be measured
+    from each person's own distance to the shared ancestor, never from a
+    global "depth from the deepest recorded root" — that would misplace
+    whichever ancestor's own parents happen to be unrecorded."""
     if anchor_slug == person_slug:
         return None
     if anchor_slug not in graph.nodes or person_slug not in graph.nodes:
@@ -133,7 +155,27 @@ def _blood_kinship(graph: Graph, anchor_slug: str, person_slug: str) -> Optional
     if not common:
         return None
     best = min(common, key=lambda a: (anchor_depths[a] + person_depths[a], a))
-    return _label_for_updown(graph, person_slug, anchor_depths[best], person_depths[best])
+    return anchor_depths[best], person_depths[best]
+
+
+def _blood_kinship(graph: Graph, anchor_slug: str, person_slug: str) -> Optional[str]:
+    updown = _blood_updown(graph, anchor_slug, person_slug)
+    if updown is None:
+        return None
+    return _label_for_updown(graph, person_slug, updown[0], updown[1])
+
+
+def _partner_blood_updown(graph: Graph, anchor_slug: str, person_slug: str) -> Optional[tuple]:
+    """The nearest blood-related partner of `person_slug`, as `(partner_slug,
+    (up, down))` — the one-hop-through-marriage fallback shared by
+    `kinship_label` ("your uncle's wife") and `generation_offset` (same
+    generation bucket as the blood relative). None if no partner has a
+    blood path to the anchor."""
+    for partner_slug in sorted(graph.partners.get(person_slug, ())):
+        updown = _blood_updown(graph, anchor_slug, partner_slug)
+        if updown is not None:
+            return partner_slug, updown
+    return None
 
 
 def kinship_label(graph: Graph, anchor_slug: Optional[str], person_slug: str) -> Optional[str]:
@@ -150,9 +192,52 @@ def kinship_label(graph: Graph, anchor_slug: Optional[str], person_slug: str) ->
         return label
 
     # One hop: partner of a labeled blood relative, e.g. "your uncle's wife".
-    for partner_slug in sorted(graph.partners.get(person_slug, ())):
-        relative_label = _blood_kinship(graph, anchor_slug, partner_slug)
+    partner_match = _partner_blood_updown(graph, anchor_slug, person_slug)
+    if partner_match is not None:
+        partner_slug, updown = partner_match
+        relative_label = _label_for_updown(graph, partner_slug, updown[0], updown[1])
         if relative_label:
             word = _gender_word(graph, person_slug, "husband", "wife", "partner")
             return f"{relative_label}'s {word}"
     return None
+
+
+def generation_offset(graph: Graph, anchor_slug: Optional[str], person_slug: str) -> Optional[int]:
+    """How many generations `person_slug` sits from `anchor_slug`: positive
+    toward ancestors, negative toward descendants, 0 for the anchor's own
+    generation (siblings, cousins, the anchor themself). Used to group the
+    printable family outline by generation rather than exact relation —
+    "Parents' generation" is meant to include aunts/uncles alongside
+    parents, which share the same net distance. None when unset or
+    unreachable by blood or one hop of partnership (mirrors
+    `kinship_label`'s "your uncle's wife" fallback)."""
+    if not graph or not anchor_slug or anchor_slug not in graph.nodes:
+        return None
+    if person_slug not in graph.nodes:
+        return None
+    if anchor_slug == person_slug:
+        return 0
+
+    updown = _blood_updown(graph, anchor_slug, person_slug)
+    if updown is not None:
+        return updown[0] - updown[1]
+
+    partner_match = _partner_blood_updown(graph, anchor_slug, person_slug)
+    if partner_match is not None:
+        return partner_match[1][0] - partner_match[1][1]
+    return None
+
+
+def generation_group_label(offset: int, anchor_name: str) -> str:
+    """A heading for a bucket of people at `offset` generations from the
+    anchor, e.g. "Grandparents' generation" or "Milo's generation"."""
+    if offset == 0:
+        return f"{anchor_name}’s generation"
+    great = "great-" * (abs(offset) - 2)
+    if offset > 0:
+        word = "parents" if offset == 1 else f"{great}grandparents"
+        possessive = f"{word}’"
+    else:
+        word = "children" if offset == -1 else f"{great}grandchildren"
+        possessive = f"{word}’s"
+    return f"{possessive.capitalize()} generation"

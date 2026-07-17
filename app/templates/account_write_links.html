@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Write links — {{ app_title }}{% endblock %}
+{% block body_class %}page-admin{% endblock %}
+{% block content %}
+<div class="admin">
+  <p class="admin__back"><a href="{{ url_for('pages.account_home') }}">&lsaquo; Account</a></p>
+  <h1 class="admin__title">Write links</h1>
+  <p class="admin__hint">
+    Share a link with someone so they can write one story for you — no
+    account, no password of their own. They can't see anything else in
+    the book.
+  </p>
+
+  {% if new_link_url %}
+  <p class="admin__hint"><strong>Copy this now — it won't be shown again:</strong></p>
+  <p class="admin__row"><code>{{ new_link_url }}</code></p>
+  {% endif %}
+
+  <form class="admin__form" method="post" action="{{ url_for('pages.account_write_links') }}">
+    <label class="login__label" for="link-label">Label (optional)</label>
+    <input class="login__input" type="text" id="link-label" name="label" placeholder="e.g. for the recital story">
+
+    <label class="login__label" for="link-expires">Expires after (days, optional)</label>
+    <input class="login__input" type="number" min="1" id="link-expires" name="expires_days" placeholder="Never">
+
+    <label class="admin__checkbox-label">
+      <input type="checkbox" name="single_use" checked>
+      One use only
+    </label>
+
+    <button class="btn btn--primary login__submit" type="submit">Create link</button>
+  </form>
+
+  {% if link_rows %}
+  <h2 class="admin__subtitle">History</h2>
+  <ul class="admin__list">
+    {% for row in link_rows %}
+    <li class="admin__row">
+      <span class="admin__row-name">{{ row.link.label or "(no label)" }}</span>
+      <span class="admin__row-status admin__row-status--{{ 'disabled' if row.status in ('revoked', 'expired') else row.status }}">{{ row.status }}</span>
+      {% if row.status == 'active' %}
+      <form method="post"
+            action="{{ url_for('pages.revoke_write_link', person_slug=row.link.person_slug, link_id=row.link.id) }}">
+        <button type="submit" class="btn admin__row-action">Revoke</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

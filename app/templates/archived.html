@@ -2,26 +2,8 @@
 {% block title %}Archived — {{ app_title }}{% endblock %}
 {% block body_class %}page-archived{% endblock %}
 {% block content %}
-<div class="archived">
-  <p class="archived__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
-  <h1 class="archived__title">Archived</h1>
-  {% if not stories %}
-  <img class="illo archived__illo" src="{{ url_for('static', filename='img/empty-chest.jpg') }}"
-       alt="" loading="lazy" decoding="async" width="653" height="729">
-  <p class="archived__empty">Nothing archived right now.</p>
-  {% else %}
-  <ul class="archived__list">
-    {% for story in stories %}
-    {% set author_color = author_colors.get(story.author) if (authors and story.author) else None %}
-    <li class="archived__item">
-      <a class="archived__link" href="{{ url_for('pages.story', story_id=story.id) }}">
-        {% if author_color %}<span class="archived__dot" style="--author-color: {{ author_color }}" aria-hidden="true"></span>{% endif %}
-        <span class="archived__item-title">{{ story.title }}</span>
-        <span class="archived__item-date">{{ story.date.strftime('%b %-d, %Y') }}</span>
-      </a>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-</div>
+{% set prefix = "archived" %}
+{% set page_title = "Archived" %}
+{% set empty_text = "Nothing archived right now." %}
+{% include "_story_list.html" %}
 {% endblock %}

@@ -1,0 +1,27 @@
+{# Shared drafts/archived layout — identical structure, only the CSS class
+   prefix and copy differ (main.css already merges the two prefixes' rules
+   with combined selectors; this does the same for the markup).
+   Expects in scope: prefix ("drafts" or "archived"), page_title, empty_text,
+   stories, authors, author_colors. #}
+<div class="{{ prefix }}">
+  <p class="{{ prefix }}__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <h1 class="{{ prefix }}__title">{{ page_title }}</h1>
+  {% if not stories %}
+  <img class="illo {{ prefix }}__illo" src="{{ url_for('static', filename='img/empty-chest.jpg') }}"
+       alt="" loading="lazy" decoding="async" width="653" height="729">
+  <p class="{{ prefix }}__empty">{{ empty_text }}</p>
+  {% else %}
+  <ul class="{{ prefix }}__list">
+    {% for story in stories %}
+    {% set author_color = author_colors.get(story.author) if (authors and story.author) else None %}
+    <li class="{{ prefix }}__item">
+      <a class="{{ prefix }}__link" href="{{ url_for('pages.story', story_id=story.id) }}">
+        {% if author_color %}<span class="{{ prefix }}__dot" style="--author-color: {{ author_color }}" aria-hidden="true"></span>{% endif %}
+        <span class="{{ prefix }}__item-title">{{ story.title }}</span>
+        <span class="{{ prefix }}__item-date">{{ story.date.strftime('%b %-d, %Y') }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

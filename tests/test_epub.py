@@ -74,18 +74,13 @@ def test_epub_excludes_drafts_and_sealed(auth_client, stories_dir):
     assert "A sealed letter" not in all_text
 
 
-def test_epub_embeds_story_images(auth_client, stories_dir):
-    from io import BytesIO as BIO
-
-    from PIL import Image
+def test_epub_embeds_story_images(auth_client, stories_dir, jpeg_bytes):
     from werkzeug.datastructures import FileStorage
 
     story_id = storage.create_story(
         stories_dir, "Photo story", date(2026, 1, 1), "![A caption](photo-001.jpg)"
     )
-    buf = BIO()
-    Image.new("RGB", (50, 50), color="red").save(buf, format="JPEG")
-    buf.seek(0)
+    buf = jpeg_bytes(color="red", size=(50, 50))
     filename = storage.save_image(stories_dir, story_id, FileStorage(stream=buf, filename="p.jpg"))
     expected_bytes = (stories_dir / story_id / filename).read_bytes()
 

@@ -172,3 +172,70 @@ def test_kinship_label_great_grandchild_reverse(family):
 
 def test_kinship_label_friend_only_link_has_no_kinship(family):
     assert kinship.kinship_label(family, "milo", "ami-jean") is None
+
+
+# --- generation_offset: the printable outline's bucketing --------------------
+
+
+OFFSETS = [
+    ("papa", 1),
+    ("maman", 1),
+    ("georges", 2),
+    ("lise", 2),
+    ("adele", 3),
+    ("grandoncle-henri", 2),  # great-uncle: same generation bucket as grandparents
+    ("soeur-emma", 0),
+    ("demi-frere", 0),
+    ("oncle-paul", 1),  # uncle: same generation bucket as parents
+    ("tante-claire", 1),
+    ("tante-rose", 1),  # uncle's wife, via the one-hop partner fallback
+    ("cousin-lea", 0),
+    ("neveu-theo", -1),
+    ("ami-jean", None),
+    ("solo-gaston", None),
+]
+
+
+@pytest.mark.parametrize("slug,expected", OFFSETS)
+def test_generation_offset_table(family, slug, expected):
+    assert kinship.generation_offset(family, "milo", slug) == expected
+
+
+def test_generation_offset_self_is_zero(family):
+    assert kinship.generation_offset(family, "milo", "milo") == 0
+
+
+def test_generation_offset_no_anchor_is_none(family):
+    assert kinship.generation_offset(family, None, "papa") is None
+
+
+def test_generation_offset_unknown_anchor_is_none(family):
+    assert kinship.generation_offset(family, "nobody", "papa") is None
+
+
+def test_generation_offset_none_when_no_blood_path_even_via_partner():
+    # A couple linked only to each other, with no blood connection to the
+    # anchor at all — the one-hop partner fallback only reaches a partner
+    # who is THEMSELVES blood-related to the anchor, not an equally
+    # disconnected one.
+    people = [
+        _p("milo", "Milo"),
+        _p("a", "A", partners=["b"]),
+        _p("b", "B", partners=["a"]),
+    ]
+    graph = kinship.build_graph(people)
+    assert kinship.generation_offset(graph, "milo", "a") is None
+
+
+# --- generation_group_label ---------------------------------------------------
+
+
+def test_generation_group_label_table():
+    assert kinship.generation_group_label(0, "Milo") == "Milo’s generation"
+    assert kinship.generation_group_label(1, "Milo") == "Parents’ generation"
+    assert kinship.generation_group_label(2, "Milo") == "Grandparents’ generation"
+    assert kinship.generation_group_label(3, "Milo") == "Great-grandparents’ generation"
+    assert kinship.generation_group_label(4, "Milo") == "Great-great-grandparents’ generation"
+    assert kinship.generation_group_label(-1, "Milo") == "Children’s generation"
+    assert kinship.generation_group_label(-2, "Milo") == "Grandchildren’s generation"
+    assert kinship.generation_group_label(-3, "Milo") == "Great-grandchildren’s generation"

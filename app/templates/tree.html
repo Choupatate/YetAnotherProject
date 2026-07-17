@@ -17,6 +17,19 @@
        data-map-tile="{{ url_for('static', filename='img/tree-map-tile.jpg') }}"
        data-map-tile-dark="{{ url_for('static', filename='img/tree-map-tile-dark.jpg') }}"></div>
 
+  <section class="tree__print-outline">
+    {% for group in generations %}
+    <div class="tree__print-outline-group">
+      <h2 class="tree__print-outline-heading">{{ group.heading }}</h2>
+      <ul class="tree__print-outline-list">
+        {% for ref in group.people %}
+        <li class="tree__print-outline-item">{{ ref.name }}{% if ref.kinship %} — {{ ref.kinship }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </section>
+
   <section class="tree__others">
     <h2 class="tree__others-heading">Friends &amp; others</h2>
     <ul class="tree__others-list">
@@ -31,8 +44,6 @@
       {% endfor %}
     </ul>
   </section>
-
-  <p class="tree__print-note">Open Storybook on a device to explore the interactive family tree.</p>
   {% else %}
   <img class="illo tree__illo" src="{{ url_for('static', filename='img/tree-sapling.jpg') }}"
        alt="" loading="lazy" decoding="async" width="760" height="739">
@@ -44,7 +55,6 @@
 {% if has_family_links %}
 <script src="{{ url_for('static', filename='vendor/d3/d3.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/familychart/family-chart.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/safe-storage.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tree-logic.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tree.js') }}"></script>
 {% endif %}
