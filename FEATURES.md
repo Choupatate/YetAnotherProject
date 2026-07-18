@@ -2273,3 +2273,155 @@ the first a real vulnerability, all fixed and covered by regression tests:
   `test_approve_if_first_only_approves_once_for_two_simultaneous_requests`.
 
 `pytest` (663 tests, +2) and `ruff check .` green throughout.
+
+---
+
+## "Everyone" round 2 — a real family graph, not a merged hourglass
+
+Real dogfooding feedback on the previous round's "Everyone" view: on an
+actual (not toy-demo) family, it "duplicates people" badly enough to be
+confusing. Reproduced with a deliberately messy test family (two
+remarriages — Papa's and Maman's each — plus a re-married uncle, half-
+siblings on both sides) rather than guessing: the old implementation drew
+**Papa, Maman, and Milo each twice**, not just the one bridging child the
+first round's simpler test family had led me to expect. Investigated
+whether `family-chart` (the vendored library) had a config option to
+suppress this — it doesn't; the one internal flag that looked promising
+(`one_level_rels`, found by reading the vendored source) turned out to be
+a narrow special-case switch for an interactive "add relative" UI mode,
+and forcing it on for normal rendering collapsed the chart to almost
+nothing. This isn't a bug in how it was used: `family-chart` is
+fundamentally a single-root hourglass pedigree renderer, and a real
+family with remarriages is a graph, not a tree — a single hierarchy
+rooted anywhere will always duplicate whoever bridges two otherwise-
+disjoint branches. Assessed three options with the user (keep the chart
+and just visually de-emphasize duplicates; promote the already-built
+print-only generation outline to the primary on-screen view instead of a
+chart, trading the graph look for a guaranteed-zero-duplication list; or
+build a real graph layout from scratch) — chose the third: a genuine
+family-graph chart where every person appears exactly once, replacing
+`family-chart` entirely for this one view (Direct line and the
+branch-level panels are untouched, still `family-chart`, since they were
+never the problem — they deliberately show one branch/pedigree at a
+time and never had this failure mode).
+
+### The layout: `app/static/js/tree-graph-logic.js`
+
+A new, dependency-free, unit-tested-in-isolation module (matching
+`tree-logic.js`'s existing UMD pattern), computing a DAG layout with no
+external layout library — `d3` (already vendored) is used only for pan/
+zoom in the renderer, not for this math:
+
+- **`computeLayers(ids, parentsOf, partnersOf)`** — every person's
+  generation row: 0 for anyone with no recorded parents, otherwise one
+  more than their deepest parent's layer (the standard "longest path
+  from a root" DAG layering — deliberately not `kinship.py`'s anchor-
+  relative `generation_offset`, which needs a reachable path to one
+  anchor and returns `None` otherwise; this needs a definite row for
+  *every* in-family person, anchor or not). Partners are then pulled to
+  the same layer as each other to a fixed point — a couple reads as one
+  generation on paper even when one side's ancestry wasn't researched as
+  far back, and pulling a partner down can cascade to pull *their* own
+  children down a layer too (a prior-marriage child who'd otherwise land
+  on the same row as their own parent). Bounded by a `MAX_LAYERS` safety
+  cap, same reasoning as `tree-logic.js`'s `MAX_LEVELS` — never expected
+  to bind on real data, just a guard against hand-edited/corrupted
+  `parents` edges.
+- **`coupleUnits(rowIds, partnersOf)`** — groups a row into ordering
+  units along partner links. The actual difficulty here, found by
+  building the naive version first and looking at the result: a person
+  with two partners in the same row (a remarriage) must end up in the
+  *middle* of their unit (`Ex-Anne — Papa — Maman`), not with both
+  partners bunched on one side — otherwise Ex-Anne and Maman render
+  adjacent to each other despite never having been a couple. Fixed by
+  finding each row's partner-subgraph connected components, then walking
+  a simple-path component from one of its ends (a degree-≤1 node) rather
+  than a plain DFS; a component with someone in 3+ partnerships within
+  the same row (rare) falls back to a best-effort traversal order,
+  without the every-neighbor-is-a-couple guarantee.
+- **`orderRows(...)`** — the standard (heuristic; true crossing-minimal
+  layout is NP-hard) Sugiyama barycenter method: each row initially
+  ordered by its couple-units' input order, then a few refinement passes
+  alternating "order by parents' positions" (top-down) and "order by
+  children's positions" (bottom-up), converging quickly for graphs this
+  size.
+- **`groupChildrenByParents`** / **`partnerPairs`** — the edges to draw:
+  siblings sharing a parent-set share one drop-line from the couple
+  instead of each redrawing their own (and correctly split into separate
+  groups for half-siblings, who share only one parent); a person with
+  two partners produces two separate partner-pairs, never a 3-way group.
+- **`layoutFamily(...)`** ties it together: `{positions: {[id]: {layer,
+  x}}, partnerEdges, parentEdgeGroups}`. `x` is a row-relative integer
+  rank, not a pixel or global coordinate — converting that to a pixel
+  position is the renderer's job.
+
+Tests: `tests/js/tree_graph_logic_test.mjs` (13 cases) — layer assignment
+including the partner-pull-down fixed point, `coupleUnits`' remarriage-
+chain ordering (asserting every rendered neighbor is a real partner, not
+just checking the set of members), parent/child grouping including
+half-siblings, and the full pipeline against both the motivating blended
+family (asserting `Object.keys(positions).length === ids.length` — the
+actual "no duplication" guarantee, plus that no two people on the same
+layer share an `x`) and a plain two-branch family as a regression
+baseline. Wired into `pytest` via `test_tree_logic_js.py` (skips without
+`node`, same as the existing JS test wiring).
+
+### The renderer: `renderFamilyGraph` in `tree.js`
+
+Same architectural split `family-chart` itself uses — SVG for the
+connector lines, plain HTML `<div>`s for cards (photos, text-overflow
+ellipsis, hover — "for free" via ordinary CSS) — rather than
+`<foreignObject>`, which has known cross-browser quirks. Both are
+children of the mount element and share one `d3.zoom` transform, applied
+manually to each on every `"zoom"` event (`svg`'s group via SVG
+`transform`, the cards `<div>` via CSS `transform: translate() scale()`)
+since they're separate DOM subtrees, not one containing the other.
+Auto-fits to the container on load (scale/translate computed from the
+laid-out content's pixel bounds vs. the container's `getBoundingClientRect()`,
+capped at 1x so a small family never renders oversized) and offers the
+same Recenter button pattern the other views already have — reusing the
+existing `.tree__recenter-btn` class outright, and generalizing
+`installMapBackground(mountEl, svg, view)` (previously hardcoded to
+family-chart's `svg.main_svg`/`g.view` structure) to accept the SVG/
+pan-zoom-group elements as parameters, so both this renderer and
+`createChartInstance` can share it. Parent-child edges draw one shared
+trunk from a couple's (or single parent's) midpoint, branching to each
+child. Clicking a card navigates to that person's page — no mini-tree
+re-root corner icon here (that's `family-chart`'s widget); re-rooting
+elsewhere is one click away via Direct line.
+
+`app/templates/tree.html` gained a `<script>` tag for the new
+`tree-graph-logic.js`, loaded before `tree.js`. New CSS
+(`.tree-graph`/`.tree-graph__*`) mirrors the existing `.f3-card-*`
+visual language (cream card, gold focus ring, serif name, small-caps
+kinship line, dashed rope-colored connectors — solid for partner links,
+so a marriage reads differently at a glance from a generation
+drop-line) but under fresh class names, since this view no longer uses
+`family-chart` or its `.f3`-scoped CSS at all. `.tree-graph` also
+carries `.tree__chart` for the shared container chrome (leather/
+parchment background, border, height) it still has in common with the
+other views.
+
+### Cleanup and a caught mistake
+
+The old merge-root approach's `EVERYONE_ROOT_ID` synthetic card, its
+`[data-id="__everyone__"] { display: none; }` CSS, and the "all"
+branch's family-chart data-splicing in `renderChartArea` are gone
+entirely. While removing what looked like the matching duplicate-badge
+CSS (`.f3-card-duplicate`), realized it was about to delete something
+still needed: `cardInnerHtml`'s `node.duplicate` handling is
+`family-chart`'s own general pedigree-collapse flag (e.g. a first-cousin
+marriage putting the same grandparent on two lines of one person's
+ancestry *within a single Direct-line or branch-panel chart*) — nothing
+to do with the old Everyone hack, and still load-bearing for those
+unchanged views. Restored it (re-worded to describe what it's actually
+for now) before it shipped as a real regression.
+
+Tests: `pytest` (664, +1 for the new JS-wiring test) and `ruff check .`
+green. Manually verified (Playwright): the blended test family renders
+17 cards for 17 people (zero duplication, vs. the old 20-for-17), click
+navigation and Recenter both work, panning drags correctly, no
+regression to Direct line/branch panels (unchanged card counts, no
+console errors) or to a plain non-blended family (13-for-13, still
+clean), no horizontal overflow on a 390px viewport, and correct
+rendering in dark theme.

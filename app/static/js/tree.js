@@ -1,6 +1,6 @@
 (function () {
   var container = document.getElementById("FamilyChart");
-  if (!container || !window.f3 || !window.TreeLogic || !window.SafeStorage) return;
+  if (!container || !window.f3 || !window.TreeLogic || !window.TreeGraphLogic || !window.SafeStorage) return;
 
   var viewsNav = document.getElementById("tree-views");
   var treeUrl = container.dataset.treeUrl;
@@ -57,23 +57,21 @@
 
       var urlById = {};
       var nameById = {};
+      var peopleById = {};
       var parentsOf = {};
       var partnersOf = {};
+      var childrenOf = {};
       familyPeople.forEach(function (p) {
         urlById[p.id] = p.url;
         nameById[p.id] = p.name;
+        peopleById[p.id] = p;
         parentsOf[p.id] = p.rels.parents || [];
         partnersOf[p.id] = p.rels.partners || [];
+        childrenOf[p.id] = p.rels.children || [];
       });
       var exists = function (id) {
         return urlById.hasOwnProperty(id);
       };
-
-      // Synthetic id for the "Everyone" merged view's hidden root card
-      // (see renderChartArea). Can't collide with a real person's id:
-      // storage.slugify() (server-side) strips every non a-z0-9
-      // character, including underscores, from every slug it produces.
-      var EVERYONE_ROOT_ID = "__everyone__";
 
       // The person the tree is ABOUT. Level 0 ("Direct line") roots the
       // chart directly at focus, which already shows their whole pedigree
@@ -169,14 +167,18 @@
       function cardInnerHtml(node) {
         var d = node.data.data;
         // At level 0 there's exactly one chart and no "branch" to speak
-        // of; from level 1 up (including "Everyone"), each root is an
-        // ancestor and focus shows up somewhere in it as their
-        // descendant — mark them with their own thin gold ring so they
-        // stay findable among the aunts/uncles/cousins.
+        // of; from level 1 up, each root is an ancestor and focus shows
+        // up somewhere in it as their descendant — mark them with their
+        // own thin gold ring so they stay findable among the
+        // aunts/uncles/cousins. (The "Everyone" view has its own
+        // separate renderer, renderFamilyGraph — this function is only
+        // ever used for family-chart instances: Direct line and the
+        // branch-level panels.)
         var isFocus = viewLevel !== 0 && node.data.id === focusId;
-        // In the "Everyone" view, a person whose marriage bridges two
-        // otherwise-disjoint lineages is drawn once per side; the
-        // vendored library flags every occurrence past the first with
+        // Pedigree collapse — e.g. a first-cousin marriage puts the same
+        // shared grandparent on two different lines of one person's own
+        // ancestry, so they appear twice within this single chart.
+        // family-chart flags every occurrence past the first with
         // `node.duplicate` (node.data.id itself is never suffixed).
         var isDuplicate = !!node.duplicate;
         var innerClass = "card-inner" + (isFocus ? " card-inner--focus" : "");
@@ -247,14 +249,12 @@
       // local subtree, so reusing one id across several simultaneous
       // panels would make them all paint whichever panel's pattern
       // happened to register first.
-      function installMapBackground(mountEl) {
-        var svg = mountEl.querySelector("svg.main_svg");
-        var view = svg && svg.querySelector("g.view");
+      function installMapBackground(mountEl, svg, view) {
         if (!svg || !view) {
           if (window.console && window.console.warn) {
             window.console.warn(
-              "Storybook: couldn't find the family-chart SVG structure to attach the map " +
-                "background to (svg.main_svg / g.view) — the vendored bundle may have changed."
+              "Storybook: couldn't find the chart's SVG pan/zoom group to attach the map " +
+                "background to."
             );
           }
           return;
@@ -336,9 +336,174 @@
 
         chart.updateMainId(rootId);
         chart.updateTree({ initial: true });
-        installMapBackground(mountEl);
+        installMapBackground(mountEl, mountEl.querySelector("svg.main_svg"), mountEl.querySelector("svg.main_svg g.view"));
         installRecenterButton();
         captureFitTransform();
+      }
+
+      var SVG_NS = "http://www.w3.org/2000/svg";
+      var GRAPH_CARD_W = 176;
+      var GRAPH_CARD_H = 56;
+      var GRAPH_COL_GAP = 28;
+      var GRAPH_ROW_GAP = 96;
+
+      function graphCardInnerHtml(person) {
+        var avatar = person.photo || fallbackAvatar;
+        var avatarClass = "tree-graph__avatar" + (person.photo ? " tree-graph__avatar--photo" : "");
+        var avatarStyle = person.photo ? ' style="--photo-sepia: ' + person.photo_sepia + '%;"' : "";
+        var kinshipHtml = person.kinship
+          ? '<div class="tree-graph__kinship" title="' + escapeHtml(person.kinship) + '">' +
+            escapeHtml(person.kinship) + "</div>"
+          : "";
+        return (
+          '<img class="' + avatarClass + '" src="' + escapeHtml(avatar) + '" alt=""' + avatarStyle + '>' +
+          '<div class="tree-graph__text">' +
+          '<div class="tree-graph__name">' + escapeHtml(person.name) + "</div>" +
+          kinshipHtml +
+          "</div>"
+        );
+      }
+
+      // The "Everyone" view: a from-scratch graph layout (TreeGraphLogic),
+      // not family-chart — every person gets exactly one card, however
+      // many marriages connect them to the rest of the family. family-chart
+      // is a single-root hourglass; there's no way to ask it for "the
+      // whole family, everyone once" without duplicating whoever bridges
+      // two otherwise-disjoint branches (see FEATURES.md). SVG for the
+      // connector lines, plain HTML for cards (photos/text-overflow "for
+      // free" via normal CSS) — same split family-chart itself uses,
+      // avoiding <foreignObject>'s cross-browser quirks — both driven by
+      // one d3-zoom transform so they pan/zoom in lockstep.
+      function renderFamilyGraph(mountEl) {
+        mountEl.className = "tree-graph tree__chart";
+        var ids = familyPeople.map(function (p) {
+          return p.id;
+        });
+        var layout = window.TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
+
+        function px(id) {
+          var pos = layout.positions[id];
+          return { x: pos.x * (GRAPH_CARD_W + GRAPH_COL_GAP), y: pos.layer * (GRAPH_CARD_H + GRAPH_ROW_GAP) };
+        }
+
+        var maxX = 0;
+        var maxLayer = 0;
+        ids.forEach(function (id) {
+          var pos = layout.positions[id];
+          if (pos.x > maxX) maxX = pos.x;
+          if (pos.layer > maxLayer) maxLayer = pos.layer;
+        });
+        var contentWidth = (maxX + 1) * (GRAPH_CARD_W + GRAPH_COL_GAP);
+        var contentHeight = (maxLayer + 1) * (GRAPH_CARD_H + GRAPH_ROW_GAP);
+
+        mountEl.innerHTML =
+          '<svg class="tree-graph__svg"><g class="tree-graph__zoom"><g class="tree-graph__edges"></g></g></svg>' +
+          '<div class="tree-graph__cards"></div>';
+        var svg = mountEl.querySelector(".tree-graph__svg");
+        var zoomG = mountEl.querySelector(".tree-graph__zoom");
+        var edgesG = mountEl.querySelector(".tree-graph__edges");
+        var cardsDiv = mountEl.querySelector(".tree-graph__cards");
+
+        installMapBackground(mountEl, svg, zoomG);
+
+        // Parent-child edges: one shared trunk from the couple's (or
+        // single parent's) midpoint, branching out to each child — so
+        // three siblings share one drop-line instead of three separate
+        // ones stacking on top of each other.
+        layout.parentEdgeGroups.forEach(function (group) {
+          var parentPositions = group.parents.map(px);
+          var midX =
+            parentPositions.reduce(function (sum, p) {
+              return sum + p.x;
+            }, 0) / parentPositions.length + GRAPH_CARD_W / 2;
+          var parentY = parentPositions[0].y + GRAPH_CARD_H;
+          var trunkY = parentY + GRAPH_ROW_GAP / 2;
+
+          var trunk = document.createElementNS(SVG_NS, "path");
+          trunk.setAttribute("class", "tree-graph__link");
+          trunk.setAttribute("d", "M" + midX + "," + parentY + "V" + trunkY);
+          edgesG.appendChild(trunk);
+
+          group.children.forEach(function (childId) {
+            var childPos = px(childId);
+            var childX = childPos.x + GRAPH_CARD_W / 2;
+            var branch = document.createElementNS(SVG_NS, "path");
+            branch.setAttribute("class", "tree-graph__link");
+            branch.setAttribute(
+              "d",
+              "M" + midX + "," + trunkY + "H" + childX + "V" + childPos.y
+            );
+            edgesG.appendChild(branch);
+          });
+        });
+
+        // Partner edges: a short horizontal connector between adjacent
+        // partner cards (coupleUnits in the layout already guarantees
+        // every rendered neighbor in a chain is a real couple).
+        layout.partnerEdges.forEach(function (pair) {
+          var posA = px(pair[0]);
+          var posB = px(pair[1]);
+          var y = posA.y + GRAPH_CARD_H / 2;
+          var left = Math.min(posA.x, posB.x) + GRAPH_CARD_W;
+          var right = Math.max(posA.x, posB.x);
+          if (right <= left) return; // shouldn't happen once ordered, but never draw a backwards/zero-width line
+          var line = document.createElementNS(SVG_NS, "line");
+          line.setAttribute("class", "tree-graph__link tree-graph__link--partner");
+          line.setAttribute("x1", left);
+          line.setAttribute("y1", y);
+          line.setAttribute("x2", right);
+          line.setAttribute("y2", y);
+          edgesG.appendChild(line);
+        });
+
+        ids.forEach(function (id) {
+          var person = peopleById[id];
+          var pos = px(id);
+          var card = document.createElement("div");
+          card.className = "tree-graph__card" + (id === focusId ? " tree-graph__card--focus" : "");
+          card.style.left = pos.x + "px";
+          card.style.top = pos.y + "px";
+          card.style.width = GRAPH_CARD_W + "px";
+          card.innerHTML = graphCardInnerHtml(person);
+          card.addEventListener("click", function () {
+            window.location.href = urlById[id];
+          });
+          cardsDiv.appendChild(card);
+        });
+
+        // Zoom/pan, mirroring createChartInstance's approach: the SVG
+        // group and the HTML card layer are two separate DOM subtrees,
+        // so both need the same transform applied on every zoom event
+        // rather than relying on one containing the other.
+        var zoomBehavior = window.d3.zoom().on("zoom", function (event) {
+          zoomG.setAttribute("transform", event.transform);
+          cardsDiv.style.transform =
+            "translate(" + event.transform.x + "px," + event.transform.y + "px) scale(" + event.transform.k + ")";
+        });
+        window.d3.select(svg).call(zoomBehavior);
+
+        var rect = mountEl.getBoundingClientRect();
+        var padding = 48;
+        var scale = Math.min(
+          (rect.width - padding) / contentWidth,
+          (rect.height - padding) / contentHeight,
+          1
+        );
+        if (!isFinite(scale) || scale <= 0) scale = 1;
+        var fitTransform = window.d3.zoomIdentity
+          .translate((rect.width - contentWidth * scale) / 2, (rect.height - contentHeight * scale) / 2)
+          .scale(scale);
+        window.d3.select(svg).call(zoomBehavior.transform, fitTransform);
+
+        var recenterBtn = document.createElement("button");
+        recenterBtn.type = "button";
+        recenterBtn.className = "btn tree__recenter-btn";
+        recenterBtn.textContent = "Recenter";
+        recenterBtn.setAttribute("aria-label", "Recenter the family tree");
+        recenterBtn.addEventListener("click", function () {
+          window.d3.select(svg).call(zoomBehavior.transform, fitTransform);
+        });
+        mountEl.appendChild(recenterBtn);
       }
 
       // Rebuilds the chart area for the current viewLevel. Every level
@@ -347,7 +512,7 @@
       // instances are always torn down and recreated rather than
       // reused/re-rooted in place — the same "just rebuild it" approach
       // renderToolbar already takes.
-      function renderChartArea(levels, roots) {
+      function renderChartArea(levels) {
         container.innerHTML = "";
         var chartData = familyPeople.map(toDatum);
         if (viewLevel === 0) {
@@ -356,23 +521,7 @@
           return;
         }
         if (viewLevel === "all") {
-          container.className = "tree__chart f3";
-          // A single hidden root whose children are one representative
-          // per otherwise-disjoint lineage — walking "down" from it in
-          // one family-chart instance reaches every branch of the whole
-          // family at once, instead of one instance per couple. Its own
-          // card is hidden entirely via CSS ([data-id] selector in
-          // main.css); the connector lines above each real root branch
-          // still draw, reading as one shared family rather than a fake
-          // ancestor.
-          var everyoneData = chartData.concat([
-            {
-              id: EVERYONE_ROOT_ID,
-              data: { label: "", avatar: fallbackAvatar, avatarIsPhoto: false, gender: undefined, kinship: null },
-              rels: { parents: [], spouses: [], children: roots },
-            },
-          ]);
-          createChartInstance(container, EVERYONE_ROOT_ID, everyoneData);
+          renderFamilyGraph(container);
           return;
         }
         container.className = "tree__panels";
@@ -408,7 +557,7 @@
         }
         var roots = window.TreeLogic.rootAncestors(Object.keys(parentsOf), parentsOf, partnersOf);
         renderToolbar(levels, roots);
-        renderChartArea(levels, roots);
+        renderChartArea(levels);
         saveView();
       }
 
