@@ -2160,3 +2160,64 @@ before the fixes to 0 after, plus manual screenshot review of every page
 in both themes and a pixel-level before/after comparison of the book
 cover. `pytest` (660 tests) and `ruff check .` unaffected, as expected
 for a CSS-only change.
+
+---
+
+## Whole-codebase dedup round
+
+A follow-up to the UI audit above: a broader sweep for duplication
+accumulated across the F19 accounts rounds and the tree "Everyone" view,
+in the spirit of the earlier "Dedup" rounds. Three findings, all verified
+against the full suite before and after:
+
+- **`app/routes_pages.py`: a real bug, found via the duplication itself.**
+  `admin_disable_account`, `admin_set_role`, and `admin_set_account_person`
+  all shared the same shape — call an `accounts.py` mutator, catch
+  `(ValueError, FileNotFoundError)`, flash, redirect to `/admin/accounts`
+  — but `admin_enable_account`, the fourth route in the same family,
+  called `accounts.set_status(...)` directly with no error handling at
+  all. `POST /admin/accounts/<unknown-slug>/enable` would raise an
+  unhandled `FileNotFoundError` straight into a 500, the exact crash the
+  F19 follow-up round had already fixed for the *disable* route but never
+  revisited for *enable*. New `_admin_mutate_account(person_slug,
+  mutator, *args, on_success=None)` gives all four routes the shared
+  shape (the `on_success` hook covers link-person's extra "sync the
+  caller's own session" step), closing the gap as a side effect of
+  removing the duplication rather than as a separate fix. New regression
+  test: `test_enabling_an_unknown_account_fails_gracefully_not_a_500`.
+- **`admin_accounts.html`: four identical single-button POST forms**
+  (Reject/Disable/Enable/Revoke — `<form method="post" action="...">
+  <button>Label</button></form>`) were hand-written inline instead of
+  using `_macros.html`, which every sibling admin template already
+  imports. New `action_button_form(action_url, label)` macro; visually
+  verified identical rendering before/after.
+- **Test helper triplication.** `_bootstrap_admin`, `_login`, and
+  `_people_dir` — byte-identical, ~143 call sites total — were
+  copy-pasted across `test_account_auth.py`, `test_account_self_service.py`,
+  `test_write_link_routes.py`, and `test_accounts_authorship.py`, one
+  pair added fresh in each F19 round rather than reused from the last.
+  `test_account_auth.py`'s own `_bootstrap_admin` was already just
+  `_request_account(...)` with its defaults — the two were never
+  actually different functions, just written twice. Moved all four
+  (`_people_dir`, `_request_account`, `_bootstrap_admin`, `_login`) to
+  `tests/conftest.py` as plain module-level functions (not
+  `@pytest.fixture`s — they take an explicit `client` argument rather
+  than needing pytest's injection) and imported them into each file via
+  `from tests.conftest import ...`, matching the existing implicit-namespace-package
+  import style (`tests/` has no `__init__.py`; `pythonpath = ["."]` in
+  `pyproject.toml` already makes `from tests.conftest import X` work).
+  Deliberately left every call site untouched — the ~143 calls to
+  `_bootstrap_admin(...)`/`_login(...)` didn't need to change at all,
+  since the imported names keep their original identifiers; only the
+  definitions moved. `people_dir` already existed as a *fixture* in
+  conftest.py for the plain `stories_dir`-based tests — deliberately
+  didn't try to unify it with the accounts files' `_people_dir(app)`
+  plain function despite the overlap, since that would mean touching
+  every one of those ~143 call sites' function signatures for a
+  same-value, different-shape rename; not worth the regression risk for
+  a test-only readability win.
+
+`pytest` (661 tests, +1 for the new regression test) and `ruff check .`
+green throughout; the test-helper move was verified as a pure
+relocation by running the full suite immediately after, with no other
+changes in the same commit.

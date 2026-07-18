@@ -87,6 +87,39 @@ def heic_bytes():
     return _make
 
 
+def _people_dir(app):
+    """The people/ dir for an app built by app_factory/auth_client_factory
+    — the accounts-flow test files' equivalent of the people_dir fixture
+    above, keyed off an app instance rather than the stories_dir fixture
+    directly (most of those tests build their own accounts_app fixture)."""
+    return app.config["STORIES_DIR"] / "people"
+
+
+def _request_account(client, username="papa", password="hunter22", display_name="Papa",
+                      invite_code="test-password", note=""):
+    """POST to /request-account with sensible defaults for the common
+    case, every field overridable for tests exercising a specific
+    rejection (bad invite code, duplicate username, ...)."""
+    return client.post(
+        "/request-account",
+        data={
+            "display_name": display_name, "username": username, "password": password,
+            "invite_code": invite_code, "note": note,
+        },
+    )
+
+
+def _bootstrap_admin(client, username="papa", password="hunter22"):
+    """Submit the very first request, which auto-approves as admin, leaving
+    the client logged out (the request flow never logs anyone in) — caller
+    logs in afterward if needed."""
+    return _request_account(client, username=username, password=password, display_name="Papa")
+
+
+def _login(client, username, password):
+    return client.post("/login", data={"username": username, "password": password})
+
+
 @pytest.fixture
 def make_story():
     """A storage.Story with created/updated defaulted to None — the shape

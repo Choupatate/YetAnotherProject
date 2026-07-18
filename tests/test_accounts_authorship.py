@@ -4,6 +4,7 @@ replacing F1's STORYBOOK_AUTHORS chip picker when accounts mode is on."""
 import pytest
 
 from app import accounts, people, storage
+from tests.conftest import _bootstrap_admin, _login, _people_dir
 
 
 @pytest.fixture
@@ -14,24 +15,6 @@ def accounts_app(app_factory):
 @pytest.fixture
 def accounts_client(accounts_app):
     return accounts_app.test_client()
-
-
-def _people_dir(accounts_app):
-    return accounts_app.config["STORIES_DIR"] / "people"
-
-
-def _bootstrap_admin(client, username="papa", password="hunter22"):
-    return client.post(
-        "/request-account",
-        data={
-            "display_name": "Papa", "username": username, "password": password,
-            "invite_code": "test-password", "note": "",
-        },
-    )
-
-
-def _login(client, username, password):
-    return client.post("/login", data={"username": username, "password": password})
 
 
 # --- automatic attribution on create ----------------------------------------

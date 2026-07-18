@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as macros %}
 {% block title %}Accounts — {{ app_title }}{% endblock %}
 {% block body_class %}page-admin{% endblock %}
 {% block content %}
@@ -16,9 +17,7 @@
       <span class="admin__row-name">{{ p.display_name }}</span>
       <span class="admin__row-username">{{ p.username }}</span>
       <a class="btn admin__row-action" href="{{ url_for('pages.admin_review_pending', username=p.username) }}">Review</a>
-      <form method="post" action="{{ url_for('pages.admin_reject_pending', username=p.username) }}">
-        <button type="submit" class="btn admin__row-action">Reject</button>
-      </form>
+      {{ macros.action_button_form(url_for('pages.admin_reject_pending', username=p.username), "Reject") }}
     </li>
     {% endfor %}
   </ul>
@@ -59,13 +58,9 @@
       <a class="btn admin__row-action"
          href="{{ url_for('pages.admin_reset_password', person_slug=row.account.person_slug) }}">Reset password</a>
       {% if row.account.status == 'active' %}
-      <form method="post" action="{{ url_for('pages.admin_disable_account', person_slug=row.account.person_slug) }}">
-        <button type="submit" class="btn admin__row-action">Disable</button>
-      </form>
+      {{ macros.action_button_form(url_for('pages.admin_disable_account', person_slug=row.account.person_slug), "Disable") }}
       {% else %}
-      <form method="post" action="{{ url_for('pages.admin_enable_account', person_slug=row.account.person_slug) }}">
-        <button type="submit" class="btn admin__row-action">Enable</button>
-      </form>
+      {{ macros.action_button_form(url_for('pages.admin_enable_account', person_slug=row.account.person_slug), "Enable") }}
       {% endif %}
     </li>
     {% endfor %}
@@ -78,10 +73,7 @@
     <li class="admin__row">
       <span class="admin__row-name">{{ row.person.name if row.person else row.link.person_slug }}</span>
       <span class="admin__row-username">{{ row.link.label or "(no label)" }}</span>
-      <form method="post"
-            action="{{ url_for('pages.revoke_write_link', person_slug=row.link.person_slug, link_id=row.link.id) }}">
-        <button type="submit" class="btn admin__row-action">Revoke</button>
-      </form>
+      {{ macros.action_button_form(url_for('pages.revoke_write_link', person_slug=row.link.person_slug, link_id=row.link.id), "Revoke") }}
     </li>
     {% endfor %}
   </ul>

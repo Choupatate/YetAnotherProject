@@ -5,6 +5,7 @@ write-links — creating/revoking a link from an account, and the
 import pytest
 
 from app import storage, write_links
+from tests.conftest import _bootstrap_admin, _login, _people_dir
 
 
 @pytest.fixture
@@ -15,24 +16,6 @@ def accounts_app(app_factory):
 @pytest.fixture
 def accounts_client(accounts_app):
     return accounts_app.test_client()
-
-
-def _people_dir(accounts_app):
-    return accounts_app.config["STORIES_DIR"] / "people"
-
-
-def _bootstrap_admin(client, username="papa", password="hunter22"):
-    return client.post(
-        "/request-account",
-        data={
-            "display_name": "Papa", "username": username, "password": password,
-            "invite_code": "test-password", "note": "",
-        },
-    )
-
-
-def _login(client, username, password):
-    return client.post("/login", data={"username": username, "password": password})
 
 
 def _create_link(client, **extra):

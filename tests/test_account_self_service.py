@@ -6,6 +6,7 @@ touch account.json by hand") that this round closes."""
 import pytest
 
 from app import accounts
+from tests.conftest import _bootstrap_admin, _login, _people_dir
 
 
 @pytest.fixture
@@ -16,24 +17,6 @@ def accounts_app(app_factory):
 @pytest.fixture
 def accounts_client(accounts_app):
     return accounts_app.test_client()
-
-
-def _people_dir(accounts_app):
-    return accounts_app.config["STORIES_DIR"] / "people"
-
-
-def _bootstrap_admin(client, username="papa", password="hunter22"):
-    return client.post(
-        "/request-account",
-        data={
-            "display_name": "Papa", "username": username, "password": password,
-            "invite_code": "test-password", "note": "",
-        },
-    )
-
-
-def _login(client, username, password):
-    return client.post("/login", data={"username": username, "password": password})
 
 
 def _create_family_account(accounts_app, username, password, name="Maman"):
@@ -242,6 +225,18 @@ def test_disabling_the_only_admin_fails_gracefully_not_a_500(accounts_client, ac
     assert accounts.get_account(_people_dir(accounts_app), papa_slug).status == "active"
     resp = accounts_client.get("/admin/accounts", follow_redirects=True)
     assert b"only remaining admin" in resp.data
+
+
+def test_enabling_an_unknown_account_fails_gracefully_not_a_500(accounts_client):
+    """Regression test: admin_enable_account used to call accounts.set_status
+    directly with no error handling, unlike every other admin account
+    action here — a stale/bad slug would raise FileNotFoundError straight
+    into an unhandled 500 instead of the flash-and-redirect every sibling
+    route already gave a bad slug."""
+    _bootstrap_admin(accounts_client)
+    _login(accounts_client, "papa", "hunter22")
+    resp = accounts_client.post("/admin/accounts/nobody/enable")
+    assert resp.status_code == 302
 
 
 # --- admin re-link account to a different person -------------------------------
