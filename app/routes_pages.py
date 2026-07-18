@@ -524,7 +524,6 @@ def request_account():
     if not current_app.config["ACCOUNTS_ENABLED"]:
         abort(404)
     stories_dir = current_app.config["STORIES_DIR"]
-    people_dir = storage.people_dir(stories_dir)
 
     if request.method == "POST":
         invite_code = request.form.get("invite_code", "")
@@ -544,11 +543,7 @@ def request_account():
             except ValueError as exc:
                 flash(str(exc), "error")
             else:
-                auto_approved = not accounts.any_accounts_exist(people_dir)
-                if auto_approved:
-                    accounts.approve_pending(
-                        stories_dir, pending.username, "admin", new_person_name=pending.display_name
-                    )
+                auto_approved = accounts.approve_if_first(stories_dir, pending.username)
                 return render_template(
                     "request_account.html", submitted=True, auto_approved=auto_approved
                 )
@@ -905,6 +900,19 @@ def use_write_link(token):
     return redirect(url_for("pages.delegate_write"))
 
 
+def _neutralize_html(text):
+    """Escape raw `<`/`>` so a delegate write-link submission can never
+    inject a `<script>` (or any other tag) that later renders unescaped —
+    render_markdown() passes raw HTML straight through and every template
+    renders the result with `|safe`, which REVIEW.md accepted only because
+    "the only author is the trusted password-holder." A write-link
+    (FEATURES.md F19 Phase 3) is deliberately handed to someone who is NOT
+    an account holder, so that assumption doesn't hold on this path —
+    unlike every other place a story is created. Markdown syntax itself
+    never needs a literal `<`/`>`, so this can't break normal formatting."""
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 @bp.route("/w/write", methods=["GET", "POST"])
 @delegate_required
 def delegate_write():
@@ -923,7 +931,7 @@ def delegate_write():
     if request.method == "POST":
         title = (request.form.get("title") or "").strip()
         date_raw = request.form.get("date") or ""
-        body = request.form.get("markdown") or ""
+        body = _neutralize_html(request.form.get("markdown") or "")
 
         error = None
         try:
