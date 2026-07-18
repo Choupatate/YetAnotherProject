@@ -577,32 +577,41 @@ def admin_accounts():
     )
 
 
+def _admin_mutate_account(person_slug, mutator, *args, on_success=None):
+    """Shared shape for a POST-only admin account action: call `mutator`
+    as `mutator(people_dir, person_slug, *args)`, flash and redirect on
+    ValueError/FileNotFoundError (a bad slug, an invalid value, or a
+    guard like the last-admin lockout) exactly like every other admin
+    action here, then redirect to the accounts list either way. Optional
+    `on_success` runs only after a real mutation, for the one route
+    (link-person) that also needs to touch the caller's own session."""
+    try:
+        mutator(_people_dir(), person_slug, *args)
+    except (ValueError, FileNotFoundError) as exc:
+        flash(str(exc), "error")
+    else:
+        if on_success:
+            on_success()
+    return redirect(url_for("pages.admin_accounts"))
+
+
 @bp.route("/admin/accounts/<person_slug>/disable", methods=["POST"])
 @admin_required
 def admin_disable_account(person_slug):
-    try:
-        accounts.set_status(_people_dir(), person_slug, "disabled")
-    except (ValueError, FileNotFoundError) as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("pages.admin_accounts"))
+    return _admin_mutate_account(person_slug, accounts.set_status, "disabled")
 
 
 @bp.route("/admin/accounts/<person_slug>/enable", methods=["POST"])
 @admin_required
 def admin_enable_account(person_slug):
-    accounts.set_status(_people_dir(), person_slug, "active")
-    return redirect(url_for("pages.admin_accounts"))
+    return _admin_mutate_account(person_slug, accounts.set_status, "active")
 
 
 @bp.route("/admin/accounts/<person_slug>/role", methods=["POST"])
 @admin_required
 def admin_set_role(person_slug):
     role = request.form.get("role") or ""
-    try:
-        accounts.set_role(_people_dir(), person_slug, role)
-    except (ValueError, FileNotFoundError) as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("pages.admin_accounts"))
+    return _admin_mutate_account(person_slug, accounts.set_role, role)
 
 
 @bp.route("/admin/accounts/<person_slug>/link-person", methods=["POST"])
@@ -613,15 +622,14 @@ def admin_set_account_person(person_slug):
     very first account auto-creating a brand-new Person instead of
     reusing one that already existed (see accounts.set_person)."""
     target_slug = request.form.get("target_person_slug") or ""
-    people_dir = _people_dir()
-    try:
-        accounts.set_person(people_dir, person_slug, target_slug)
-    except (ValueError, FileNotFoundError) as exc:
-        flash(str(exc), "error")
-    else:
+
+    def _sync_own_session():
         if session.get("person_slug") == person_slug:
             session["person_slug"] = target_slug
-    return redirect(url_for("pages.admin_accounts"))
+
+    return _admin_mutate_account(
+        person_slug, accounts.set_person, target_slug, on_success=_sync_own_session
+    )
 
 
 @bp.route("/admin/accounts/<person_slug>/reset-password", methods=["GET", "POST"])

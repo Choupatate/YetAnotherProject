@@ -21,6 +21,12 @@
 </div>
 {% endmacro %}
 
+{% macro action_button_form(action_url, label) %}
+<form method="post" action="{{ action_url }}">
+  <button type="submit" class="btn admin__row-action">{{ label }}</button>
+</form>
+{% endmacro %}
+
 {% macro person_picker(unbound_people) %}
 <fieldset class="admin__field-group">
   <legend class="login__label">Family member</legend>

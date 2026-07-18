@@ -7,6 +7,7 @@ which never sets it."""
 import pytest
 
 from app import accounts
+from tests.conftest import _bootstrap_admin, _login, _people_dir, _request_account
 
 
 @pytest.fixture
@@ -17,32 +18,6 @@ def accounts_app(app_factory):
 @pytest.fixture
 def accounts_client(accounts_app):
     return accounts_app.test_client()
-
-
-def _people_dir(accounts_app):
-    return accounts_app.config["STORIES_DIR"] / "people"
-
-
-def _request_account(client, username="papa", password="hunter22", display_name="Papa",
-                      invite_code="test-password", note=""):
-    return client.post(
-        "/request-account",
-        data={
-            "display_name": display_name, "username": username, "password": password,
-            "invite_code": invite_code, "note": note,
-        },
-    )
-
-
-def _bootstrap_admin(client, username="papa", password="hunter22"):
-    """Submit the very first request, which auto-approves as admin, leaving
-    the client logged out (the request flow never logs anyone in) — caller
-    logs in afterward if needed."""
-    return _request_account(client, username=username, password=password, display_name="Papa")
-
-
-def _login(client, username, password):
-    return client.post("/login", data={"username": username, "password": password})
 
 
 def _slug_for(accounts_app, username):
