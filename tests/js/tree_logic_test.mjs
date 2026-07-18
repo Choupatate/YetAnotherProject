@@ -134,4 +134,28 @@ check("ancestorLevels: the same ancestor can appear at two depths (pedigree coll
   assert.ok(levels[2].indexOf("g") !== -1, "g should ALSO appear as a great-grandparent");
 });
 
+check("rootAncestors: one representative per blood lineage, not per parentless person", () => {
+  // odette and mamie-marta/papi-paul are genuine independent roots. Also
+  // parentless: mamie-rose — but her partner papi-jean has a recorded
+  // parent (odette), so she'll already be pulled in as his auto-added
+  // spouse once odette's lineage is rooted; she must NOT come back as a
+  // second, separate root (that would draw papa/oncle-remi/milo's whole
+  // subtree a second time for no reason).
+  const roots = TreeLogic.rootAncestors(Array.from(allIds), parentsOf, partnersOf);
+  assert.deepEqual(roots.slice().sort(), ["odette", "papi-paul"]);
+});
+
+check("rootAncestors: a couple where neither partner has recorded parents dedupes to one root", () => {
+  const ids = ["georges", "lise", "papa"];
+  const pOf = { papa: ["georges", "lise"] };
+  const sOf = { georges: ["lise"], lise: ["georges"] };
+  const roots = TreeLogic.rootAncestors(ids, pOf, sOf);
+  assert.deepEqual(roots, ["georges"]);
+});
+
+check("rootAncestors: an unpartnered ancestor with no recorded parents is always a root", () => {
+  const roots = TreeLogic.rootAncestors(["odette", "papi-jean"], parentsOf, partnersOf);
+  assert.deepEqual(roots, ["odette"]);
+});
+
 console.log(`\n${passed} passed`);

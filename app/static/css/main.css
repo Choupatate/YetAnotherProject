@@ -2743,6 +2743,28 @@ img.family-chip__thumb {
   white-space: nowrap;
 }
 
+/* Marks a person who appears twice in the "Everyone" merged view, once
+   per side of a marriage that bridges two otherwise-disjoint lineages
+   (tree.js's EVERYONE_ROOT_ID card; see cardInnerHtml's isDuplicate). */
+.page-tree .f3 .f3-card-duplicate {
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-style: italic;
+  color: #a08b66;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The "Everyone" view's synthetic hidden root (tree.js's
+   EVERYONE_ROOT_ID) — used only so the chart recurses down through every
+   lineage from one shared point; its own card is never meant to be
+   seen. The connector lines above each real root branch still draw,
+   reading as one shared family rather than a fake ancestor. */
+.page-tree .f3 [data-id="__everyone__"] {
+  display: none;
+}
+
 /* Saddle-stitch connectors (R5.4): dark-first like the theme tokens,
    lifted slightly lighter on the dark leather map. */
 .page-tree .f3 .link {

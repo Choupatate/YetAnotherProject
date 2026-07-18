@@ -1345,6 +1345,95 @@ runs in CI without adding a Node setup step. Server-rendered pieces
 (the empty-editor hint, `tree-logic.js` load order) are covered in
 `tests/test_family_pages.py` the normal way.
 
+### "Everyone" round — one canvas for the whole family
+
+Real dogfooding feedback: neither existing view actually shows everyone
+at once. "Direct line" is one chart, but only the focus's own ancestors —
+no siblings, aunts, uncles, or cousins. "Whole family" reveals those, but
+splits every ancestor couple at the deepest level into its own separate
+side-by-side panel — paternal and maternal branches are two disconnected
+charts a reader has to pan/zoom individually, and a family with more than
+two branches gets more scattered panels, not fewer.
+
+Closed by adding a fourth toolbar option, "Everyone", that renders every
+branch in **one** `family-chart` instance instead of one per couple.
+`family-chart` only ever draws the ancestors-and-descendants of a single
+`main_id`; there's no library-native way to hand it several disjoint
+lineages at once. The fix is a synthetic, hidden root: `tree.js` computes
+one representative id per otherwise-disjoint blood lineage
+(`TreeLogic.rootAncestors`) and adds one extra card, `EVERYONE_ROOT_ID`
+(`"__everyone__"` — can't collide with a real slug, since
+`storage.slugify()` strips every non a-z0-9 character server-side)
+listing those ids as its `rels.children`. Rooting the chart there makes
+it recurse down through every lineage in a single pass; the root's own
+card is hidden via a `[data-id="__everyone__"]` CSS rule in `main.css`,
+but the connector lines above each real branch still draw, reading as
+one shared family rather than implying a fake shared ancestor.
+
+**Picking the roots correctly was the actual difficulty.** A naive "every
+person with no recorded parents" filter is wrong: it also catches anyone
+who married into an otherwise-connected lineage but whose own parents
+just were never recorded (a very common case, not a different family
+branch). Including them as a *second*, independent root would draw their
+married-in partner's entire descendant subtree a second time, for no
+reason — since they'd already be pulled in automatically as their
+partner's spouse once the partner's own (recorded) lineage is rooted.
+`TreeLogic.rootAncestors(ids, parentsOf, partnersOf)` fixes this: a
+parentless person only becomes an explicit root if *every* one of their
+partners is *also* parentless (an unresearched-further couple, or no
+partner at all); a parentless person whose partner has recorded parents
+is excluded, since that partner's own branch will surface them via
+`family-chart`'s existing automatic spouse-pairing. Couples where both
+(or neither) qualify still dedupe to one representative via the existing
+`coupleGroups`.
+
+**Marriages that genuinely bridge two disjoint lineages still duplicate
+by design** — a couple, and everyone below them, is drawn once per side,
+because a family is a DAG (a child has two distinct parent lineages), not
+a strict tree, and no single-root hierarchy can show both without
+repeating the join point. `family-chart` treats this as a first-class
+case (it flags every repeat past the first via `node.duplicate`, distinct
+from `node.data.id`, which is never itself suffixed); `cardInnerHtml`
+surfaces that flag as a small "also shown elsewhere" note so a repeated
+card doesn't read as a different person. In practice this affects far
+fewer people than expected: verified against a two-grandparent-branch
+demo family, only the *shared children* (e.g. Milo, reachable as a real
+`rels.children` entry from both his father's blood branch and his
+mother's) duplicated — the married-in parents themselves (Papa, Maman)
+each appeared exactly once, correctly positioned under their own birth
+family, since `family-chart`'s spouse-pairing adds a partner as an
+annotation card only, without re-walking into their ancestry a second
+time.
+
+The toolbar's existing hide condition (no button row at all when focus
+has no recorded ancestors) is loosened slightly: "Everyone" is worth
+showing whenever more than one root branch exists anywhere in the family,
+even if focus personally has none. `viewLevel` gained a third shape
+(the literal string `"all"`, alongside the existing numeric levels and
+`0`) — `restoreSavedView`'s localStorage round-trip and `renderView`'s
+level-clamping both had to account for it explicitly rather than assuming
+a number.
+
+No backend changes: `/api/tree` already returns the entire family graph
+(every in-family person, not just those reachable from one focus), which
+is exactly what building a merged dataset needs — this is a purely
+client-side addition.
+
+Tests: `tests/js/tree_logic_test.mjs` gained three `rootAncestors` cases
+(the motivating bug fixed — a parentless person whose partner has
+recorded parents is excluded; a couple where neither has recorded parents
+dedupes to one root; an unpartnered parentless ancestor is always a
+root). Manually verified end-to-end (Playwright, a seeded two-branch demo
+family): the "Everyone" button renders every person in one canvas with
+correct kinship labels and a visible connecting bar across both branches;
+duplicate cards carry the "also shown elsewhere" note and both the
+original and duplicate navigate to the correct person page on click; the
+hidden root card is confirmed `display: none` while its connectors still
+render; existing Direct line / branch levels are unaffected (same card
+counts as before); phone-width viewport wraps the toolbar and scales the
+chart the same way the existing levels already do, no new mobile-specific
+work needed.
+
 ## Tests
 
 Kinship label table (the fixture family), cycle rejection, partner

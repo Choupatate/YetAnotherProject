@@ -65,6 +65,39 @@
     return groups;
   }
 
+  // One id per otherwise-disjoint blood lineage in the whole family (not
+  // just one focus person's) — the topmost ancestor of each. Used to
+  // build the "Everyone" merged view: a synthetic hidden root whose
+  // children are exactly these ids, so one family-chart instance
+  // recurses down through every lineage at once instead of requiring a
+  // separate panel per couple.
+  //
+  // A person with no recorded parents only needs to be an explicit root
+  // if EVERY one of their partners also has no recorded parents (an
+  // unresearched-further couple, or no partner at all). Someone whose
+  // partner DOES have recorded parents will already be pulled in
+  // automatically as that partner's spouse once the partner's own
+  // lineage is rooted — including them separately would draw their
+  // whole descendant subtree a second time for no reason (this is
+  // common: any ancestor whose own parents just were never recorded,
+  // despite marrying into an otherwise fully-connected line).
+  function rootAncestors(ids, parentsOf, partnersOf) {
+    var hasParents = function (id) {
+      return !!(parentsOf[id] || []).length;
+    };
+    var topmost = ids.filter(function (id) {
+      return !hasParents(id);
+    });
+    var candidates = topmost.filter(function (id) {
+      return (partnersOf[id] || []).every(function (partnerId) {
+        return !hasParents(partnerId);
+      });
+    });
+    return coupleGroups(candidates, partnersOf).map(function (group) {
+      return group[0];
+    });
+  }
+
   function levelLabel(level, deepest) {
     if (level === 0) return "Direct line";
     if (level >= deepest) return "Whole family";
@@ -77,6 +110,7 @@
   return {
     ancestorLevels: ancestorLevels,
     coupleGroups: coupleGroups,
+    rootAncestors: rootAncestors,
     levelLabel: levelLabel,
   };
 });
