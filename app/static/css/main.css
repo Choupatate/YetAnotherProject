@@ -1628,15 +1628,15 @@ img.person-family__thumb {
 /* The frame's opening is baked into the JPEG as the same cream as every
    other illustration, regardless of site theme — so the overlaid text is
    a fixed dark ink color rather than the theme's --color-text, exactly
-   like the lightbox close button is fixed against its always-dark backdrop. */
+   like the lightbox close button is fixed against its always-dark backdrop.
+   The inset itself is narrower than the frame's outer bounding box
+   suggests: book-frame.jpg's actual rope-free interior (measured directly
+   from the image pixels, not eyeballed) is only ~18.3%-20.7% inset
+   horizontally and ~14.5%-16.2% vertically at the height this text sits
+   at, since the rope curves inward unevenly. 20% horizontal clears the
+   tightest sampled point with a small safety margin. */
 .book-cover__content {
   position: absolute;
-  /* book-frame.jpg's actual rope-free interior (measured directly from
-     the image pixels) is only ~18.3%-20.7% inset horizontally and
-     ~14.5%-16.2% vertically at the height text sits at — tighter than
-     it looks from the frame's outer bounding box, since the rope curves
-     inward unevenly. 20% horizontal clears the tightest sampled point
-     with a small safety margin. */
   inset: 22% 20%;
   display: flex;
   flex-direction: column;
