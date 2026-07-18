@@ -94,6 +94,27 @@ def test_request_account_rejects_duplicate_username_across_pending(accounts_clie
     assert b"already taken" in resp.data
 
 
+def test_approve_if_first_only_approves_once_for_two_simultaneous_requests(accounts_app):
+    """Two requests submitted before any account exists must not both
+    auto-approve as admin — approve_if_first serializes the check-and-act
+    that request_account() used to do as two separate, racy steps."""
+    stories_dir = accounts_app.config["STORIES_DIR"]
+    accounts.create_pending_request(stories_dir, "papa", "hunter2222", "Papa")
+    accounts.create_pending_request(stories_dir, "maman", "mamansecret1", "Maman")
+
+    first = accounts.approve_if_first(stories_dir, "papa")
+    second = accounts.approve_if_first(stories_dir, "maman")
+
+    assert first is True
+    assert second is False
+    accounts_list = accounts.list_accounts(_people_dir(accounts_app))
+    assert len(accounts_list) == 1
+    assert accounts_list[0].username == "papa"
+    # The second request is untouched, still waiting for the new admin to
+    # review it normally rather than being silently dropped.
+    assert [p.username for p in accounts.list_pending(stories_dir)] == ["maman"]
+
+
 def test_admin_approves_pending_request_binding_to_new_person(accounts_client, accounts_app):
     _bootstrap_admin(accounts_client)
     _request_account(accounts_client, username="maman", display_name="Maman", password="mamansecret1")

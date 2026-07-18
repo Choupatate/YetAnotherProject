@@ -452,7 +452,7 @@ stories folder — any collision aborts the whole import with nothing written,
 rather than risk silently overwriting newer edits. This makes it a good fit
 for disaster recovery (restoring into a fresh, empty install) or merging in
 stories from a different device that don't already exist here; it is not a
-sync tool. Very large backups may exceed the app's 32 MB upload limit — for
+sync tool. Very large backups may exceed the app's 128 MB upload limit — for
 those, copy the zip's contents directly onto the `stories/` folder (or the
 Docker volume) instead of going through the web UI.
 

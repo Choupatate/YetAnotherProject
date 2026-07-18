@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +34,13 @@ PENDING_FILENAME = "pending_accounts.json"
 
 ROLES = ("admin", "family")
 MIN_PASSWORD_LENGTH = 8
+
+# Serializes the "is this the very first request ever?" check against the
+# approval that follows (see approve_if_first) — the app runs as a single
+# process (waitress's default), so a plain in-memory lock is enough to close
+# the window where two requests submitted at once could both observe "no
+# accounts yet" and both auto-approve as admin.
+_first_admin_lock = threading.Lock()
 USERNAME_RE = re.compile(r"^[a-z0-9-]{3,32}$")
 
 
@@ -483,3 +491,25 @@ def approve_pending(
     _write_account(people_dir, account)
     reject_pending(stories_dir, username)
     return account
+
+
+def approve_if_first(stories_dir, username: str) -> bool:
+    """Atomically check-and-approve the bootstrap case: the very first
+    account request ever submitted auto-approves as admin, bound to a
+    brand-new Person from its display name (see pages.request_account).
+
+    Doing the "any accounts yet?" check and the approval as two separate
+    calls would let two requests submitted at the same instant both see
+    "no accounts yet" and both auto-approve as admin; `_first_admin_lock`
+    serializes that window so at most one ever does. Returns whether this
+    request was the one auto-approved.
+    """
+    people_dir = storage.people_dir(stories_dir)
+    with _first_admin_lock:
+        if any_accounts_exist(people_dir):
+            return False
+        pending = get_pending(stories_dir, username)
+        if pending is None:
+            return False
+        approve_pending(stories_dir, username, "admin", new_person_name=pending.display_name)
+        return True

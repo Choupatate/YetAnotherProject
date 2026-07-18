@@ -2221,3 +2221,55 @@ against the full suite before and after:
 green throughout; the test-helper move was verified as a pure
 relocation by running the full suite immediately after, with no other
 changes in the same commit.
+
+## Fresh-eyes audit round: a stored-XSS regression, a stale doc, an admin-bootstrap race
+
+A from-scratch read of the whole codebase (no prior context on this
+project), looking for anything a first pass would miss. Three findings,
+the first a real vulnerability, all fixed and covered by regression tests:
+
+- **Stored XSS via write-links, verified end to end.** `render_markdown()`
+  passes raw HTML straight through, and every template renders the result
+  with `{{ body_html|safe }}`. `REVIEW.md` explicitly accepted this:
+  "Raw HTML in markdown is rendered (`|safe`). Acceptable: the only author
+  is the trusted password-holder. Do not add a sanitizer dependency." That
+  held until F19 Phase 3 added delegated write-links — a bearer link any
+  account holder can hand to someone with **no account at all** ("no
+  account access as such") to submit exactly one story. The delegate's
+  submission was never distinguished from a trusted author's before
+  reaching `render_markdown`, so a write-link holder could plant
+  `<script>...</script>` in a story body and have it execute unescaped in
+  whichever family member or admin later opened it — a real privilege
+  path from "someone handed a share link" to "runs script in an admin's
+  authenticated session." Reproduced live with the test client (bootstrap
+  admin → create a link → submit a story containing a `<script>` tag as an
+  anonymous delegate → load the story as the admin → raw tag present in
+  the response) before fixing it. Fixed narrowly, without touching the
+  rendering pipeline trusted authors rely on (REVIEW.md's "do not add a
+  sanitizer dependency" stands for everyone else): new
+  `_neutralize_html()` in `routes_pages.py` escapes `<`/`>` in the
+  delegate's submitted body before it ever reaches `storage.create_story`,
+  applied only on the `/w/write` path. Markdown syntax never needs a
+  literal `<`/`>`, so this can't break normal formatting for that flow.
+  New regression test:
+  `test_delegate_submission_cannot_inject_raw_html`.
+- **Stale doc.** `README.md`'s backup section still said "the app's 32 MB
+  upload limit" — `MAX_CONTENT_LENGTH` was raised to `128 * 1024 * 1024`
+  a while back (see the Performance round above) for long voice memos,
+  and the 413 handler's own message was updated at the time, but this one
+  README sentence never was.
+- **TOCTOU race in first-admin bootstrap.** `request_account()` did
+  `auto_approved = not accounts.any_accounts_exist(...)` then a separate
+  `accounts.approve_pending(...)` call. Two people who both know the
+  invite code and submit within the same instant, before any account
+  exists yet, could both observe "no accounts yet" and both auto-approve
+  as admin — breaking the documented "the very first request ever
+  submitted is special" invariant. New `accounts.approve_if_first()`
+  does the check-and-act under a module-level `threading.Lock`, closing
+  the window (the app runs as a single process under waitress by
+  default, so an in-memory lock is sufficient — this doesn't cover a
+  hypothetical multi-process deployment, which isn't how this app is
+  deployed). New regression test:
+  `test_approve_if_first_only_approves_once_for_two_simultaneous_requests`.
+
+`pytest` (663 tests, +2) and `ruff check .` green throughout.

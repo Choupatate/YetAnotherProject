@@ -265,6 +265,35 @@ def test_opening_a_link_clears_an_existing_real_session(accounts_client, account
     assert "/login" in resp.headers["Location"]
 
 
+def test_delegate_submission_cannot_inject_raw_html(accounts_client, accounts_app):
+    """A write-link delegate is not an account holder — render_markdown()
+    renders raw HTML unescaped for trusted authors (REVIEW.md), so this
+    path must neutralize it before it ever reaches storage."""
+    _bootstrap_admin(accounts_client)
+    _login(accounts_client, "papa", "hunter22")
+    resp = _create_link(accounts_client, single_use="1")
+    token = _extract_token(_link_url(resp))
+
+    delegate_client = accounts_app.test_client()
+    delegate_client.get(f"/w/{token}")
+    delegate_client.post(
+        "/w/write",
+        data={
+            "title": "A memory",
+            "date": "2026-01-01",
+            "markdown": "Hi <script>alert(document.cookie)</script> there",
+        },
+    )
+
+    stories = storage.list_stories(accounts_app.config["STORIES_DIR"])
+    full = storage.get_story(accounts_app.config["STORIES_DIR"], stories[0].id)
+    assert "<script>" not in full.body
+    assert "&lt;script&gt;" in full.body
+
+    story_resp = accounts_client.get(f"/story/{stories[0].id}")
+    assert b"<script>alert(document.cookie)</script>" not in story_resp.data
+
+
 def test_delegate_write_missing_title_shows_error(accounts_client, accounts_app):
     _bootstrap_admin(accounts_client)
     _login(accounts_client, "papa", "hunter22")
