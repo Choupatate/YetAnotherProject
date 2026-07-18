@@ -254,7 +254,9 @@ mark {
 
 .site-nav__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
@@ -1068,11 +1070,18 @@ img.people__portrait {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin__row-role-form select {
   min-height: 36px;
   padding: 0 0.5rem;
+  min-width: 0;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin__form {
@@ -1622,7 +1631,13 @@ img.person-family__thumb {
    like the lightbox close button is fixed against its always-dark backdrop. */
 .book-cover__content {
   position: absolute;
-  inset: 20% 13%;
+  /* book-frame.jpg's actual rope-free interior (measured directly from
+     the image pixels) is only ~18.3%-20.7% inset horizontally and
+     ~14.5%-16.2% vertically at the height text sits at — tighter than
+     it looks from the frame's outer bounding box, since the rope curves
+     inward unevenly. 20% horizontal clears the tightest sampled point
+     with a small safety margin. */
+  inset: 22% 20%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1635,12 +1650,20 @@ img.person-family__thumb {
 
 .book-cover__title {
   font-family: var(--font-serif);
-  font-size: clamp(1.5rem, 6vw, 2.25rem);
+  font-size: clamp(1.125rem, 4.2vw, 1.75rem);
   margin: 0;
   color: inherit;
 }
 
+/* Fixed-size text in this box stays a constant absolute width while the
+   frame (and the .book-cover__content box scaling with it) shrinks on
+   narrower viewports, so a long custom STORYBOOK_TITLE/date range/author
+   name grazes or crosses the decorative frame right where the box is
+   smallest — matching .book-cover__title's existing clamp() so every
+   line here scales down together with the frame instead of just the
+   title. */
 .book-cover__range {
+  font-size: clamp(0.8125rem, 3.2vw, 1rem);
   color: inherit;
   opacity: 0.75;
   margin: 0;
@@ -1653,7 +1676,7 @@ img.person-family__thumb {
   gap: 0.35rem 1rem;
   margin-top: 0.5rem;
   font-family: var(--font-sans);
-  font-size: 0.8125rem;
+  font-size: clamp(0.6875rem, 2.6vw, 0.8125rem);
   color: inherit;
   opacity: 0.75;
 }
