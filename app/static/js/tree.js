@@ -69,6 +69,12 @@
         return urlById.hasOwnProperty(id);
       };
 
+      // Synthetic id for the "Everyone" merged view's hidden root card
+      // (see renderChartArea). Can't collide with a real person's id:
+      // storage.slugify() (server-side) strips every non a-z0-9
+      // character, including underscores, from every slug it produces.
+      var EVERYONE_ROOT_ID = "__everyone__";
+
       // The person the tree is ABOUT. Level 0 ("Direct line") roots the
       // chart directly at focus, which already shows their whole pedigree
       // (every ancestor, both sides, recursing naturally — a person has
@@ -84,9 +90,13 @@
 
       var viewLevel = 0;
 
+      function isValidViewLevel(value) {
+        return typeof value === "number" || value === "all";
+      }
+
       function restoreSavedView() {
         var saved = window.SafeStorage.getJSON(STORAGE_KEY);
-        if (!saved || saved.focusId !== focusId || typeof saved.viewLevel !== "number") return;
+        if (!saved || saved.focusId !== focusId || !isValidViewLevel(saved.viewLevel)) return;
         viewLevel = saved.viewLevel;
       }
 
@@ -104,7 +114,7 @@
         return btn;
       }
 
-      function renderToolbar(levels) {
+      function renderToolbar(levels, roots) {
         if (!viewsNav) return;
         // Rebuilding replaces every button node below, which would drop
         // keyboard focus out of the toolbar entirely on every click —
@@ -112,7 +122,10 @@
         // whichever button ends up pressed.
         var hadFocusInside = viewsNav.contains(document.activeElement);
         viewsNav.innerHTML = "";
-        if (!levels.length) {
+        // "Everyone" is worth showing even when focus has no recorded
+        // ancestors of their own (levels.length === 0) as long as there's
+        // more than one root branch elsewhere in the family to merge.
+        if (!levels.length && roots.length <= 1) {
           viewsNav.hidden = true;
           return;
         }
@@ -135,6 +148,11 @@
             );
           })(lv);
         }
+        row.appendChild(
+          makeButton("Everyone", viewLevel === "all", function () {
+            goToLevel("all");
+          })
+        );
         viewsNav.appendChild(row);
 
         if (hadFocusInside) {
@@ -151,16 +169,25 @@
       function cardInnerHtml(node) {
         var d = node.data.data;
         // At level 0 there's exactly one chart and no "branch" to speak
-        // of; from level 1 up, each panel is rooted at an ancestor and
-        // focus shows up somewhere in it as their descendant — mark them
-        // with their own thin gold ring so they stay findable among the
-        // aunts/uncles/cousins.
-        var isFocus = viewLevel > 0 && node.data.id === focusId;
+        // of; from level 1 up (including "Everyone"), each root is an
+        // ancestor and focus shows up somewhere in it as their
+        // descendant — mark them with their own thin gold ring so they
+        // stay findable among the aunts/uncles/cousins.
+        var isFocus = viewLevel !== 0 && node.data.id === focusId;
+        // In the "Everyone" view, a person whose marriage bridges two
+        // otherwise-disjoint lineages is drawn once per side; the
+        // vendored library flags every occurrence past the first with
+        // `node.duplicate` (node.data.id itself is never suffixed).
+        var isDuplicate = !!node.duplicate;
         var innerClass = "card-inner" + (isFocus ? " card-inner--focus" : "");
         var avatarClass = "f3-card-avatar" + (d.avatarIsPhoto ? " f3-card-avatar--photo" : "");
         var avatarStyle = d.avatarIsPhoto ? ' style="--photo-sepia: ' + d.avatarSepia + '%;"' : "";
         var kinshipHtml = d.kinship
           ? '<div class="f3-card-kinship" title="' + escapeHtml(d.kinship) + '">' + escapeHtml(d.kinship) + "</div>"
+          : "";
+        var duplicateHtml = isDuplicate
+          ? '<div class="f3-card-duplicate" title="Also shown under the other side of the family">' +
+            "also shown elsewhere</div>"
           : "";
         return (
           '<div class="' + innerClass + '">' +
@@ -168,6 +195,7 @@
           '<div class="f3-card-text">' +
           '<div class="f3-card-name">' + escapeHtml(d.label) + "</div>" +
           kinshipHtml +
+          duplicateHtml +
           "</div>" +
           "</div>"
         );
@@ -319,12 +347,32 @@
       // instances are always torn down and recreated rather than
       // reused/re-rooted in place — the same "just rebuild it" approach
       // renderToolbar already takes.
-      function renderChartArea(levels) {
+      function renderChartArea(levels, roots) {
         container.innerHTML = "";
         var chartData = familyPeople.map(toDatum);
         if (viewLevel === 0) {
           container.className = "tree__chart f3";
           createChartInstance(container, focusId, chartData);
+          return;
+        }
+        if (viewLevel === "all") {
+          container.className = "tree__chart f3";
+          // A single hidden root whose children are one representative
+          // per otherwise-disjoint lineage — walking "down" from it in
+          // one family-chart instance reaches every branch of the whole
+          // family at once, instead of one instance per couple. Its own
+          // card is hidden entirely via CSS ([data-id] selector in
+          // main.css); the connector lines above each real root branch
+          // still draw, reading as one shared family rather than a fake
+          // ancestor.
+          var everyoneData = chartData.concat([
+            {
+              id: EVERYONE_ROOT_ID,
+              data: { label: "", avatar: fallbackAvatar, avatarIsPhoto: false, gender: undefined, kinship: null },
+              rels: { parents: [], spouses: [], children: roots },
+            },
+          ]);
+          createChartInstance(container, EVERYONE_ROOT_ID, everyoneData);
           return;
         }
         container.className = "tree__panels";
@@ -354,10 +402,13 @@
       function renderView() {
         var levels = window.TreeLogic.ancestorLevels(focusId, parentsOf, exists);
         var deepest = levels.length;
-        if (viewLevel > deepest) viewLevel = deepest;
-        if (viewLevel < 0) viewLevel = 0;
-        renderToolbar(levels);
-        renderChartArea(levels);
+        if (typeof viewLevel === "number") {
+          if (viewLevel > deepest) viewLevel = deepest;
+          if (viewLevel < 0) viewLevel = 0;
+        }
+        var roots = window.TreeLogic.rootAncestors(Object.keys(parentsOf), parentsOf, partnersOf);
+        renderToolbar(levels, roots);
+        renderChartArea(levels, roots);
         saveView();
       }
 
