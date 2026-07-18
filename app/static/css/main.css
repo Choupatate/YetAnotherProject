@@ -2766,28 +2766,6 @@ img.family-chip__thumb {
   white-space: nowrap;
 }
 
-/* Marks a person who appears twice in the "Everyone" merged view, once
-   per side of a marriage that bridges two otherwise-disjoint lineages
-   (tree.js's EVERYONE_ROOT_ID card; see cardInnerHtml's isDuplicate). */
-.page-tree .f3 .f3-card-duplicate {
-  font-family: var(--font-sans);
-  font-size: 0.625rem;
-  font-style: italic;
-  color: #a08b66;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The "Everyone" view's synthetic hidden root (tree.js's
-   EVERYONE_ROOT_ID) — used only so the chart recurses down through every
-   lineage from one shared point; its own card is never meant to be
-   seen. The connector lines above each real root branch still draw,
-   reading as one shared family rather than a fake ancestor. */
-.page-tree .f3 [data-id="__everyone__"] {
-  display: none;
-}
-
 /* Saddle-stitch connectors (R5.4): dark-first like the theme tokens,
    lifted slightly lighter on the dark leather map. */
 .page-tree .f3 .link {
@@ -2812,6 +2790,144 @@ img.family-chip__thumb {
 .page-tree .f3 .mini-tree rect.card-male,
 .page-tree .f3 .mini-tree rect.card-female {
   fill: var(--color-accent);
+}
+
+/* Marks a person who appears twice within a single family-chart instance
+   (Direct line, or a branch panel) — pedigree collapse, e.g. a
+   first-cousin marriage putting the same shared grandparent on two
+   different lines of one person's own ancestry. Unrelated to the
+   "Everyone" view (tree-graph-logic.js's layout never duplicates
+   anyone); this is family-chart's own node.duplicate flag, still
+   surfaced by cardInnerHtml wherever family-chart itself is used. */
+.page-tree .f3 .f3-card-duplicate {
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-style: italic;
+  color: #a08b66;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The "Everyone" view: a from-scratch graph (tree-graph-logic.js's
+   layout, rendered by tree.js's renderFamilyGraph) rather than
+   family-chart — every person gets exactly one card, however many
+   marriages connect them to the rest of the family, so none of the
+   .f3/.card-inner rules above apply here. SVG for the connector lines,
+   plain HTML for cards, both repositioned by tree.js on every zoom/pan
+   event rather than by CSS layout — the rules below are sizing and
+   typography only. Reuses .tree__chart for the container chrome
+   (leather/parchment background, border, height) — tree.js sets both
+   classes on the mount element. */
+.tree-graph {
+  position: relative;
+}
+
+.tree-graph__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tree-graph__cards {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  /* Empty space stays pannable (drag reaches the SVG underneath); only
+     an actual card should intercept the click. */
+  pointer-events: none;
+}
+
+.tree-graph__card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #f7f1e2;
+  border: 1.5px solid #8a7a5f;
+  border-radius: 0.45rem;
+  box-shadow: 0 2px 4px rgba(40, 30, 15, 0.28);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* The anchor's gold ring (matches the family-chart views' focus-card
+   treatment), so the person /tree is about stays findable in a chart
+   with everyone else in it too. */
+.tree-graph__card--focus {
+  border-color: #b3801f;
+  box-shadow: 0 0 0 2px rgba(179, 128, 31, 0.22),
+              0 2px 4px rgba(40, 30, 15, 0.28);
+}
+
+.tree-graph__avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  border: 1.5px solid #8a7a5f;
+  background: #efe6cf;
+}
+
+.tree-graph__avatar--photo {
+  filter: var(--photo-filter);
+}
+
+.tree-graph__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
+.tree-graph__name {
+  font-family: var(--font-serif);
+  font-size: 0.875rem;
+  color: #2c261e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-graph__kinship {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a7a5f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Parent-child edges: dashed, matching the family-chart views' own
+   saddle-stitch connectors. Partner edges: solid, so a marriage reads
+   differently at a glance from a generation drop-line. */
+.tree-graph__link {
+  fill: none;
+  stroke: #a08b66;
+  stroke-width: 1.6px;
+  stroke-dasharray: 7 4;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+
+.tree-graph__link--partner {
+  stroke-dasharray: none;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .tree-graph__link {
+    stroke: #8a7a5f;
+  }
+}
+
+:root[data-theme="light"] .tree-graph__link,
+:root[data-theme="manuscript"] .tree-graph__link {
+  stroke: #8a7a5f;
 }
 
 /* ---------------------------------------------------------------------- */

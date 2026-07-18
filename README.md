@@ -229,12 +229,9 @@ book is inherited, re-point this one line at the next generation.
 
 `/tree`'s toolbar switches between **Direct line** (just your own
 ancestors), one button per **ancestor branch** (aunts/uncles/cousins,
-one small chart per couple), and **Everyone** — the whole family in a
-single canvas, every branch at once. A marriage that bridges two
-otherwise-unconnected branches draws that couple (and their children)
-once per side, each marked "also shown elsewhere," since a family tree
-is a web of connections, not a strict hierarchy that can show a shared
-join point only once.
+one small chart per couple), and **Everyone** — the whole family as a
+single graph, generation by generation, every person exactly once
+regardless of how many marriages or half-siblings connect them.
 
 `GET /api/tree` (login required) is the seam future renderers plug into —
 the vendored chart on `/tree` is just today's consumer:

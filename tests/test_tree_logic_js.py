@@ -1,5 +1,6 @@
 """Runs the plain-Node unit tests for the /tree view-scope logic
-(app/static/js/tree-logic.js), the shared localStorage wrapper
+(app/static/js/tree-logic.js), the "Everyone" DAG graph layout
+(app/static/js/tree-graph-logic.js), the shared localStorage wrapper
 (app/static/js/safe-storage.js), and the shared fetch/JSON response
 helper (app/static/js/fetch-json.js) as part of the bare `pytest` run.
 Skipped, not failed, when node isn't on PATH — the app has no Node
@@ -19,6 +20,15 @@ NODE = shutil.which("node")
 def test_tree_logic_pure_functions():
     result = subprocess.run(
         [NODE, "tests/js/tree_logic_test.mjs"],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(NODE is None, reason="node not available on PATH")
+def test_tree_graph_logic_pure_functions():
+    result = subprocess.run(
+        [NODE, "tests/js/tree_graph_logic_test.mjs"],
         cwd=REPO_ROOT, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
