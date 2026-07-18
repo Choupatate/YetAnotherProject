@@ -2092,3 +2092,71 @@ bootstrap, create a second "real" Person, re-link, confirm the old
 duplicate has no account and the new Person does, and the session stays
 logged in against the new Person), the already-has-an-account rejection,
 and non-admins 404ing.
+
+---
+
+## UI audit round: nav overflow, admin row overflow, book cover frame
+
+A user report ("top bar buttons getting out of scope") drove a full
+manual/automated pass over every page, at six viewport widths (360px to
+1440px) and both themes, using a seeded demo family with deliberately
+adversarial content (a hyphenated long name, a long friend name, a long
+custom `STORYBOOK_TITLE`) rather than the short defaults every earlier
+round happened to test with. Three real bugs found and fixed, all
+CSS-only:
+
+- **`.site-nav__actions` had no `flex-wrap`.** F19 added two more nav
+  links ("Accounts", "Account"), which — combined with the pre-existing
+  "People", "+ New story", "+ Instant" — pushed the row's total width
+  past what fits at phone widths. `.site-nav` itself already wraps
+  between the brand row and the actions row, but the actions row's own
+  five items had no fallback once *they* didn't fit on one line, so the
+  last two buttons were pushed off-screen rather than wrapping to a
+  second line. This is the bug reported. Fixed by giving
+  `.site-nav__actions` the same `flex-wrap: wrap` every other
+  multi-button row in this app already uses (`.site-nav`,
+  `.tree__views-row`, `.admin__row`), plus `justify-content: flex-end`
+  so a wrapped second line still reads as right-aligned rather than
+  snapping to the left edge.
+- **`admin_accounts.html`'s "Link" person-picker `<select>` had no width
+  constraint.** Its options are real person names (arbitrary length,
+  unlike the fixed-length "Admin"/"Family" role `<select>` next to it),
+  so a longer name sized the native control past the available row
+  width — flexbox's default `min-width: auto` stops a flex item
+  shrinking below its content size even inside an already-wrapping
+  parent (`.admin__row` wraps fine, but a single overlong child can't
+  shrink to make room for wrapping to help). Fixed with `min-width: 0`
+  on both the form and the select, plus `max-width` +
+  `text-overflow: ellipsis` so a long name truncates instead of
+  stretching the row.
+- **The book cover's decorative rope frame (`book-frame.jpg`) has a much
+  tighter text-safe interior than its CSS `inset` assumed**, and only
+  the title had any responsive sizing — the date range and author line
+  were fixed-size regardless of viewport, so they hit their tightest
+  relative fit exactly on narrow screens. Measured the image's actual
+  rope-free interior directly (sampling pixel rows/columns in Python via
+  Pillow for "cream vs. rope" color, not eyeballing) rather than guessing
+  at percentages: horizontally ~18.3%–20.7% inset, vertically
+  ~14.5%–16.2%, both narrower than the previous `inset: 20% 13%`.
+  Verified the touching wasn't a narrow-viewport-only regression — the
+  default short "Storybook" title never touches at any width, but a
+  longer custom title (the exact example `STORYBOOK_TITLE="Le livre de
+  Milo"` given in `.env.example`) touched the border even on a 1200px
+  desktop viewport, so this was a real gap for anyone using that
+  documented customization, not an artifact of stress-testing. Fixed
+  `inset: 22% 20%`, gave `.book-cover__range` and `.book-cover__authors`
+  their own `clamp()` responsive font-sizes (previously only
+  `.book-cover__title` had one) so every line shrinks together with the
+  frame instead of just the title, and trimmed the title's own clamp
+  ceiling (2.25rem → 1.75rem) so it keeps a visible margin from the rope
+  instead of exactly filling its box at the largest size.
+
+No template or JS changes — every fix lives entirely in `main.css`.
+Verified via an automated Playwright sweep (108 checks: 18 pages × 6
+viewport widths, checking `document.documentElement.scrollWidth` for
+horizontal overflow and flagging any `.site-nav` descendant whose
+bounding box crosses the viewport edge) going from 36 flagged checks
+before the fixes to 0 after, plus manual screenshot review of every page
+in both themes and a pixel-level before/after comparison of the book
+cover. `pytest` (660 tests) and `ruff check .` unaffected, as expected
+for a CSS-only change.
