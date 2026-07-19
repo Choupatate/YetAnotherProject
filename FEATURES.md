@@ -2567,3 +2567,70 @@ original round-2 blended family (unchanged card count and no
 regression, same clean two-grandparent-branch separation), and the
 round-3 disconnected-in-law repro (still correctly isolated with the
 widest gap tier).
+
+## "Everyone" round 5 — children under their parents (aligned columns)
+
+Round 4's tiered gaps made each ROW read correctly, but rows were still
+packed independently from the left — nothing tied a couple's horizontal
+position to where its own children sat. On a wide family (verified with
+a new 30-person / 3-generation / 5-branch fixture before touching any
+code) a couple could drift almost two card-widths sideways from its own
+children, drop-lines wandered diagonally across the whole chart, and
+vertically adjacent generations read as unrelated rows — the
+"presenting a mix of people" complaint, still alive after four rounds
+of fixing everything else. The measurement that finally captured it
+(and that card counts and per-row checks never could): for every
+parent-couple, the horizontal distance between the couple's centroid
+and their children's centroid. Round 4 measured **0.74 card-widths mean
+/ 1.88 max** on the 30-person fixture.
+
+Fix: a new coordinate-assignment stage, `assignPixelPositions` in
+`tree-graph-logic.js` (pure, dependency-free, Node-tested like the rest
+of the module). It keeps everything round 2–4 already got right — exact
+generation rows, `orderRows`' left-to-right order, partners glued at
+`gapPartner`, the four gap tiers as *minimum* constraints — and then
+runs a fixed number of alternating sweeps: top-down, each row's units
+pull toward the mean of their members' parents' positions; bottom-up,
+toward the mean of their children's. Each row's pulls are reconciled
+against its min-gap ordering constraints *exactly* (not iteratively)
+with the classic pool-adjacent-violators algorithm — least-squares
+optimal, order-preserving, deterministic, ~25 lines. No physics, no
+convergence tuning; the earlier force-directed detour (round 4's
+FEATURES entry) failed precisely because its solver couldn't respect
+"gaps are hard constraints, alignment is a preference" — PAV encodes
+that distinction natively.
+
+A test assertion caught a nice subtlety worth keeping in mind: at a
+fixed point, a grandparent couple centers over its blood children's
+CARDS, not over its child's whole marriage — so the trunk from the
+grandparents drops vertically onto their own child, with the spouse
+hanging beside — which is the classic pedigree presentation, not a bug
+(the initial test asserted the wrong invariant and failed against
+correct behavior).
+
+`tree.js`'s `renderFamilyGraph` now just calls `assignPixelPositions`
+with its pixel constants and reads back per-card x positions — the
+round-4 gap-walk code moved wholesale into the logic module where it's
+unit-testable.
+
+Measured after (same fixtures, same metric — deviation in card-widths,
+mean/max): 30-person ring **0.36 / 1.15** (all five child-couples at
+exactly 0.00; the residual is only the grandparent row of the marriage
+ring, where five couples' children each marry in two different
+directions and no linear arrangement can center everyone — provably
+irreducible), 20-person messy family **0.02 / 0.07** (was 0.74 mean),
+17-person blended family **0.04 / 0.10**, with half-siblings under
+their actual parent pairs in both. Zero same-row overlaps and exact
+partner gaps everywhere; the isolated in-law couple still keeps the
+full cross-component gap (its two grandparent couples now sit jointly
+centered over the child couple — each 0.77 off, the provable optimum
+when two 458px-wide couples both want to center over cards 186px
+apart). Mobile (390px): no page overflow, auto-fit unchanged.
+
+Tests: `tree_graph_logic_test.mjs` gained 7 cases (28 total) — three
+direct `poolAdjacentViolators` cases (monotone input unchanged,
+weighted pooling, output always non-decreasing) and four
+`assignPixelPositions` cases (exact centering when nothing conflicts,
+exact partner gaps + no min-gap violations, cross-component separation
+preserved, byte-identical determinism across runs). `pytest` (664) and
+`ruff check .` green.

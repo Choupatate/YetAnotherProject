@@ -450,6 +450,194 @@
     return false;
   }
 
+  // Minimize Σ weight·(t - target)² subject to t being non-decreasing —
+  // the classic pool-adjacent-violators algorithm. This is the exact
+  // solution, not an iterative approximation: scan left to right,
+  // merging any block whose (weighted mean) target dips below its left
+  // neighbor's into that neighbor, repeatedly, then read each t back
+  // off its block. Used by assignPixelPositions to place a row of
+  // cards as close as possible to where their relatives want them
+  // WITHOUT ever violating the row's minimum-gap ordering constraints.
+  function poolAdjacentViolators(targets, weights) {
+    var blocks = [];
+    for (var i = 0; i < targets.length; i++) {
+      blocks.push({ sum: targets[i] * weights[i], weight: weights[i], count: 1 });
+      while (
+        blocks.length > 1 &&
+        blocks[blocks.length - 2].sum / blocks[blocks.length - 2].weight >
+          blocks[blocks.length - 1].sum / blocks[blocks.length - 1].weight
+      ) {
+        var top = blocks.pop();
+        var prev = blocks[blocks.length - 1];
+        prev.sum += top.sum;
+        prev.weight += top.weight;
+        prev.count += top.count;
+      }
+    }
+    var result = [];
+    blocks.forEach(function (block) {
+      var value = block.sum / block.weight;
+      for (var k = 0; k < block.count; k++) result.push(value);
+    });
+    return result;
+  }
+
+  // Turns orderRows' per-row ORDER into actual per-card x pixel
+  // positions where every couple sits centered over its own children
+  // (and children centered under their parents) as closely as the row's
+  // spacing constraints allow. This is the step round 4 lacked: packing
+  // each row independently left-to-right kept every row internally tidy
+  // but let a couple drift arbitrarily far sideways from its own
+  // children, which is exactly what makes a multi-branch family read as
+  // a scrambled "mix of people" even when every row order is correct.
+  //
+  // Approach: each row is grouped into coupleUnits (partners always
+  // adjacent, gapPartner apart), with a minimum gap between adjacent
+  // units picked by tier — gapCross between different connected
+  // components, gapClose when any member of one unit is closelyRelated
+  // to any member of the other (a sibling link often hides behind a
+  // spouse on the boundary — round 4's lesson), gapSame otherwise. Rows
+  // start left-packed in orderRows' order, then a few alternating
+  // sweeps run: top-down, each unit wants its center at the mean of its
+  // members' parents' centers; bottom-up, at the mean of its members'
+  // children's centers. Each row's wants are reconciled EXACTLY against
+  // its min-gap constraints via poolAdjacentViolators (order never
+  // changes, gaps never shrink below their tier, and the row lands as
+  // close to its wants as those constraints mathematically allow) —
+  // deterministic, no physics, no iteration-count tuning beyond the
+  // fixed sweep count.
+  //
+  // Returns {xById: {[id]: left-edge px}, contentWidth} with the whole
+  // layout shifted so the leftmost card is at x = 0.
+  function assignPixelPositions(rowsByLayer, parentsOf, childrenOf, partnersOf, componentOf, options) {
+    options = options || {};
+    var cardW = options.cardWidth || 176;
+    var gapPartner = options.gapPartner !== undefined ? options.gapPartner : 10;
+    var gapClose = options.gapClose !== undefined ? options.gapClose : 28;
+    var gapSame = options.gapSame !== undefined ? options.gapSame : 96;
+    var gapCross = options.gapCross !== undefined ? options.gapCross : 200;
+    var sweeps = options.sweeps || 4;
+
+    var layers = Object.keys(rowsByLayer)
+      .map(Number)
+      .sort(function (a, b) {
+        return a - b;
+      });
+
+    var rows = layers.map(function (l) {
+      var units = coupleUnits(rowsByLayer[l], partnersOf).map(function (ids) {
+        return {
+          ids: ids,
+          width: ids.length * cardW + (ids.length - 1) * gapPartner,
+          x: 0,
+        };
+      });
+      var minGaps = [0];
+      for (var j = 1; j < units.length; j++) {
+        var prev = units[j - 1];
+        var cur = units[j];
+        var gap;
+        if (componentOf[prev.ids[0]] !== componentOf[cur.ids[0]]) {
+          gap = gapCross;
+        } else {
+          var related = prev.ids.some(function (a) {
+            return cur.ids.some(function (b) {
+              return closelyRelated(a, b, parentsOf, childrenOf, partnersOf);
+            });
+          });
+          gap = related ? gapClose : gapSame;
+        }
+        minGaps.push(gap);
+      }
+      return { units: units, minGaps: minGaps };
+    });
+
+    var xById = {};
+    function commitRow(row) {
+      row.units.forEach(function (unit) {
+        unit.ids.forEach(function (id, k) {
+          xById[id] = unit.x + k * (cardW + gapPartner);
+        });
+      });
+    }
+
+    // Initial placement: left-packed at minimum gaps, in row order.
+    rows.forEach(function (row) {
+      row.units.forEach(function (unit, j) {
+        unit.x = j === 0 ? 0 : row.units[j - 1].x + row.units[j - 1].width + row.minGaps[j];
+      });
+      commitRow(row);
+    });
+
+    function centerOf(id) {
+      return xById[id] + cardW / 2;
+    }
+
+    function solveRow(row, neighborsOf) {
+      // Offsets convert "left edge" positions into a space where the
+      // min-gap ordering constraint becomes plain monotonicity, which
+      // is the form poolAdjacentViolators solves.
+      var offsets = [];
+      var o = 0;
+      row.units.forEach(function (unit, j) {
+        if (j > 0) o += row.units[j - 1].width + row.minGaps[j];
+        offsets.push(o);
+      });
+      var targets = [];
+      var weights = [];
+      row.units.forEach(function (unit, j) {
+        var centers = [];
+        unit.ids.forEach(function (id) {
+          (neighborsOf[id] || []).forEach(function (n) {
+            if (xById[n] !== undefined) centers.push(centerOf(n));
+          });
+        });
+        var desiredLeft;
+        if (centers.length) {
+          var mean =
+            centers.reduce(function (s, c) {
+              return s + c;
+            }, 0) / centers.length;
+          desiredLeft = mean - unit.width / 2;
+        } else {
+          desiredLeft = unit.x;
+        }
+        targets.push(desiredLeft - offsets[j]);
+        weights.push(unit.ids.length);
+      });
+      var solved = poolAdjacentViolators(targets, weights);
+      row.units.forEach(function (unit, j) {
+        unit.x = solved[j] + offsets[j];
+      });
+      commitRow(row);
+    }
+
+    for (var sweep = 0; sweep < sweeps; sweep++) {
+      // Top-down: every row below the first pulls toward its parents.
+      for (var d = 1; d < rows.length; d++) {
+        solveRow(rows[d], parentsOf);
+      }
+      // Bottom-up: every row above the last pulls toward its children.
+      for (var u = rows.length - 2; u >= 0; u--) {
+        solveRow(rows[u], childrenOf);
+      }
+    }
+
+    // Normalize: leftmost card at x = 0.
+    var minLeft = Infinity;
+    var maxRight = -Infinity;
+    Object.keys(xById).forEach(function (id) {
+      minLeft = Math.min(minLeft, xById[id]);
+      maxRight = Math.max(maxRight, xById[id] + cardW);
+    });
+    if (!isFinite(minLeft)) minLeft = 0;
+    Object.keys(xById).forEach(function (id) {
+      xById[id] -= minLeft;
+    });
+
+    return { xById: xById, contentWidth: isFinite(maxRight) ? maxRight - minLeft : 0 };
+  }
+
   return {
     computeLayers: computeLayers,
     groupByLayer: groupByLayer,
@@ -460,5 +648,7 @@
     partnerPairs: partnerPairs,
     layoutFamily: layoutFamily,
     closelyRelated: closelyRelated,
+    poolAdjacentViolators: poolAdjacentViolators,
+    assignPixelPositions: assignPixelPositions,
   };
 });

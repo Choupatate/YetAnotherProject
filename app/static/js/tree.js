@@ -392,64 +392,38 @@
         });
         var layout = window.TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
 
-        // Pixel X per id, walked row by row in the layout's own order,
-        // with a gap tier chosen at every unit boundary rather than one
-        // uniform column gap — see the GRAPH_GAP_* constants above and
-        // closelyRelated's docstring. Deciding this from the two literal
-        // touching cards isn't enough: a remarriage chain like
-        // Marc-Julie next to Papa-Maman puts Julie (Marc's wife, no
-        // blood link to Papa at all) right next to Papa, even though
-        // Marc and Papa are brothers — the CLOSE tier the sibling link
-        // deserves would never be found by looking only at the touching
-        // pair. Regrouping the row into its coupleUnits and checking
-        // every member of one unit against every member of its neighbor
-        // catches that: Marc (in the left unit) and Papa (in the right
-        // unit) share a parent, so the pair counts as closely related
-        // even though neither of them is the card actually on the
-        // boundary.
-        var pixelXById = {};
+        // Pixel X per id: assignPixelPositions keeps orderRows' row
+        // order and the tiered minimum gaps, but aligns each couple
+        // over its own children (and children under their parents) as
+        // closely as those constraints allow — without it, every row
+        // packs independently from the left and a couple can drift
+        // sideways from its own children, making a multi-branch family
+        // read as scrambled rows even when each row's order is right.
+        var assigned = window.TreeGraphLogic.assignPixelPositions(
+          layout.rows,
+          parentsOf,
+          childrenOf,
+          partnersOf,
+          layout.componentOf,
+          {
+            cardWidth: GRAPH_CARD_W,
+            gapPartner: GRAPH_GAP_PARTNER,
+            gapClose: GRAPH_GAP_CLOSE,
+            gapSame: GRAPH_GAP_SAME_COMPONENT,
+            gapCross: GRAPH_GAP_CROSS_COMPONENT,
+          }
+        );
+
         var maxLayer = 0;
-        var contentWidth = 0;
-        Object.keys(layout.rows).forEach(function (layerKey) {
-          maxLayer = Math.max(maxLayer, Number(layerKey));
-          var rowIds = layout.rows[layerKey];
-          var units = window.TreeGraphLogic.coupleUnits(rowIds, partnersOf);
-          var unitIndexOf = {};
-          units.forEach(function (unit, unitIndex) {
-            unit.forEach(function (id) {
-              unitIndexOf[id] = unitIndex;
-            });
-          });
-          var x = 0;
-          rowIds.forEach(function (id, i) {
-            if (i > 0) {
-              var prevId = rowIds[i - 1];
-              var gap;
-              if (layout.componentOf[id] !== layout.componentOf[prevId]) {
-                gap = GRAPH_GAP_CROSS_COMPONENT;
-              } else if (unitIndexOf[id] === unitIndexOf[prevId]) {
-                gap = GRAPH_GAP_PARTNER;
-              } else {
-                var prevUnit = units[unitIndexOf[prevId]];
-                var curUnit = units[unitIndexOf[id]];
-                var related = prevUnit.some(function (a) {
-                  return curUnit.some(function (b) {
-                    return window.TreeGraphLogic.closelyRelated(a, b, parentsOf, childrenOf, partnersOf);
-                  });
-                });
-                gap = related ? GRAPH_GAP_CLOSE : GRAPH_GAP_SAME_COMPONENT;
-              }
-              x += GRAPH_CARD_W + gap;
-            }
-            pixelXById[id] = x;
-          });
-          contentWidth = Math.max(contentWidth, x + GRAPH_CARD_W);
+        ids.forEach(function (id) {
+          maxLayer = Math.max(maxLayer, layout.positions[id].layer);
         });
 
         function px(id) {
-          return { x: pixelXById[id], y: layout.positions[id].layer * (GRAPH_CARD_H + GRAPH_ROW_GAP) };
+          return { x: assigned.xById[id], y: layout.positions[id].layer * (GRAPH_CARD_H + GRAPH_ROW_GAP) };
         }
 
+        var contentWidth = assigned.contentWidth;
         var contentHeight = (maxLayer + 1) * (GRAPH_CARD_H + GRAPH_ROW_GAP);
 
         mountEl.innerHTML =
