@@ -2491,3 +2491,79 @@ separating the isolated couple from the grandparents row, no
 intermixing) and the original round-2 blended family (unchanged
 17-for-17 rendering, confirming the single-component no-op case holds in
 the browser too, not just in the unit tests).
+
+## "Everyone" round 4 — a real crack at "it looks like a list"
+
+Round 3 fixed the reported bug but not the underlying complaint: even a
+correct, non-duplicating, cleanly-separated-by-component render still
+looked like uniform rows of evenly-spaced boxes on any family with more
+than one nuclear unit per generation — round 3's own gap constant was
+a single value applied identically to every adjacent pair whether they
+were a married couple or two unrelated cousins. Verified this with a
+deliberately larger, messier fixture (20 people, five sibling branches,
+a divorced-and-remarried aunt) before touching any code — screenshotting
+round 3's output against it confirmed the "list" read was real and not
+fixed by the round-3 work, despite every individual bug being gone.
+
+**A detour that didn't pan out, worth recording:** the first attempt at
+a fix was a from-scratch force-directed layout (`d3-force`, part of the
+already-vendored `d3` bundle — no new dependency needed) — generation
+rows hard-pinned every tick, `forceLink`/`forceManyBody`/`forceCollide`
+left to organically cluster everything else. Implemented and screenshot-
+tested against the same messy fixture: it converged to something
+numerically and visually indistinguishable from a uniform grid. Root
+cause, found by inspecting the actual converged coordinates: `forceCollide`'s
+per-node minimum-separation radius was larger than the `forceLink`
+partner-distance target, so collision resolution dominated everywhere and
+overrode the very links that were supposed to create visible clustering
+— every gap converged to nearly the same width regardless of whether the
+two adjacent people were married, siblings, or unrelated. A real fix
+would need a genuine per-cluster attraction force (dynamically recomputed
+centroids, the standard "cluster force" recipe), which is exactly the
+kind of hard-to-verify, iteration-tuned behavior this codebase's
+"boring, minimal, testable" bar is a poor fit for — reverted rather than
+shipped once the numbers showed it wasn't actually better than round 3.
+
+**What shipped instead**: kept `layoutFamily`'s deterministic per-row
+grid entirely (still `computeLayers` + `connectedComponents` +
+barycenter ordering, unchanged), but replaced the single uniform column
+gap with four explicit tiers, tightest to widest:
+
+1. **Partners** — almost touching (10px). A married couple should read
+   as a couple at a glance.
+2. **Close** (new — `closelyRelated` in `tree-graph-logic.js`) —
+   siblings/half-siblings (share a parent) or co-parents (share a
+   child): 28px, round 3's old uniform gap.
+3. **Same component, not closely related** — cousins, in-laws-of-
+   in-laws, or two grandparent couples related only through their
+   children's marriage: 96px.
+4. **Different connected component** — 200px, round 3's existing
+   cross-component separation, now the widest tier rather than the only
+   special-cased one.
+
+The subtlety that took a second pass to get right: deciding a gap from
+the two literal touching cards isn't enough. A remarriage chain like
+Marc–Julie sitting next to Papa–Maman puts Julie (Marc's wife, no blood
+link to Papa) directly against Papa — checking only that pair would miss
+that Marc and Papa are brothers and wrongly fall back to the wide tier.
+Caught this by computing exact pixel gaps (not just eyeballing a
+screenshot) against the messy fixture and finding Julie→Papa measured
+96px where it should have been 28. Fixed by grouping each row into its
+`coupleUnits` first and checking every member of one unit against every
+member of its neighbor — Marc (in the left unit) paired against Papa (in
+the right unit) correctly finds the sibling link even though neither of
+them is the card physically on the boundary.
+
+Tests: `tree_graph_logic_test.mjs` gained 5 `closelyRelated` cases (21
+total) — partners, siblings-by-shared-parent, co-parents-by-shared-child,
+cousins (correctly *not* closely related), and two unconnected
+grandparent couples (correctly not closely related). `pytest` (664) and
+`ruff check .` green. Manually verified (Playwright, with exact pixel
+gap measurements, not just visual inspection) against three fixtures:
+the messy 20-person family (now reads as visibly organized clusters —
+tight couples, close-but-distinct sibling branches, a clear gap to the
+disconnected in-law pair — where round 3 read as a flat grid), the
+original round-2 blended family (unchanged card count and no
+regression, same clean two-grandparent-branch separation), and the
+round-3 disconnected-in-law repro (still correctly isolated with the
+widest gap tier).

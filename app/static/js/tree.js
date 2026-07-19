@@ -344,13 +344,19 @@
       var SVG_NS = "http://www.w3.org/2000/svg";
       var GRAPH_CARD_W = 176;
       var GRAPH_CARD_H = 56;
-      var GRAPH_COL_GAP = 28;
       var GRAPH_ROW_GAP = 96;
-      // The extra breathing room opened up between two different
-      // connected-component clusters landing on the same row — several
-      // times the normal within-family column gap, so it reads as a
-      // deliberate separation rather than just a slightly wider gap.
-      var GRAPH_CLUSTER_GAP = GRAPH_COL_GAP + 96;
+      // Four gap tiers between horizontally adjacent cards, from tightest
+      // to widest, so a row reads as organized family clusters instead of
+      // one undifferentiated line of boxes: a couple sits almost
+      // touching; siblings/co-parents (closelyRelated) get a modest gap;
+      // two people in the same connected component but with no direct
+      // link between them (e.g. two grandparent couples joined only by
+      // their children's marriage) get a visibly wider one; two
+      // completely different connected components get the widest of all.
+      var GRAPH_GAP_PARTNER = 10;
+      var GRAPH_GAP_CLOSE = 28;
+      var GRAPH_GAP_SAME_COMPONENT = 96;
+      var GRAPH_GAP_CROSS_COMPONENT = 200;
 
       function graphCardInnerHtml(person) {
         var avatar = person.photo || fallbackAvatar;
@@ -386,28 +392,54 @@
         });
         var layout = window.TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
 
-        // Pixel X per id, walked row by row in the layout's own order —
-        // not a uniform `x * width` grid, because two people can share a
-        // layer for entirely unrelated reasons (real root ancestors, vs.
-        // someone connected to the family only through a marriage with a
-        // gap in the chain — see connectedComponents' docstring). A
-        // normal generation-to-generation gap separates cards within the
-        // same family cluster; a wider one opens up wherever a row
-        // crosses from one connected component to a different one, so an
-        // unrelated cluster reads as visually separate at a glance
-        // instead of looking like it belongs to the same family purely
-        // because it landed on the same row.
+        // Pixel X per id, walked row by row in the layout's own order,
+        // with a gap tier chosen at every unit boundary rather than one
+        // uniform column gap — see the GRAPH_GAP_* constants above and
+        // closelyRelated's docstring. Deciding this from the two literal
+        // touching cards isn't enough: a remarriage chain like
+        // Marc-Julie next to Papa-Maman puts Julie (Marc's wife, no
+        // blood link to Papa at all) right next to Papa, even though
+        // Marc and Papa are brothers — the CLOSE tier the sibling link
+        // deserves would never be found by looking only at the touching
+        // pair. Regrouping the row into its coupleUnits and checking
+        // every member of one unit against every member of its neighbor
+        // catches that: Marc (in the left unit) and Papa (in the right
+        // unit) share a parent, so the pair counts as closely related
+        // even though neither of them is the card actually on the
+        // boundary.
         var pixelXById = {};
         var maxLayer = 0;
         var contentWidth = 0;
         Object.keys(layout.rows).forEach(function (layerKey) {
           maxLayer = Math.max(maxLayer, Number(layerKey));
           var rowIds = layout.rows[layerKey];
+          var units = window.TreeGraphLogic.coupleUnits(rowIds, partnersOf);
+          var unitIndexOf = {};
+          units.forEach(function (unit, unitIndex) {
+            unit.forEach(function (id) {
+              unitIndexOf[id] = unitIndex;
+            });
+          });
           var x = 0;
           rowIds.forEach(function (id, i) {
             if (i > 0) {
-              var sameCluster = layout.componentOf[id] === layout.componentOf[rowIds[i - 1]];
-              x += GRAPH_CARD_W + (sameCluster ? GRAPH_COL_GAP : GRAPH_CLUSTER_GAP);
+              var prevId = rowIds[i - 1];
+              var gap;
+              if (layout.componentOf[id] !== layout.componentOf[prevId]) {
+                gap = GRAPH_GAP_CROSS_COMPONENT;
+              } else if (unitIndexOf[id] === unitIndexOf[prevId]) {
+                gap = GRAPH_GAP_PARTNER;
+              } else {
+                var prevUnit = units[unitIndexOf[prevId]];
+                var curUnit = units[unitIndexOf[id]];
+                var related = prevUnit.some(function (a) {
+                  return curUnit.some(function (b) {
+                    return window.TreeGraphLogic.closelyRelated(a, b, parentsOf, childrenOf, partnersOf);
+                  });
+                });
+                gap = related ? GRAPH_GAP_CLOSE : GRAPH_GAP_SAME_COMPONENT;
+              }
+              x += GRAPH_CARD_W + gap;
             }
             pixelXById[id] = x;
           });

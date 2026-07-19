@@ -422,6 +422,34 @@
     };
   }
 
+  // How closely two adjacent cards on the same row are related, for the
+  // renderer's gap tiering (see tree.js's renderFamilyGraph): partners
+  // read as married and want to sit almost touching; two people who
+  // share a parent or a child (siblings, half-siblings, co-parents) are
+  // still close family and want a modest gap; two people with no direct
+  // link between them — related only via a longer path through the rest
+  // of the graph, like two grandparent couples joined solely by their
+  // children's marriage — want a visibly wider gap so the row reads as
+  // distinct family clusters rather than one undifferentiated row of
+  // boxes. Only checks ONE hop (shared parent/child/partner), by design:
+  // going further (e.g. shared grandparent) would start re-deriving
+  // full kinship distance, which is exactly the anchor-relative
+  // computation generation_offset in kinship.py already does for a
+  // different purpose and this module deliberately avoids (see
+  // computeLayers' docstring) — one hop is enough to separate "close
+  // family" from "just happens to share a row."
+  function closelyRelated(a, b, parentsOf, childrenOf, partnersOf) {
+    if ((partnersOf[a] || []).indexOf(b) !== -1) return true;
+    var sharesAny = function (listA, listB) {
+      return (listA || []).some(function (x) {
+        return (listB || []).indexOf(x) !== -1;
+      });
+    };
+    if (sharesAny(parentsOf[a], parentsOf[b])) return true;
+    if (sharesAny(childrenOf[a], childrenOf[b])) return true;
+    return false;
+  }
+
   return {
     computeLayers: computeLayers,
     groupByLayer: groupByLayer,
@@ -431,5 +459,6 @@
     groupChildrenByParents: groupChildrenByParents,
     partnerPairs: partnerPairs,
     layoutFamily: layoutFamily,
+    closelyRelated: closelyRelated,
   };
 });
