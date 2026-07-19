@@ -520,6 +520,82 @@ check("assignPixelPositions: deterministic — identical output across runs", ()
   assert.deepEqual(a, b);
 });
 
+// --- co-parents without a recorded partnership -----------------------------------
+
+check("coParentPairs: two people sharing a child form one pair, deduped across children", () => {
+  const { ids, parentsOf } = graphFrom([
+    { id: "gerard" },
+    { id: "isabelle" },
+    { id: "francois", parents: ["gerard", "isabelle"] },
+    { id: "soeur", parents: ["gerard", "isabelle"] },
+  ]);
+  const pairs = TreeGraphLogic.coParentPairs(ids, parentsOf);
+  assert.equal(pairs.length, 1);
+  assert.deepEqual(pairs[0].slice().sort(), ["gerard", "isabelle"]);
+});
+
+check("computeLayers: a co-parent with no recorded partnership is pulled to the other parent's layer", () => {
+  // The reported real-data bug: Mathieu (no recorded parents, no
+  // recorded partner) has a child with Marina, who is herself a child
+  // of a grandparent couple -- without co-parent equalization Mathieu
+  // strands on layer 0 among the grandparents while Marina sits on
+  // layer 1, and their child's drop-line spans rows from a mid-air
+  // point.
+  const { ids, parentsOf, partnersOf } = graphFrom([
+    { id: "sylvain", partners: ["monique"] },
+    { id: "monique", partners: ["sylvain"] },
+    { id: "marina", parents: ["sylvain", "monique"] },
+    { id: "mathieu" },
+    { id: "melina", parents: ["mathieu", "marina"] },
+  ]);
+  const layer = TreeGraphLogic.computeLayers(ids, parentsOf, partnersOf);
+  assert.equal(layer["mathieu"], layer["marina"]);
+  assert.equal(layer["melina"], layer["marina"] + 1);
+});
+
+check("layoutFamily + assignPixelPositions: unpartnered co-parents stand adjacent over their child", () => {
+  // Gerard and Isabelle are francois's two parents but were never
+  // recorded as partners -- they must still stand side by side (one
+  // unit), not drift to opposite ends of the row with the trunk drawn
+  // from a mid-air midpoint.
+  const people = [
+    { id: "gerard" },
+    { id: "other-a", partners: ["other-b"] },
+    { id: "other-b", partners: ["other-a"] },
+    { id: "isabelle" },
+    { id: "francois", parents: ["gerard", "isabelle"] },
+    { id: "cousin", parents: ["other-a", "other-b"] },
+  ];
+  const { ids, parentsOf, partnersOf, childrenOf } = graphFrom(people);
+  const layout = TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
+  const assigned = TreeGraphLogic.assignPixelPositions(
+    layout.rows, parentsOf, childrenOf, partnersOf, layout.componentOf, GAPS
+  );
+  const dist = Math.abs(assigned.xById["isabelle"] - assigned.xById["gerard"]);
+  assert.equal(
+    dist,
+    GAPS.cardWidth + GAPS.gapPartner,
+    `gerard and isabelle should be adjacent as one unit, got ${dist}px apart`
+  );
+  // and francois sits centered under the pair
+  const pairMid =
+    (assigned.xById["gerard"] + assigned.xById["isabelle"]) / 2 + GAPS.cardWidth / 2;
+  const francoisCenter = assigned.xById["francois"] + GAPS.cardWidth / 2;
+  assert.ok(
+    Math.abs(pairMid - francoisCenter) < 0.5,
+    `francois at ${francoisCenter}, co-parent pair midpoint at ${pairMid}`
+  );
+});
+
+check("partnerPairs: co-parents without a recorded partnership get NO marriage line", () => {
+  const { ids, partnersOf } = graphFrom([
+    { id: "gerard" },
+    { id: "isabelle" },
+    { id: "francois", parents: ["gerard", "isabelle"] },
+  ]);
+  assert.deepEqual(TreeGraphLogic.partnerPairs(ids, partnersOf), []);
+});
+
 // --- assignLanes -----------------------------------------------------------------
 
 check("assignLanes: non-overlapping extents all share lane 0", () => {

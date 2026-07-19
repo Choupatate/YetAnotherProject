@@ -19,22 +19,75 @@
   // a real recorded family.
   var MAX_LAYERS = 64;
 
+  // Distinct pairs of people who share at least one recorded child but
+  // are NOT necessarily recorded partners — a divorced couple whose
+  // marriage was never entered, an unmarried couple, or simply an
+  // incomplete record. For layout purposes they're a family unit all
+  // the same: they belong to the same generation and should stand side
+  // by side over their shared children. (What they DON'T get is the
+  // solid marriage line — that stays reserved for recorded partners;
+  // see partnerPairs.) Only pairs where both members are in `ids`.
+  function coParentPairs(ids, parentsOf) {
+    var idSet = {};
+    ids.forEach(function (id) {
+      idSet[id] = true;
+    });
+    var seen = {};
+    var pairs = [];
+    ids.forEach(function (id) {
+      var ps = (parentsOf[id] || []).filter(function (p) {
+        return idSet[p];
+      });
+      for (var i = 0; i < ps.length; i++) {
+        for (var j = i + 1; j < ps.length; j++) {
+          var key = ps[i] < ps[j] ? ps[i] + " " + ps[j] : ps[j] + " " + ps[i];
+          if (seen[key]) continue;
+          seen[key] = true;
+          pairs.push([ps[i], ps[j]]);
+        }
+      }
+    });
+    return pairs;
+  }
+
+  // Partner links plus co-parent links, as one symmetric neighbor map —
+  // the set of "these two stand together" relationships that unit
+  // grouping and layer equalization both care about. Kept separate from
+  // partnersOf itself so rendering can still distinguish a recorded
+  // marriage (solid line) from mere co-parenthood (none).
+  function unitLinkMap(ids, parentsOf, partnersOf) {
+    var links = {};
+    ids.forEach(function (id) {
+      links[id] = (partnersOf[id] || []).slice();
+    });
+    coParentPairs(ids, parentsOf).forEach(function (pair) {
+      if (links[pair[0]].indexOf(pair[1]) === -1) links[pair[0]].push(pair[1]);
+      if (links[pair[1]].indexOf(pair[0]) === -1) links[pair[1]].push(pair[0]);
+    });
+    return links;
+  }
+
   // Every in-family person's generation layer: 0 for anyone with no
   // recorded parents, otherwise one more than their deepest parent's
   // layer (the standard "longest path from a root" DAG layering — the
   // only definition that can't misplace someone just because one side of
   // a couple's ancestry happens to be recorded further back than the
   // other, the exact failure mode generation_offset in kinship.py's own
-  // docstring warns about). Partners are then pulled to the same layer
-  // as each other (a couple reads as one generation on paper, even if
-  // one of them has no recorded parents of their own — an unresearched
-  // branch, not evidence they're somehow younger). The two rules are
-  // applied to a fixed point: pulling a partner down can in turn pull
-  // THEIR children down a layer too, and so on. Every layer value is
-  // monotonically non-decreasing across the whole loop, bounded by the
-  // number of people, so this always terminates; MAX_LAYERS is just a
-  // safety cap, never expected to bind on real data.
+  // docstring warns about). Partners AND co-parents are then pulled to
+  // the same layer as each other — a couple reads as one generation on
+  // paper, and so do two people who had a child together even when
+  // their partnership was never recorded (divorced, unmarried, or just
+  // an incomplete entry: sharing a child is proof enough of a shared
+  // generation, and without this pull such a parent strands on layer 0
+  // among the oldest generation, with their child's drop-line spanning
+  // rows). The rules are applied to a fixed point: pulling someone down
+  // can in turn pull THEIR children down a layer too, and so on. Every
+  // layer value is monotonically non-decreasing across the whole loop,
+  // bounded by the number of people, so this always terminates;
+  // MAX_LAYERS is just a safety cap, never expected to bind on real
+  // data.
   function computeLayers(ids, parentsOf, partnersOf) {
+    var links = unitLinkMap(ids, parentsOf, partnersOf);
     var layer = {};
     ids.forEach(function (id) {
       layer[id] = 0;
@@ -58,9 +111,9 @@
         }
       });
       ids.forEach(function (id) {
-        (partnersOf[id] || []).forEach(function (partnerId) {
-          if (layer[partnerId] !== undefined && layer[partnerId] > layer[id]) {
-            layer[id] = layer[partnerId];
+        (links[id] || []).forEach(function (linkedId) {
+          if (layer[linkedId] !== undefined && layer[linkedId] > layer[id]) {
+            layer[id] = layer[linkedId];
             changed = true;
           }
         });
@@ -88,8 +141,11 @@
     return rows;
   }
 
-  // Groups a row into ordering units along its partner links — every
-  // person in a connected chain of marriages (a simple couple, or a
+  // Groups a row into ordering units along its partner links (callers
+  // may pass a widened link map — e.g. unitLinkMap's partner-plus-
+  // co-parent links — anywhere "stands together" should include people
+  // who share a child without a recorded partnership) — every person
+  // in a connected chain of such links (a simple couple, or a
   // remarriage chain: an ex on one side, a current partner on the
   // other) becomes one unit, in an order where every ADJACENT pair in
   // the unit is an actual couple. That last part is why this isn't just
@@ -254,6 +310,10 @@
   // final per-layer id order those ranks came from.
   function orderRows(ids, layer, parentsOf, childrenOf, partnersOf, componentOf) {
     var rowsByLayer = groupByLayer(ids, layer);
+    // Units group along partner AND co-parent links (see unitLinkMap):
+    // two people who share a child stand side by side over their
+    // children even when their partnership was never recorded.
+    var links = unitLinkMap(ids, parentsOf, partnersOf);
     var layers = Object.keys(rowsByLayer)
       .map(Number)
       .sort(function (a, b) {
@@ -268,7 +328,7 @@
     }
 
     function sortRow(rowIds, neighborsOf) {
-      var units = coupleUnits(rowIds, partnersOf);
+      var units = coupleUnits(rowIds, links);
       units.forEach(function (unit) {
         var neighborIds = [];
         unit.forEach(function (id) {
@@ -524,8 +584,16 @@
         return a - b;
       });
 
+    // Same partner-plus-co-parent unit links orderRows groups by, so
+    // the pixel stage never splits what the ordering joined.
+    var allIds = [];
+    layers.forEach(function (l) {
+      allIds = allIds.concat(rowsByLayer[l]);
+    });
+    var unitLinks = unitLinkMap(allIds, parentsOf, partnersOf);
+
     var rows = layers.map(function (l) {
-      var units = coupleUnits(rowsByLayer[l], partnersOf).map(function (ids) {
+      var units = coupleUnits(rowsByLayer[l], unitLinks).map(function (ids) {
         return {
           ids: ids,
           width: ids.length * cardW + (ids.length - 1) * gapPartner,
@@ -683,6 +751,8 @@
     computeLayers: computeLayers,
     groupByLayer: groupByLayer,
     coupleUnits: coupleUnits,
+    coParentPairs: coParentPairs,
+    unitLinkMap: unitLinkMap,
     connectedComponents: connectedComponents,
     orderRows: orderRows,
     groupChildrenByParents: groupChildrenByParents,

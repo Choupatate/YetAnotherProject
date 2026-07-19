@@ -436,40 +436,76 @@
 
         installMapBackground(mountEl, svg, zoomG);
 
-        // Parent-child edges: one shared trunk per family (couple or
-        // single parent), branching to each child. Two details carry
-        // the traceability: (1) a couple's trunk starts ON the marriage
-        // line, dropping through the gap between the two partner cards,
-        // so the line visibly comes from THAT couple rather than from
-        // empty space below them; (2) each family's horizontal run gets
-        // its own lane height in the corridor between generations
-        // (assignLanes) — with one shared corridor height, every
-        // family's horizontal segment merges into what reads as a
-        // single dashed line spanning the whole chart, untraceable to
-        // any particular couple. Families whose runs don't overlap
-        // still share the first lane, so a simple tree keeps clean,
-        // symmetric connectors.
+        // Parent-child edges flow from each PARENT's card directly to
+        // the child — never from an abstract union point. Every family
+        // (parent pair or single parent, with their children) draws as
+        // the classic T-bar descendant chart: each parent drops a line
+        // from their own card bottom onto the family's horizontal bar,
+        // and each child hangs from that same bar, so a two-parent
+        // child visibly connects to BOTH parents' cards. Each family's
+        // bar gets its own lane height in the corridor between
+        // generations (assignLanes) — with one shared corridor height,
+        // every family's bar merges into what reads as a single dashed
+        // line spanning the whole chart, untraceable to any particular
+        // family. Families whose bars don't overlap still share the
+        // first lane, so a simple tree keeps clean, symmetric
+        // connectors.
         var groupGeo = layout.parentEdgeGroups.map(function (group) {
-          var centers = group.parents.map(function (p) {
-            return px(p).x + GRAPH_CARD_W / 2;
-          });
-          var midX =
-            centers.reduce(function (sum, c) {
-              return sum + c;
-            }, 0) / centers.length;
           var childXs = group.children.map(function (c) {
             return px(c).x + GRAPH_CARD_W / 2;
           });
-          var parentLayer = layout.positions[group.parents[0]].layer;
+          // Parents share a layer (computeLayers equalizes partners and
+          // co-parents alike), but take the max defensively — a bar
+          // drawn from the wrong row is worse than a slightly long one.
+          var parentLayer = group.parents.reduce(function (max, p) {
+            return Math.max(max, layout.positions[p].layer);
+          }, 0);
+          var centers = group.parents.map(function (p) {
+            return px(p).x + GRAPH_CARD_W / 2;
+          });
           return {
             group: group,
-            midX: midX,
             childXs: childXs,
             parentTopY: parentLayer * (GRAPH_CARD_H + GRAPH_ROW_GAP),
             parentLayer: parentLayer,
-            left: Math.min.apply(null, [midX].concat(childXs)),
-            right: Math.max.apply(null, [midX].concat(childXs)),
+            approxMid:
+              (Math.min.apply(null, centers.concat(childXs)) +
+                Math.max.apply(null, centers.concat(childXs))) /
+              2,
           };
+        });
+
+        // One drop per (parent, family). A remarried parent belongs to
+        // several families and gets one drop per family bar — nudged a
+        // touch apart around their card's center (ordered to lean
+        // toward each family's side), so the verticals don't overprint
+        // each other on the shared stretch below the card.
+        var geosByParent = {};
+        groupGeo.forEach(function (geo) {
+          geo.parentDropX = {};
+          geo.group.parents.forEach(function (p) {
+            (geosByParent[p] = geosByParent[p] || []).push(geo);
+          });
+        });
+        Object.keys(geosByParent).forEach(function (p) {
+          var list = geosByParent[p];
+          var centerX = px(p).x + GRAPH_CARD_W / 2;
+          list.sort(function (a, b) {
+            return a.approxMid - b.approxMid;
+          });
+          list.forEach(function (geo, i) {
+            geo.parentDropX[p] = centerX + (i - (list.length - 1) / 2) * 12;
+          });
+        });
+
+        groupGeo.forEach(function (geo) {
+          var xs = geo.group.parents
+            .map(function (p) {
+              return geo.parentDropX[p];
+            })
+            .concat(geo.childXs);
+          geo.left = Math.min.apply(null, xs);
+          geo.right = Math.max.apply(null, xs);
         });
 
         var byCorridor = {};
@@ -501,44 +537,62 @@
           });
         });
 
-        groupGeo.forEach(function (geo) {
-          // A couple's trunk starts on the marriage line (mid-card
-          // height, in the gap between the partner cards); a single
-          // recorded parent's starts at their card's bottom edge.
-          var startY =
-            geo.group.parents.length > 1
-              ? geo.parentTopY + GRAPH_CARD_H / 2
-              : geo.parentTopY + GRAPH_CARD_H;
-          var trunk = document.createElementNS(SVG_NS, "path");
-          trunk.setAttribute("class", "tree-graph__link");
-          trunk.setAttribute("d", "M" + geo.midX + "," + startY + "V" + geo.trunkY);
-          edgesG.appendChild(trunk);
+        function addLink(d) {
+          var path = document.createElementNS(SVG_NS, "path");
+          path.setAttribute("class", "tree-graph__link");
+          path.setAttribute("d", d);
+          edgesG.appendChild(path);
+        }
 
-          geo.group.children.forEach(function (childId, ci) {
-            var childPos = px(childId);
-            var childX = geo.childXs[ci];
-            var dx = childX - geo.midX;
-            var branch = document.createElementNS(SVG_NS, "path");
-            branch.setAttribute("class", "tree-graph__link");
-            var d;
-            if (Math.abs(dx) < 1) {
-              // Child directly below the couple: one straight drop.
-              d = "M" + geo.midX + "," + geo.trunkY + "V" + childPos.y;
-            } else {
-              // Rounded elbow where the run turns down toward the
-              // child — a smooth corner is what lets the eye keep
-              // following one line through a crossing instead of
-              // losing it at a sharp right angle.
-              var r = Math.min(10, Math.abs(dx) / 2);
-              var dir = dx > 0 ? 1 : -1;
-              d =
-                "M" + geo.midX + "," + geo.trunkY +
-                "H" + (childX - dir * r) +
-                "Q" + childX + "," + geo.trunkY + " " + childX + "," + (geo.trunkY + r) +
-                "V" + childPos.y;
-            }
-            branch.setAttribute("d", d);
-            edgesG.appendChild(branch);
+        groupGeo.forEach(function (geo) {
+          var laneY = geo.trunkY;
+          var parentBottomY = geo.parentTopY + GRAPH_CARD_H;
+          // Terminals: each parent attaches from above (their card's
+          // bottom edge), each child from below (their card's top).
+          var terminals = geo.group.parents
+            .map(function (p) {
+              return { x: geo.parentDropX[p], y: parentBottomY, up: true };
+            })
+            .concat(
+              geo.group.children.map(function (childId, ci) {
+                return { x: geo.childXs[ci], y: px(childId).y, up: false };
+              })
+            )
+            .sort(function (a, b) {
+              return a.x - b.x;
+            });
+
+          var leftT = terminals[0];
+          var rightT = terminals[terminals.length - 1];
+
+          if (rightT.x - leftT.x < 1) {
+            // Single parent directly above their only child: one
+            // straight drop, no bar needed.
+            addLink("M" + leftT.x + "," + parentBottomY + "V" + rightT.y);
+            return;
+          }
+
+          // The bar, with rounded corners into whichever terminal sits
+          // at each end (up toward a parent, down toward a child) — a
+          // smooth corner is what lets the eye keep following one line
+          // through a crossing instead of losing it at a sharp right
+          // angle. Terminals between the ends join the bar as plain
+          // T-junctions.
+          function endCorner(t, inward) {
+            var r = Math.min(10, (rightT.x - leftT.x) / 2, Math.abs(laneY - t.y));
+            var vy = t.up ? laneY - r : laneY + r;
+            return {
+              start: "M" + t.x + "," + t.y + "V" + vy,
+              curve: "Q" + t.x + "," + laneY + " " + (t.x + inward * r) + "," + laneY,
+              barX: t.x + inward * r,
+            };
+          }
+          var leftEnd = endCorner(leftT, 1);
+          var rightEnd = endCorner(rightT, -1);
+          addLink(leftEnd.start + leftEnd.curve + "H" + rightEnd.barX);
+          addLink(rightEnd.start + rightEnd.curve);
+          terminals.slice(1, -1).forEach(function (t) {
+            addLink("M" + t.x + "," + t.y + "V" + laneY);
           });
         });
 
