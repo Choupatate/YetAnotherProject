@@ -2425,3 +2425,69 @@ regression to Direct line/branch panels (unchanged card counts, no
 console errors) or to a plain non-blended family (13-for-13, still
 clean), no horizontal overflow on a 390px viewport, and correct
 rendering in dark theme.
+
+## "Everyone" round 3 — connected-component clustering
+
+More dogfooding feedback, this time on the round-2 graph itself: an
+in-law with no recorded parents of their own — "the husband of my
+stepsister" — was rendering on the same row as the true grandparents,
+with nothing visually distinguishing them from the actual family.
+Broader complaint alongside it: the view reads as "just a list," people
+"stacked" rather than organized into legible subgroups; asked for
+something closer to a proximity/acquaintance-based arrangement, with
+extra room between unrelated subfamilies for readability, while
+explicitly leaving the approach open rather than dictating one.
+
+Root cause, confirmed with a hand-built repro before touching any
+rendering code: `computeLayers` (see round 2) has no way to know a
+disconnected person's true generation, so anyone with no recorded
+parents *and* no intact partner-chain back to the family defaults to
+layer 0 — the same bucket as real root ancestors, with no signal left to
+tell them apart. There's no better layer number to guess here (the data
+genuinely doesn't say), so the fix isn't a smarter layer computation —
+it's making sure a person in that situation never reads as part of a
+cluster they're not actually connected to.
+
+- **`connectedComponents(ids, parentsOf, partnersOf)`** (new, in
+  `tree-graph-logic.js`) — every person's component index over the
+  *undirected* blood-and-partner graph (parent/child and partner edges
+  both count, direction ignored), assigned by a plain flood fill in
+  first-appearance order. This is the one piece of information
+  `computeLayers` doesn't have: whether two people who happen to share a
+  layer number are actually reachable from each other at all.
+- **`orderRows`** now takes `componentOf` and sorts each row by component
+  *first*, barycenter position only breaking ties within a component —
+  so two unrelated clusters landing on the same row are never
+  interleaved, and a cluster's relative position stays stable across
+  every row it spans (never left-of on one row, right-of on the next).
+  For the common case — one connected family, one component for
+  everyone — this is a no-op and the ordering is bit-for-bit what round
+  2 already produced; verified against both existing fixtures (the
+  17-person blended family and the 13-person plain one) with no change
+  in output.
+- Renderer (`tree.js`): row layout switched from a uniform per-column
+  pixel grid to walking each row's ordered ids directly, adding the
+  normal column gap between two cards in the *same* component and a much
+  wider `GRAPH_CLUSTER_GAP` (column gap + 96px) between two different
+  components sharing a row — enough to read as a deliberate separation,
+  not just a slightly loose layout.
+
+Reproduced the exact bug report with a small fixture (an isolated
+"Belle-Soeur Nadia" + "Beau-Frere Karim" couple, partnered only with each
+other, no parent link to anyone) alongside a normal two-grandparent
+family: before the fix, both landed at `x: 0, 1` on layer 0, indistinguishable
+from the real grandparents; after, they land in their own component,
+grouped together and pushed to the far side of the row with the wide gap
+between.
+
+Tests: `tests/js/tree_graph_logic_test.mjs` gained 3 cases (16 total) —
+`connectedComponents` on a single-component family and on the isolated-
+couple scenario, plus a `layoutFamily` case asserting the in-law
+component shares layer 0 with the grandparents but a distinct
+`componentOf`, grouped contiguously after the main family rather than
+interleaved. `pytest` (664) and `ruff check .` green. Manually verified
+(Playwright) against both the disconnected-in-law fixture (clear gap
+separating the isolated couple from the grandparents row, no
+intermixing) and the original round-2 blended family (unchanged
+17-for-17 rendering, confirming the single-component no-op case holds in
+the browser too, not just in the unit tests).

@@ -175,6 +175,62 @@
     return sum / known.length;
   }
 
+  // Every id's connected component over the UNDIRECTED blood+partner
+  // graph (parent/child and partner edges both count, direction
+  // ignored) — component index 0, 1, 2, ... assigned in first-appearance
+  // order within `ids`. Two people can end up on the same layer (see
+  // computeLayers) for entirely unrelated reasons: real root ancestors
+  // at the top of a researched lineage, and someone connected to the
+  // family only through a marriage with a gap in the chain (an in-law
+  // whose own partner-of-partner link back to blood family was never
+  // recorded), who defaults to layer 0 for lack of any recorded parents
+  // — with nothing to tell them apart, they'd render intermixed in the
+  // same row as if they were part of the same family. Row ordering uses
+  // this to keep every true cluster contiguous and give genuinely
+  // unrelated ones a visibly wider gap (see orderRows/layoutFamily),
+  // rather than just leaving the coincidence of a shared layer number to
+  // read as a real relationship.
+  function connectedComponents(ids, parentsOf, partnersOf) {
+    var idSet = {};
+    ids.forEach(function (id) {
+      idSet[id] = true;
+    });
+    var neighbors = {};
+    function link(a, b) {
+      if (!idSet[a] || !idSet[b]) return;
+      (neighbors[a] = neighbors[a] || []).push(b);
+    }
+    ids.forEach(function (id) {
+      (parentsOf[id] || []).forEach(function (p) {
+        link(id, p);
+        link(p, id);
+      });
+      (partnersOf[id] || []).forEach(function (p) {
+        link(id, p);
+        link(p, id);
+      });
+    });
+
+    var componentOf = {};
+    var nextIndex = 0;
+    ids.forEach(function (id) {
+      if (componentOf[id] !== undefined) return;
+      var index = nextIndex++;
+      var stack = [id];
+      componentOf[id] = index;
+      while (stack.length) {
+        var current = stack.pop();
+        (neighbors[current] || []).forEach(function (n) {
+          if (componentOf[n] === undefined) {
+            componentOf[n] = index;
+            stack.push(n);
+          }
+        });
+      }
+    });
+    return componentOf;
+  }
+
   // Reorders every row to reduce edge crossings, via the standard
   // (heuristic — true minimum-crossing layout is NP-hard) Sugiyama
   // barycenter method: repeatedly re-sort each row by the average
@@ -182,14 +238,21 @@
   // downward passes (order by parents' positions) and upward passes
   // (order by children's positions), a fixed handful of times. Couples
   // are ordered as a single unit (via coupleUnits) so partners always
-  // land adjacent to each other, never split apart by the sort.
+  // land adjacent to each other, never split apart by the sort. Within
+  // that, every row is grouped by connected component FIRST — barycenter
+  // position only breaks ties within the same true family cluster, never
+  // interleaving two unrelated ones — and component order is stable
+  // across every row (component 0's members are never pushed to the
+  // right of component 1's on one row and the left on another), so a
+  // cluster reads as one coherent block spanning its generations rather
+  // than drifting sideways from row to row.
   //
   // Returns {order: {[id]: x}, rows: {[layer]: [id, ...]}} — `order` is
   // every person's final integer rank within their own row (0-based,
   // NOT a global x — two people on different layers can share the same
   // order value and are not meant to visually align), `rows` is the
   // final per-layer id order those ranks came from.
-  function orderRows(ids, layer, parentsOf, childrenOf, partnersOf) {
+  function orderRows(ids, layer, parentsOf, childrenOf, partnersOf, componentOf) {
     var rowsByLayer = groupByLayer(ids, layer);
     var layers = Object.keys(rowsByLayer)
       .map(Number)
@@ -212,15 +275,22 @@
           neighborIds = neighborIds.concat(neighborsOf(id) || []);
         });
         unit.bc = barycenter(neighborIds, position);
+        // Every member of a couple/chain unit is in the same component
+        // by construction (they're linked by partner edges), so the
+        // first member's component speaks for the whole unit.
+        unit.component = componentOf[unit[0]];
       });
-      // Stable-sort by barycenter; units with no known neighbors yet
-      // (null) keep their current relative order rather than collapsing
-      // to one end, so an initial/first pass over a row with nothing
-      // placed above or below it is a no-op instead of a shuffle.
+      // Stable-sort by component first (never interleave two unrelated
+      // clusters), then by barycenter within a component; units with no
+      // known neighbors yet (null) keep their current relative order
+      // rather than collapsing to one end, so an initial/first pass over
+      // a row with nothing placed above or below it is a no-op instead
+      // of a shuffle.
       var indexed = units.map(function (unit, i) {
         return { unit: unit, i: i };
       });
       indexed.sort(function (a, b) {
+        if (a.unit.component !== b.unit.component) return a.unit.component - b.unit.component;
         if (a.unit.bc === null && b.unit.bc === null) return a.i - b.i;
         if (a.unit.bc === null) return 1;
         if (b.unit.bc === null) return -1;
@@ -325,19 +395,28 @@
   }
 
   // The full layout: every in-family id's {layer, x}, plus the edges to
-  // draw. `x` is the id's position WITHIN its own row (see orderRows) —
-  // converting that to a pixel coordinate, and choosing how much
-  // horizontal room a row needs, is the renderer's job, not this
+  // draw and the connected-component every id belongs to. `x` is the
+  // id's position WITHIN its own row (see orderRows) — converting that
+  // to a pixel coordinate, and choosing how much horizontal room a row
+  // needs (including the extra gap between two different `componentOf`
+  // clusters landing on the same row), is the renderer's job, not this
   // module's; how many pixels a card takes is a presentation detail.
+  // `rows` (per-layer id order) is exposed alongside `positions` so the
+  // renderer can walk a row in sequence and detect exactly where a
+  // component boundary falls, without having to re-derive it from
+  // integer ranks.
   function layoutFamily(ids, parentsOf, partnersOf, childrenOf) {
     var layer = computeLayers(ids, parentsOf, partnersOf);
-    var ordered = orderRows(ids, layer, parentsOf, childrenOf, partnersOf);
+    var componentOf = connectedComponents(ids, parentsOf, partnersOf);
+    var ordered = orderRows(ids, layer, parentsOf, childrenOf, partnersOf, componentOf);
     var positions = {};
     ids.forEach(function (id) {
       positions[id] = { layer: layer[id], x: ordered.order[id] };
     });
     return {
       positions: positions,
+      rows: ordered.rows,
+      componentOf: componentOf,
       partnerEdges: partnerPairs(ids, partnersOf),
       parentEdgeGroups: groupChildrenByParents(ids, parentsOf),
     };
@@ -347,6 +426,7 @@
     computeLayers: computeLayers,
     groupByLayer: groupByLayer,
     coupleUnits: coupleUnits,
+    connectedComponents: connectedComponents,
     orderRows: orderRows,
     groupChildrenByParents: groupChildrenByParents,
     partnerPairs: partnerPairs,
