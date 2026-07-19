@@ -213,6 +213,69 @@ check("layoutFamily: an isolated in-law couple shares a layer with the grandpare
   );
 });
 
+// --- closelyRelated ----------------------------------------------------------
+
+check("closelyRelated: partners are closely related", () => {
+  const { parentsOf, childrenOf, partnersOf } = graphFrom([
+    { id: "a", partners: ["b"] },
+    { id: "b", partners: ["a"] },
+  ]);
+  assert.equal(TreeGraphLogic.closelyRelated("a", "b", parentsOf, childrenOf, partnersOf), true);
+});
+
+check("closelyRelated: siblings sharing a parent are closely related", () => {
+  // Marc and Papa are brothers -- both children of the same parent.
+  const { parentsOf, childrenOf, partnersOf } = graphFrom([
+    { id: "grandparent" },
+    { id: "marc", parents: ["grandparent"] },
+    { id: "papa", parents: ["grandparent"] },
+  ]);
+  assert.equal(
+    TreeGraphLogic.closelyRelated("marc", "papa", parentsOf, childrenOf, partnersOf),
+    true
+  );
+});
+
+check("closelyRelated: co-parents sharing a child are closely related", () => {
+  const { parentsOf, childrenOf, partnersOf } = graphFrom([
+    { id: "ex-marc" },
+    { id: "ex-anne" },
+    { id: "leo", parents: ["ex-marc", "ex-anne"] },
+  ]);
+  assert.equal(
+    TreeGraphLogic.closelyRelated("ex-marc", "ex-anne", parentsOf, childrenOf, partnersOf),
+    true
+  );
+});
+
+check("closelyRelated: cousins (no shared parent or child) are not closely related", () => {
+  const { parentsOf, childrenOf, partnersOf } = graphFrom([
+    { id: "marc" },
+    { id: "julie" },
+    { id: "papa" },
+    { id: "maman" },
+    { id: "ines", parents: ["marc", "julie"] },
+    { id: "milo", parents: ["papa", "maman"] },
+  ]);
+  assert.equal(
+    TreeGraphLogic.closelyRelated("ines", "milo", parentsOf, childrenOf, partnersOf),
+    false
+  );
+});
+
+check("closelyRelated: two unconnected grandparent couples are not closely related", () => {
+  const { parentsOf, childrenOf, partnersOf } = graphFrom([
+    { id: "papi-georges", partners: ["mamie-lise"] },
+    { id: "mamie-lise", partners: ["papi-georges"] },
+    { id: "papi-jean", partners: ["mamie-sylvie"] },
+    { id: "mamie-sylvie", partners: ["papi-jean"] },
+  ]);
+  assert.equal(
+    TreeGraphLogic.closelyRelated("mamie-lise", "papi-jean", parentsOf, childrenOf, partnersOf),
+    false
+  );
+});
+
 // --- groupChildrenByParents / partnerPairs --------------------------------------
 
 check("groupChildrenByParents: siblings sharing both parents share one group", () => {
