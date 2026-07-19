@@ -2725,3 +2725,43 @@ no-op there — the common case costs nothing). 4 new tests (36 total):
 adjacency + centered-child through the full pixel pipeline, and
 `partnerPairs` drawing no marriage line for unpartnered co-parents.
 `pytest` (664) and `ruff check .` green.
+
+## "Everyone" round 7 — links flow from each parent, not from a union point
+
+Direct user feedback on round 6: "link should flow from parent to
+child directly, not from union." The connectors had always emanated
+from an abstract union point — the couple's midpoint (round 5 put it on
+the marriage line; round 6 moved unpartnered pairs' to the card-bottom
+gap) — so a child's line rose into empty space between two cards
+rather than visibly connecting to either parent.
+
+Redrawn as the classic T-bar descendant chart, connector geometry only
+(card positions and lane assignment untouched): each parent drops a
+line from their own card's bottom edge onto the family's horizontal
+bar, and each child hangs from that same bar — so a two-parent child
+traceably connects to BOTH parents' cards with no invisible junction
+anywhere. The bar spans from the leftmost to the rightmost of the
+family's attachment points, with rounded corners into whichever
+terminal sits at each end (up toward a parent, down toward a child) and
+plain T-junctions for the ones between. A single parent directly above
+their only child degenerates to one straight drop, no bar.
+
+One wrinkle worth recording: a remarried parent belongs to several
+families, which now means several drops from the same card bottom —
+drawn naively they'd all start at the card's center X and overprint on
+the shared stretch below the card. Each parent's drops are nudged 12px
+apart around their card center, ordered so each leans toward its own
+family's side (sorted by bar midpoint), which reads as two distinct
+lines leaving one card — verified on the blended fixture, where Papa,
+Maman, and Oncle Paul each carry one drop per marriage.
+
+The round-6 distinction between married and merely-co-parenting pairs
+lost its geometric expression (there's no union start to vary anymore)
+— it now rests entirely on the marriage line itself, which still draws
+only for recorded partners.
+
+Verified (Playwright + the SVG-parsing near-merge check) against the
+co-parents fixture, the blended fixture, and the 30-person ring — all
+consistency metrics unchanged from round 6 (connector geometry doesn't
+move cards), zero overlaps, every line starting at a real card. `pytest`
+(664), `ruff check .`, and the 36 Node tests green.
