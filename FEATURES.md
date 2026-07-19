@@ -2675,3 +2675,53 @@ before ALL runs in a corridor shared one y exactly. 4 new `assignLanes`
 tests (32 total). `pytest` (664) and `ruff check .` green; blended and
 messy fixtures re-verified visually with every drop-line traceable to
 its marriage.
+
+## "Everyone" round 6 — co-parents without a recorded partnership
+
+Real-data bug report, with a screenshot that made the cause findable: a
+child's two recorded parents rendered at OPPOSITE ENDS of their
+generation row, reading as if "only one parent is recognized," and one
+parent stranded a full generation too high. The data was fine — the
+missing ingredient was a *partner* link between the two parents. Every
+piece of family-unit handling in the layout (same-layer pull in
+`computeLayers`, side-by-side unit grouping in `coupleUnits`, the
+marriage-line trunk start) keyed exclusively off recorded partners; two
+people who share a child but no recorded partnership (divorced,
+unmarried, or simply an incomplete entry) got none of it. So:
+`computeLayers` never pulled such a parent down to their co-parent's
+generation (someone with no recorded parents and no partner link
+defaults to layer 0, up among the grandparents); the row ordering
+scattered the pair like strangers; and the child's drop-line drew from
+the midpoint of two far-apart cards — a line starting in mid-air,
+crossing everything, traceable to nobody.
+
+Fix, in `tree-graph-logic.js`: a new `coParentPairs(ids, parentsOf)`
+(distinct pairs sharing at least one child) and `unitLinkMap` (partner
+links ∪ co-parent links, one symmetric neighbor map). `computeLayers`
+equalizes layers across the combined map — sharing a child is proof
+enough of a shared generation — and `orderRows`/`assignPixelPositions`
+group row units along it, so co-parents stand side by side over their
+children exactly like a married couple. What co-parents deliberately do
+NOT get: the solid marriage line (`partnerPairs` still draws only
+recorded partnerships), and the trunk's marriage-line start — in
+`tree.js`, a parent pair's trunk starts at mid-card height only when
+the two are recorded partners; an unpartnered pair's drop starts at
+card-bottom level in the (adjacent) gap between them, so the render
+still tells the truth about what's recorded. Recording the partnership
+in the data remains the better fix where a marriage actually exists —
+it adds the marriage line and the husband/wife kinship labels — but the
+tree no longer falls apart when it's absent.
+
+Reproduced the reported structure exactly in a fixture (two unpartnered
+co-parent pairs, one of them with the co-parent marrying into the main
+family's descent line, plus a single-parent child) — before: one parent
+at each end of the row, the other co-parent stranded on the wrong
+generation; after: both pairs adjacent on the correct rows, children
+centered under them (deviation 0.00 for both pairs' children), every
+drop-line traceable. The 30-person ring fixture re-measured bit-for-bit
+unchanged (all its co-parents are also partners, so the new links are a
+no-op there — the common case costs nothing). 4 new tests (36 total):
+`coParentPairs` dedup, `computeLayers` co-parent layer pull,
+adjacency + centered-child through the full pixel pipeline, and
+`partnerPairs` drawing no marriage line for unpartnered co-parents.
+`pytest` (664) and `ruff check .` green.

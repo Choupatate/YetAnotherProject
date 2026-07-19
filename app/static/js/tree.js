@@ -460,7 +460,12 @@
           var childXs = group.children.map(function (c) {
             return px(c).x + GRAPH_CARD_W / 2;
           });
-          var parentLayer = layout.positions[group.parents[0]].layer;
+          // Parents share a layer (computeLayers equalizes partners and
+          // co-parents alike), but take the max defensively — a trunk
+          // drawn from the wrong row is worse than a slightly long one.
+          var parentLayer = group.parents.reduce(function (max, p) {
+            return Math.max(max, layout.positions[p].layer);
+          }, 0);
           return {
             group: group,
             midX: midX,
@@ -502,13 +507,17 @@
         });
 
         groupGeo.forEach(function (geo) {
-          // A couple's trunk starts on the marriage line (mid-card
-          // height, in the gap between the partner cards); a single
-          // recorded parent's starts at their card's bottom edge.
-          var startY =
-            geo.group.parents.length > 1
-              ? geo.parentTopY + GRAPH_CARD_H / 2
-              : geo.parentTopY + GRAPH_CARD_H;
+          // A married couple's trunk starts on the marriage line
+          // (mid-card height, in the gap between the partner cards).
+          // Co-parents with no recorded partnership have no marriage
+          // line to start from — their trunk starts at card-bottom
+          // level in the gap between them (they're adjacent, since
+          // unit grouping joins co-parents too). A single recorded
+          // parent's starts at their card's bottom edge.
+          var married =
+            geo.group.parents.length > 1 &&
+            (partnersOf[geo.group.parents[0]] || []).indexOf(geo.group.parents[1]) !== -1;
+          var startY = married ? geo.parentTopY + GRAPH_CARD_H / 2 : geo.parentTopY + GRAPH_CARD_H;
           var trunk = document.createElementNS(SVG_NS, "path");
           trunk.setAttribute("class", "tree-graph__link");
           trunk.setAttribute("d", "M" + geo.midX + "," + startY + "V" + geo.trunkY);
