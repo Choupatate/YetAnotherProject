@@ -398,4 +398,180 @@ check("layoutFamily: a two-branch family with no remarriages (regression baselin
   assert.equal(result.parentEdgeGroups.length, 3);
 });
 
+// --- poolAdjacentViolators / assignPixelPositions -------------------------------
+
+check("poolAdjacentViolators: already-monotone input is unchanged", () => {
+  assert.deepEqual(
+    TreeGraphLogic.poolAdjacentViolators([1, 2, 3], [1, 1, 1]),
+    [1, 2, 3]
+  );
+});
+
+check("poolAdjacentViolators: a violating pair pools to its weighted mean", () => {
+  // targets [4, 0] with weights [1, 3] -> pooled value (4*1 + 0*3)/4 = 1.
+  assert.deepEqual(TreeGraphLogic.poolAdjacentViolators([4, 0], [1, 3]), [1, 1]);
+});
+
+check("poolAdjacentViolators: output is always non-decreasing", () => {
+  const out = TreeGraphLogic.poolAdjacentViolators([5, 1, 4, 0, 3], [1, 2, 1, 1, 2]);
+  for (let i = 1; i < out.length; i++) {
+    assert.ok(out[i] >= out[i - 1], `${out.join(",")} decreases at ${i}`);
+  }
+});
+
+const GAPS = { cardWidth: 176, gapPartner: 10, gapClose: 28, gapSame: 96, gapCross: 200 };
+
+function assignFor(people) {
+  const { ids, parentsOf, partnersOf, childrenOf } = graphFrom(people);
+  const layout = TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
+  const assigned = TreeGraphLogic.assignPixelPositions(
+    layout.rows, parentsOf, childrenOf, partnersOf, layout.componentOf, GAPS
+  );
+  return { ids, parentsOf, partnersOf, childrenOf, layout, assigned };
+}
+
+function centerIn(assigned, id) {
+  return assigned.xById[id] + GAPS.cardWidth / 2;
+}
+
+check("assignPixelPositions: parents sit exactly centered over their children when nothing conflicts", () => {
+  const { assigned } = assignFor([
+    { id: "papi", partners: ["mamie"] },
+    { id: "mamie", partners: ["papi"] },
+    { id: "papa", parents: ["papi", "mamie"], partners: ["maman"] },
+    { id: "maman", partners: ["papa"] },
+    { id: "milo", parents: ["papa", "maman"] },
+    { id: "emma", parents: ["papa", "maman"] },
+  ]);
+  const coupleCenter = (centerIn(assigned, "papa") + centerIn(assigned, "maman")) / 2;
+  const kidsCenter = (centerIn(assigned, "milo") + centerIn(assigned, "emma")) / 2;
+  assert.ok(
+    Math.abs(coupleCenter - kidsCenter) < 0.5,
+    `couple at ${coupleCenter}, children centroid at ${kidsCenter}`
+  );
+  // The grandparents center over their CHILDREN's centroid — here just
+  // papa (maman married in, she's not their child) — so the trunk from
+  // their midpoint drops vertically onto the blood child's card, the
+  // classic pedigree presentation. NOT over the papa+maman couple
+  // midpoint, which would put the trunk halfway between papa and his
+  // wife.
+  const gpCenter = (centerIn(assigned, "papi") + centerIn(assigned, "mamie")) / 2;
+  assert.ok(
+    Math.abs(gpCenter - centerIn(assigned, "papa")) < 0.5,
+    `grandparent midpoint at ${gpCenter}, blood child at ${centerIn(assigned, "papa")}`
+  );
+});
+
+check("assignPixelPositions: partners are exactly gapPartner apart, and min gaps never violated", () => {
+  const { assigned, layout, partnersOf } = assignFor([
+    { id: "papi-a", partners: ["mamie-a"] },
+    { id: "mamie-a", partners: ["papi-a"] },
+    { id: "papi-b", partners: ["mamie-b"] },
+    { id: "mamie-b", partners: ["papi-b"] },
+    { id: "papa", parents: ["papi-a", "mamie-a"], partners: ["maman"] },
+    { id: "maman", parents: ["papi-b", "mamie-b"], partners: ["papa"] },
+    { id: "milo", parents: ["papa", "maman"] },
+    { id: "emma", parents: ["papa", "maman"] },
+  ]);
+  // partner spacing exact
+  assert.equal(
+    Math.abs(assigned.xById["mamie-a"] - assigned.xById["papi-a"]),
+    GAPS.cardWidth + GAPS.gapPartner
+  );
+  // no same-row pair closer than the smallest tier
+  Object.keys(layout.rows).forEach((l) => {
+    const row = layout.rows[l].slice().sort((a, b) => assigned.xById[a] - assigned.xById[b]);
+    for (let i = 1; i < row.length; i++) {
+      const gap = assigned.xById[row[i]] - (assigned.xById[row[i - 1]] + GAPS.cardWidth);
+      assert.ok(gap >= GAPS.gapPartner - 0.001, `gap ${gap} between ${row[i - 1]} and ${row[i]}`);
+    }
+  });
+});
+
+check("assignPixelPositions: an isolated couple keeps the cross-component gap from the main family", () => {
+  const { assigned, layout } = assignFor([
+    { id: "papi", partners: ["mamie"] },
+    { id: "mamie", partners: ["papi"] },
+    { id: "papa", parents: ["papi", "mamie"] },
+    { id: "milo", parents: ["papa"] },
+    { id: "nadia", partners: ["karim"] },
+    { id: "karim", partners: ["nadia"] },
+  ]);
+  const row0 = layout.rows[0].slice().sort((a, b) => assigned.xById[a] - assigned.xById[b]);
+  // main family first, isolated couple after with the widest gap
+  const lastMain = Math.max(assigned.xById["papi"], assigned.xById["mamie"]) + GAPS.cardWidth;
+  const firstIsolated = Math.min(assigned.xById["nadia"], assigned.xById["karim"]);
+  assert.ok(
+    firstIsolated - lastMain >= GAPS.gapCross - 0.001,
+    `cross-component gap ${firstIsolated - lastMain} < ${GAPS.gapCross} in row [${row0.join(", ")}]`
+  );
+});
+
+check("assignPixelPositions: deterministic — identical output across runs", () => {
+  const people = [
+    { id: "papi", partners: ["mamie"] },
+    { id: "mamie", partners: ["papi"] },
+    { id: "papa", parents: ["papi", "mamie"], partners: ["maman"] },
+    { id: "maman", partners: ["papa"] },
+    { id: "milo", parents: ["papa", "maman"] },
+  ];
+  const a = assignFor(people).assigned;
+  const b = assignFor(people).assigned;
+  assert.deepEqual(a, b);
+});
+
+// --- assignLanes -----------------------------------------------------------------
+
+check("assignLanes: non-overlapping extents all share lane 0", () => {
+  const lanes = TreeGraphLogic.assignLanes(
+    [{ left: 0, right: 100 }, { left: 200, right: 300 }, { left: 400, right: 500 }],
+    24
+  );
+  assert.deepEqual(lanes, [0, 0, 0]);
+});
+
+check("assignLanes: overlapping extents get distinct lanes", () => {
+  const extents = [
+    { left: 0, right: 300 },
+    { left: 100, right: 400 },
+    { left: 200, right: 500 },
+  ];
+  const lanes = TreeGraphLogic.assignLanes(extents, 24);
+  assert.equal(new Set(lanes).size, 3, `expected 3 distinct lanes, got [${lanes.join(", ")}]`);
+});
+
+check("assignLanes: a lane is reused once its previous extent is clear of the gap", () => {
+  const lanes = TreeGraphLogic.assignLanes(
+    [
+      { left: 0, right: 100 },
+      { left: 50, right: 200 }, // overlaps first -> lane 1
+      { left: 150, right: 300 }, // clear of first (100+24 <= 150) -> back on lane 0
+    ],
+    24
+  );
+  assert.deepEqual(lanes, [0, 1, 0]);
+});
+
+check("assignLanes: same-lane extents never come within minGap of each other", () => {
+  const extents = [
+    { left: 0, right: 250 },
+    { left: 40, right: 120 },
+    { left: 130, right: 320 },
+    { left: 260, right: 380 },
+    { left: 300, right: 520 },
+  ];
+  const minGap = 24;
+  const lanes = TreeGraphLogic.assignLanes(extents, minGap);
+  for (let i = 0; i < extents.length; i++) {
+    for (let j = i + 1; j < extents.length; j++) {
+      if (lanes[i] !== lanes[j]) continue;
+      const gap = Math.max(
+        extents[j].left - extents[i].right,
+        extents[i].left - extents[j].right
+      );
+      assert.ok(gap >= minGap, `extents ${i} and ${j} share lane ${lanes[i]} but gap is ${gap}`);
+    }
+  }
+});
+
 console.log(`\n${passed} passed`);
