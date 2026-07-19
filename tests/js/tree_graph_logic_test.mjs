@@ -145,6 +145,74 @@ check("coupleUnits: a four-person remarriage chain keeps every neighbor a real c
   }
 });
 
+// --- connectedComponents ---------------------------------------------------------
+
+check("connectedComponents: a single blood-linked family is all one component", () => {
+  const { ids, parentsOf, partnersOf } = graphFrom([
+    { id: "papi-georges", partners: ["mamie-lise"] },
+    { id: "mamie-lise", partners: ["papi-georges"] },
+    { id: "papa", parents: ["papi-georges", "mamie-lise"] },
+    { id: "milo", parents: ["papa"] },
+  ]);
+  const componentOf = TreeGraphLogic.connectedComponents(ids, parentsOf, partnersOf);
+  const values = new Set(Object.values(componentOf));
+  assert.equal(values.size, 1);
+});
+
+check("connectedComponents: an isolated in-law couple gets a component of their own", () => {
+  // Belle-Soeur Nadia and Beau-Frere Karim are partnered with each other
+  // only -- no recorded parents, no link back to the blood family --
+  // exactly the "husband of my stepsister" bug report: they still land
+  // on layer 0 (see computeLayers), same as the true grandparents, with
+  // nothing else to tell them apart.
+  const { ids, parentsOf, partnersOf } = graphFrom([
+    { id: "papi-georges", partners: ["mamie-lise"] },
+    { id: "mamie-lise", partners: ["papi-georges"] },
+    { id: "papa", parents: ["papi-georges", "mamie-lise"] },
+    { id: "milo", parents: ["papa"] },
+    { id: "belle-soeur-nadia", partners: ["beau-frere-karim"] },
+    { id: "beau-frere-karim", partners: ["belle-soeur-nadia"] },
+  ]);
+  const componentOf = TreeGraphLogic.connectedComponents(ids, parentsOf, partnersOf);
+  assert.equal(componentOf["papi-georges"], componentOf["milo"]);
+  assert.equal(componentOf["belle-soeur-nadia"], componentOf["beau-frere-karim"]);
+  assert.notEqual(componentOf["papi-georges"], componentOf["belle-soeur-nadia"]);
+});
+
+// --- orderRows / layoutFamily: component clustering -------------------------------
+
+check("layoutFamily: an isolated in-law couple shares a layer with the grandparents but a different component", () => {
+  const people = [
+    { id: "papi-georges", partners: ["mamie-lise"] },
+    { id: "mamie-lise", partners: ["papi-georges"] },
+    { id: "papa", parents: ["papi-georges", "mamie-lise"] },
+    { id: "milo", parents: ["papa"] },
+    { id: "belle-soeur-nadia", partners: ["beau-frere-karim"] },
+    { id: "beau-frere-karim", partners: ["belle-soeur-nadia"] },
+  ];
+  const { ids, parentsOf, partnersOf, childrenOf } = graphFrom(people);
+  const result = TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
+
+  // Same layer as the true grandparents (nothing in the data says
+  // otherwise), but a distinct component.
+  assert.equal(layerOf(result.positions, "belle-soeur-nadia"), 0);
+  assert.equal(layerOf(result.positions, "papi-georges"), 0);
+  assert.notEqual(result.componentOf["belle-soeur-nadia"], result.componentOf["papi-georges"]);
+
+  // The in-law couple is grouped contiguously at the end of the row,
+  // after every member of the main family's component -- never
+  // interleaved between them.
+  const row0 = result.rows[0];
+  const mainFamilyIds = ["papi-georges", "mamie-lise"];
+  const inLawIds = ["belle-soeur-nadia", "beau-frere-karim"];
+  const lastMainIndex = Math.max(...mainFamilyIds.map((id) => row0.indexOf(id)));
+  const firstInLawIndex = Math.min(...inLawIds.map((id) => row0.indexOf(id)));
+  assert.ok(
+    firstInLawIndex > lastMainIndex,
+    `expected the in-law component after the main family in row0=[${row0.join(", ")}]`
+  );
+});
+
 // --- groupChildrenByParents / partnerPairs --------------------------------------
 
 check("groupChildrenByParents: siblings sharing both parents share one group", () => {

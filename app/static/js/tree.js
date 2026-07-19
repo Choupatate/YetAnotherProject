@@ -346,6 +346,11 @@
       var GRAPH_CARD_H = 56;
       var GRAPH_COL_GAP = 28;
       var GRAPH_ROW_GAP = 96;
+      // The extra breathing room opened up between two different
+      // connected-component clusters landing on the same row — several
+      // times the normal within-family column gap, so it reads as a
+      // deliberate separation rather than just a slightly wider gap.
+      var GRAPH_CLUSTER_GAP = GRAPH_COL_GAP + 96;
 
       function graphCardInnerHtml(person) {
         var avatar = person.photo || fallbackAvatar;
@@ -381,19 +386,38 @@
         });
         var layout = window.TreeGraphLogic.layoutFamily(ids, parentsOf, partnersOf, childrenOf);
 
+        // Pixel X per id, walked row by row in the layout's own order —
+        // not a uniform `x * width` grid, because two people can share a
+        // layer for entirely unrelated reasons (real root ancestors, vs.
+        // someone connected to the family only through a marriage with a
+        // gap in the chain — see connectedComponents' docstring). A
+        // normal generation-to-generation gap separates cards within the
+        // same family cluster; a wider one opens up wherever a row
+        // crosses from one connected component to a different one, so an
+        // unrelated cluster reads as visually separate at a glance
+        // instead of looking like it belongs to the same family purely
+        // because it landed on the same row.
+        var pixelXById = {};
+        var maxLayer = 0;
+        var contentWidth = 0;
+        Object.keys(layout.rows).forEach(function (layerKey) {
+          maxLayer = Math.max(maxLayer, Number(layerKey));
+          var rowIds = layout.rows[layerKey];
+          var x = 0;
+          rowIds.forEach(function (id, i) {
+            if (i > 0) {
+              var sameCluster = layout.componentOf[id] === layout.componentOf[rowIds[i - 1]];
+              x += GRAPH_CARD_W + (sameCluster ? GRAPH_COL_GAP : GRAPH_CLUSTER_GAP);
+            }
+            pixelXById[id] = x;
+          });
+          contentWidth = Math.max(contentWidth, x + GRAPH_CARD_W);
+        });
+
         function px(id) {
-          var pos = layout.positions[id];
-          return { x: pos.x * (GRAPH_CARD_W + GRAPH_COL_GAP), y: pos.layer * (GRAPH_CARD_H + GRAPH_ROW_GAP) };
+          return { x: pixelXById[id], y: layout.positions[id].layer * (GRAPH_CARD_H + GRAPH_ROW_GAP) };
         }
 
-        var maxX = 0;
-        var maxLayer = 0;
-        ids.forEach(function (id) {
-          var pos = layout.positions[id];
-          if (pos.x > maxX) maxX = pos.x;
-          if (pos.layer > maxLayer) maxLayer = pos.layer;
-        });
-        var contentWidth = (maxX + 1) * (GRAPH_CARD_W + GRAPH_COL_GAP);
         var contentHeight = (maxLayer + 1) * (GRAPH_CARD_H + GRAPH_ROW_GAP);
 
         mountEl.innerHTML =
