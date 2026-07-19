@@ -520,4 +520,58 @@ check("assignPixelPositions: deterministic — identical output across runs", ()
   assert.deepEqual(a, b);
 });
 
+// --- assignLanes -----------------------------------------------------------------
+
+check("assignLanes: non-overlapping extents all share lane 0", () => {
+  const lanes = TreeGraphLogic.assignLanes(
+    [{ left: 0, right: 100 }, { left: 200, right: 300 }, { left: 400, right: 500 }],
+    24
+  );
+  assert.deepEqual(lanes, [0, 0, 0]);
+});
+
+check("assignLanes: overlapping extents get distinct lanes", () => {
+  const extents = [
+    { left: 0, right: 300 },
+    { left: 100, right: 400 },
+    { left: 200, right: 500 },
+  ];
+  const lanes = TreeGraphLogic.assignLanes(extents, 24);
+  assert.equal(new Set(lanes).size, 3, `expected 3 distinct lanes, got [${lanes.join(", ")}]`);
+});
+
+check("assignLanes: a lane is reused once its previous extent is clear of the gap", () => {
+  const lanes = TreeGraphLogic.assignLanes(
+    [
+      { left: 0, right: 100 },
+      { left: 50, right: 200 }, // overlaps first -> lane 1
+      { left: 150, right: 300 }, // clear of first (100+24 <= 150) -> back on lane 0
+    ],
+    24
+  );
+  assert.deepEqual(lanes, [0, 1, 0]);
+});
+
+check("assignLanes: same-lane extents never come within minGap of each other", () => {
+  const extents = [
+    { left: 0, right: 250 },
+    { left: 40, right: 120 },
+    { left: 130, right: 320 },
+    { left: 260, right: 380 },
+    { left: 300, right: 520 },
+  ];
+  const minGap = 24;
+  const lanes = TreeGraphLogic.assignLanes(extents, minGap);
+  for (let i = 0; i < extents.length; i++) {
+    for (let j = i + 1; j < extents.length; j++) {
+      if (lanes[i] !== lanes[j]) continue;
+      const gap = Math.max(
+        extents[j].left - extents[i].right,
+        extents[i].left - extents[j].right
+      );
+      assert.ok(gap >= minGap, `extents ${i} and ${j} share lane ${lanes[i]} but gap is ${gap}`);
+    }
+  }
+});
+
 console.log(`\n${passed} passed`);

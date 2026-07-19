@@ -2634,3 +2634,44 @@ weighted pooling, output always non-decreasing) and four
 exact partner gaps + no min-gap violations, cross-component separation
 preserved, byte-identical determinism across runs). `pytest` (664) and
 `ruff check .` green.
+
+### Same round, follow-up: traceable connector lines
+
+Immediate feedback on the aligned layout: "just look at the links, it
+is not tracable." Correct — and the cause was one line of the drawing
+code: every parent-group's horizontal connector ran at the SAME height
+(`trunkY = parentY + ROW_GAP / 2`), so on any generation with several
+families, all their horizontal segments merged into what read as a
+single dashed line spanning the chart, with no way to tell which
+drop-line belonged to which couple. The card layout work couldn't fix
+this; no card position makes overlapping same-height lines readable.
+
+Three changes, all to the connector drawing only (card positions
+untouched):
+
+- **Lane assignment** (`assignLanes` in `tree-graph-logic.js`, pure +
+  unit-tested): per corridor between generations, families whose
+  horizontal runs would overlap get distinct heights, assigned
+  first-fit left-to-right; families whose runs don't overlap share a
+  lane, so a simple tree keeps its clean single-height connectors.
+  Lanes spread evenly across the corridor (one lane sits centered —
+  the classic look; two land at 1/3 and 2/3) rather than being offset
+  by a token amount.
+- **Marriage-line trunk starts**: a couple's drop-line now starts ON
+  the marriage line, descending through the gap between the two
+  partner cards — the line visibly emerges from *that couple*, which
+  matters most in remarriage chains (Ex-Marc—Maman—Papa—Ex-Anne draws
+  three separate drops, one per marriage, each from its own gap to its
+  own children). A single recorded parent's line still starts at their
+  card's bottom edge.
+- **Rounded elbows** where a run turns down toward a child — a smooth
+  corner is what lets the eye keep following one line through a
+  crossing instead of losing it at a sharp right angle.
+
+Verified numerically (parsing the rendered SVG paths, not eyeballing):
+on the 30-person ring fixture, every corridor's same-height spans are
+separated by comfortable gaps — zero near-merges within 20px — where
+before ALL runs in a corridor shared one y exactly. 4 new `assignLanes`
+tests (32 total). `pytest` (664) and `ruff check .` green; blended and
+messy fixtures re-verified visually with every drop-line traceable to
+its marriage.

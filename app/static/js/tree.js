@@ -436,33 +436,108 @@
 
         installMapBackground(mountEl, svg, zoomG);
 
-        // Parent-child edges: one shared trunk from the couple's (or
-        // single parent's) midpoint, branching out to each child — so
-        // three siblings share one drop-line instead of three separate
-        // ones stacking on top of each other.
-        layout.parentEdgeGroups.forEach(function (group) {
-          var parentPositions = group.parents.map(px);
+        // Parent-child edges: one shared trunk per family (couple or
+        // single parent), branching to each child. Two details carry
+        // the traceability: (1) a couple's trunk starts ON the marriage
+        // line, dropping through the gap between the two partner cards,
+        // so the line visibly comes from THAT couple rather than from
+        // empty space below them; (2) each family's horizontal run gets
+        // its own lane height in the corridor between generations
+        // (assignLanes) — with one shared corridor height, every
+        // family's horizontal segment merges into what reads as a
+        // single dashed line spanning the whole chart, untraceable to
+        // any particular couple. Families whose runs don't overlap
+        // still share the first lane, so a simple tree keeps clean,
+        // symmetric connectors.
+        var groupGeo = layout.parentEdgeGroups.map(function (group) {
+          var centers = group.parents.map(function (p) {
+            return px(p).x + GRAPH_CARD_W / 2;
+          });
           var midX =
-            parentPositions.reduce(function (sum, p) {
-              return sum + p.x;
-            }, 0) / parentPositions.length + GRAPH_CARD_W / 2;
-          var parentY = parentPositions[0].y + GRAPH_CARD_H;
-          var trunkY = parentY + GRAPH_ROW_GAP / 2;
+            centers.reduce(function (sum, c) {
+              return sum + c;
+            }, 0) / centers.length;
+          var childXs = group.children.map(function (c) {
+            return px(c).x + GRAPH_CARD_W / 2;
+          });
+          var parentLayer = layout.positions[group.parents[0]].layer;
+          return {
+            group: group,
+            midX: midX,
+            childXs: childXs,
+            parentTopY: parentLayer * (GRAPH_CARD_H + GRAPH_ROW_GAP),
+            parentLayer: parentLayer,
+            left: Math.min.apply(null, [midX].concat(childXs)),
+            right: Math.max.apply(null, [midX].concat(childXs)),
+          };
+        });
 
+        var byCorridor = {};
+        groupGeo.forEach(function (geo, i) {
+          (byCorridor[geo.parentLayer] = byCorridor[geo.parentLayer] || []).push(i);
+        });
+        Object.keys(byCorridor).forEach(function (corridorKey) {
+          var idxs = byCorridor[corridorKey];
+          var lanes = window.TreeGraphLogic.assignLanes(
+            idxs.map(function (i) {
+              return { left: groupGeo[i].left, right: groupGeo[i].right };
+            }),
+            24
+          );
+          var laneCount =
+            lanes.reduce(function (max, lane) {
+              return Math.max(max, lane);
+            }, 0) + 1;
+          // Lanes spread evenly across the corridor with equal margins
+          // — one lane sits at the corridor's center (the classic
+          // simple-tree look), two land at 1/3 and 2/3, and so on — so
+          // overlapping families' runs are separated by as much room as
+          // the corridor allows, not by a token offset.
+          idxs.forEach(function (i, k) {
+            groupGeo[i].trunkY =
+              groupGeo[i].parentTopY +
+              GRAPH_CARD_H +
+              (GRAPH_ROW_GAP * (lanes[k] + 1)) / (laneCount + 1);
+          });
+        });
+
+        groupGeo.forEach(function (geo) {
+          // A couple's trunk starts on the marriage line (mid-card
+          // height, in the gap between the partner cards); a single
+          // recorded parent's starts at their card's bottom edge.
+          var startY =
+            geo.group.parents.length > 1
+              ? geo.parentTopY + GRAPH_CARD_H / 2
+              : geo.parentTopY + GRAPH_CARD_H;
           var trunk = document.createElementNS(SVG_NS, "path");
           trunk.setAttribute("class", "tree-graph__link");
-          trunk.setAttribute("d", "M" + midX + "," + parentY + "V" + trunkY);
+          trunk.setAttribute("d", "M" + geo.midX + "," + startY + "V" + geo.trunkY);
           edgesG.appendChild(trunk);
 
-          group.children.forEach(function (childId) {
+          geo.group.children.forEach(function (childId, ci) {
             var childPos = px(childId);
-            var childX = childPos.x + GRAPH_CARD_W / 2;
+            var childX = geo.childXs[ci];
+            var dx = childX - geo.midX;
             var branch = document.createElementNS(SVG_NS, "path");
             branch.setAttribute("class", "tree-graph__link");
-            branch.setAttribute(
-              "d",
-              "M" + midX + "," + trunkY + "H" + childX + "V" + childPos.y
-            );
+            var d;
+            if (Math.abs(dx) < 1) {
+              // Child directly below the couple: one straight drop.
+              d = "M" + geo.midX + "," + geo.trunkY + "V" + childPos.y;
+            } else {
+              // Rounded elbow where the run turns down toward the
+              // child — a smooth corner is what lets the eye keep
+              // following one line through a crossing instead of
+              // losing it at a sharp right angle.
+              var r = Math.min(10, Math.abs(dx) / 2);
+              var dir = dx > 0 ? 1 : -1;
+              d =
+                "M" + geo.midX + "," + geo.trunkY +
+                "H" + (childX - dir * r) +
+                "Q" + childX + "," + geo.trunkY + " " + childX + "," + (geo.trunkY + r) +
+                "V" + childPos.y;
+            }
+            branch.setAttribute("d", d);
             edgesG.appendChild(branch);
           });
         });

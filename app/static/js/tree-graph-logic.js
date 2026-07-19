@@ -638,6 +638,47 @@
     return { xById: xById, contentWidth: isFinite(maxRight) ? maxRight - minLeft : 0 };
   }
 
+  // First-fit interval lane assignment: given horizontal extents
+  // [{left, right}], returns a lane index per extent such that two
+  // extents sharing a lane never come within `minGap` of each other.
+  // Used to stagger the horizontal runs of parent-child connectors —
+  // if every family's connector runs at the same height (one shared
+  // corridor line per generation), all the families' horizontal
+  // segments merge into what reads as a single line spanning the
+  // chart, and no drop-line can be traced back to its couple. Extents
+  // that don't overlap still share lane 0, so a simple family keeps
+  // simple connectors; lanes only multiply where runs would actually
+  // collide. Deterministic: extents are processed left-to-right
+  // (ties broken by right edge, then input order).
+  function assignLanes(extents, minGap) {
+    var order = extents
+      .map(function (extent, i) {
+        return i;
+      })
+      .sort(function (a, b) {
+        if (extents[a].left !== extents[b].left) return extents[a].left - extents[b].left;
+        if (extents[a].right !== extents[b].right) return extents[a].right - extents[b].right;
+        return a - b;
+      });
+    var laneRight = [];
+    var lanes = new Array(extents.length);
+    order.forEach(function (i) {
+      var placed = false;
+      for (var l = 0; l < laneRight.length && !placed; l++) {
+        if (extents[i].left >= laneRight[l] + minGap) {
+          lanes[i] = l;
+          laneRight[l] = extents[i].right;
+          placed = true;
+        }
+      }
+      if (!placed) {
+        lanes[i] = laneRight.length;
+        laneRight.push(extents[i].right);
+      }
+    });
+    return lanes;
+  }
+
   return {
     computeLayers: computeLayers,
     groupByLayer: groupByLayer,
@@ -650,5 +691,6 @@
     closelyRelated: closelyRelated,
     poolAdjacentViolators: poolAdjacentViolators,
     assignPixelPositions: assignPixelPositions,
+    assignLanes: assignLanes,
   };
 });
