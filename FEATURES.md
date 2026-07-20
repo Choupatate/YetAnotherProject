@@ -2765,3 +2765,72 @@ co-parents fixture, the blended fixture, and the 30-person ring — all
 consistency metrics unchanged from round 6 (connector geometry doesn't
 move cards), zero overlaps, every line starting at a real card. `pytest`
 (664), `ruff check .`, and the 36 Node tests green.
+
+## "Everyone" round 8 — de-lined survey map, per-family connector colors
+
+Two pieces of user feedback on the ranch survey-map background (R5.7):
+the straight horizontal/vertical grid lines it drew competed visually
+with the tree's own rectilinear connectors, and every family's dashed
+drop-lines were the same flat tan, so a crowded generation with several
+overlapping bars (round 7's own "traceable connector lines" note) was
+still only traceable by eye, not by color.
+
+**De-lining the tiles.** `tree-map-tile.jpg`/`tree-map-tile-dark.jpg`
+(the seamless 1024px raster tiles from the "moving survey map" round)
+had a genuine 128px-period grid — thin lines running the full tile
+height/width at x/y = 0, 128, 256, …, 896, plus a bolder "+" tick where
+they crossed — sitting underneath the wandering dotted contour lines
+and paper/leather grain. Rather than regenerating the art from scratch
+(which would have thrown away the hand-tuned grain and contour work),
+`scripts/delined_tree_map_tiles.py` surgically erases just the straight
+strokes and leaves everything else pixel-for-pixel alone:
+
+- Each thin line band is replaced with a straight copy of the real
+  texture ~24px further into the same 128px cell (far enough to never
+  land on another line) — not a blend of the flanking pixels, which was
+  tried first and left a visibly smoother/flatter stripe than the line
+  it erased, especially on the high-contrast dark leather grain.
+- Each intersection's bolder tick (wider than the thin-line band) gets
+  its own small "shrink" inpaint — pixels inside a ~20px radius are
+  resampled from a point reflected further out along the same radius,
+  the standard round-blemish-removal trick, feathered over a few pixels
+  into the untouched surroundings.
+- A single low-opacity dot is dropped at each former intersection
+  afterward — enough that the tile still reads as a measured survey
+  map, without reintroducing any actual line.
+
+Run manually (`python scripts/delined_tree_map_tiles.py`); not part of
+the app, and not expected to run again unless the tiles are retouched
+further. Verified by re-deriving the grid coordinates from column/row
+brightness averages on the output (none left) and by tiling the result
+2×2 to confirm the shift-copy and dot placement stay seamless across
+the tile boundary.
+
+**Per-family connector colors** (`tree.js`'s `renderFamilyGraph`,
+"Everyone" view only — this is where families' bars actually overlap;
+the vendored family-chart hourglass views don't have the same
+converging-lines problem and their link rendering isn't ours to hand
+patch). Each `parentEdgeGroups` entry (one couple/co-parent pair plus
+their children — the same grouping round 7's T-bar drops from) now
+carries a `hue`, hashed (FNV-1a) from its sorted parent-id key so the
+same family always gets the same color across re-renders rather than
+reshuffling on every click. Every path segment belonging to that
+family's bar — both corner curves, the horizontal run, and every
+child's drop — gets the hue via an inline `--tree-line-hue` custom
+property; `.tree-graph__link` in `main.css` consumes it in
+`hsl(var(--tree-line-hue, 38), S%, L%)`, with saturation and lightness
+left exactly at the pre-round-8 per-theme values (23%/51% dark, 18%/46%
+light) — only the hue rotates, across a fixed 8–98 range (rust through
+amber to olive) chosen to stay inside the ranch map's warm sepia
+family rather than wandering into a blue/green/purple that would look
+foreign next to the parchment or leather. Partner (marriage) lines
+opt back out to the flat pre-round-8 color in both themes — a marriage
+isn't one of a family's drop-lines, and was never part of the
+"which line goes where" confusion.
+
+Verified visually (Playwright, both themes) against a seeded
+multi-branch family (three grandparent-couple branches, several
+marriages, cousins): every couple's whole connector — bar and all —
+reads as one consistent, distinct color, siblings' drops all match
+their shared parents' bar, and marriage lines stay the plain flat tan
+in both light and dark. `pytest` (664) and `ruff check .` green.

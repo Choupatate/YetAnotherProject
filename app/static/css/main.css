@@ -2905,10 +2905,20 @@ img.family-chip__thumb {
 
 /* Parent-child edges: dashed, matching the family-chart views' own
    saddle-stitch connectors. Partner edges: solid, so a marriage reads
-   differently at a glance from a generation drop-line. */
+   differently at a glance from a generation drop-line.
+
+   --tree-line-hue is set per element by tree.js's renderFamilyGraph, one
+   hash-derived value per family (parent group) so a reader can trace
+   which crossing dashed line belongs to which couple's children instead
+   of every drop-line reading as the same flat tan. The hash only ever
+   picks a hue (see familyLineHue's 8-98 range: rust through amber to
+   olive) — saturation/lightness stay exactly the pre-F18-followup
+   per-theme values below, so every family's line still reads as "map
+   ink" rather than a clashing color. Partner edges opt back out to the
+   plain flat color: a marriage isn't one of a family's drop-lines. */
 .tree-graph__link {
   fill: none;
-  stroke: #a08b66;
+  stroke: hsl(var(--tree-line-hue, 38), 23%, 51%);
   stroke-width: 1.6px;
   stroke-dasharray: 7 4;
   stroke-linecap: round;
@@ -2916,17 +2926,27 @@ img.family-chip__thumb {
 }
 
 .tree-graph__link--partner {
+  stroke: #a08b66;
   stroke-dasharray: none;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) .tree-graph__link {
+    stroke: hsl(var(--tree-line-hue, 38), 18%, 46%);
+  }
+
+  :root:not([data-theme]) .tree-graph__link--partner {
     stroke: #8a7a5f;
   }
 }
 
 :root[data-theme="light"] .tree-graph__link,
 :root[data-theme="manuscript"] .tree-graph__link {
+  stroke: hsl(var(--tree-line-hue, 38), 18%, 46%);
+}
+
+:root[data-theme="light"] .tree-graph__link--partner,
+:root[data-theme="manuscript"] .tree-graph__link--partner {
   stroke: #8a7a5f;
 }
 

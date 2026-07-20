@@ -17,6 +17,32 @@
     return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // Deterministic 32-bit string hash (FNV-1a) — used to pick a stable
+  // per-family line hue below, never for anything security-sensitive.
+  function hashString(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+    return h >>> 0;
+  }
+
+  // One hue per family (parent group), so a reader can tell which
+  // crossing dashed line in the "Everyone" graph belongs to which
+  // couple's children instead of every drop-line reading as the same
+  // flat tan. Same parents always hash to the same hue — stable across
+  // re-renders, not reshuffled on every click. Range 8-98 stays within
+  // the ranch map's warm sepia/amber/olive family (see .tree-graph__link
+  // in main.css, base hue 38): rust at one end, olive at the other,
+  // never crossing into a blue/green/purple that would look foreign
+  // next to the parchment/leather. Saturation and lightness are left to
+  // CSS, which keeps them at the theme's existing values — only the hue
+  // varies.
+  function familyLineHue(key) {
+    return 8 + (hashString(key) % 90);
+  }
+
   function toGender(value) {
     if (value === "m") return "M";
     if (value === "f") return "F";
@@ -468,6 +494,7 @@
             childXs: childXs,
             parentTopY: parentLayer * (GRAPH_CARD_H + GRAPH_ROW_GAP),
             parentLayer: parentLayer,
+            hue: familyLineHue(group.parents.slice().sort().join("|")),
             approxMid:
               (Math.min.apply(null, centers.concat(childXs)) +
                 Math.max.apply(null, centers.concat(childXs))) /
@@ -537,10 +564,11 @@
           });
         });
 
-        function addLink(d) {
+        function addLink(d, hue) {
           var path = document.createElementNS(SVG_NS, "path");
           path.setAttribute("class", "tree-graph__link");
           path.setAttribute("d", d);
+          if (hue !== undefined) path.style.setProperty("--tree-line-hue", hue);
           edgesG.appendChild(path);
         }
 
@@ -568,7 +596,7 @@
           if (rightT.x - leftT.x < 1) {
             // Single parent directly above their only child: one
             // straight drop, no bar needed.
-            addLink("M" + leftT.x + "," + parentBottomY + "V" + rightT.y);
+            addLink("M" + leftT.x + "," + parentBottomY + "V" + rightT.y, geo.hue);
             return;
           }
 
@@ -589,10 +617,10 @@
           }
           var leftEnd = endCorner(leftT, 1);
           var rightEnd = endCorner(rightT, -1);
-          addLink(leftEnd.start + leftEnd.curve + "H" + rightEnd.barX);
-          addLink(rightEnd.start + rightEnd.curve);
+          addLink(leftEnd.start + leftEnd.curve + "H" + rightEnd.barX, geo.hue);
+          addLink(rightEnd.start + rightEnd.curve, geo.hue);
           terminals.slice(1, -1).forEach(function (t) {
-            addLink("M" + t.x + "," + t.y + "V" + laneY);
+            addLink("M" + t.x + "," + t.y + "V" + laneY, geo.hue);
           });
         });
 
