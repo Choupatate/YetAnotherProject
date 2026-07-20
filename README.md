@@ -497,11 +497,11 @@ kept, only the re-encoded copy.
 
 ## Ideas for later
 
-Out of scope for v1, deliberately: multi-user accounts, comments/reactions,
-search, tags, RSS, email, video, encryption at rest, i18n, offline support
-(no service worker — see "Home-screen install" above), and story deletion.
-If any of these become worth doing, they belong here first, not as a
-surprise addition.
+Out of scope for v1, deliberately: comments/reactions, search, tags, RSS,
+email, video, encryption at rest, i18n, offline support (no service worker
+— see "Home-screen install" above), and story deletion. If any of these
+become worth doing, they belong here first, not as a surprise addition.
 
-(PDF/print export, a photo lightbox, and home-screen install were originally
-listed here too; they shipped as the book view, F7, and F9 — see above.)
+(PDF/print export, a photo lightbox, home-screen install, and multi-user
+accounts were originally listed here too; they shipped as the book view,
+F7, F9, and F19's opt-in "Family accounts" — see above.)

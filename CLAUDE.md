@@ -45,19 +45,27 @@ undocumented.
   phone. Check narrow viewports, not just desktop, for any UI change.
 - **Book, not blog.** No feeds, reactions, comment sections, or engagement
   mechanics. Restraint and typography over features.
-- Deliberately out of scope (see README's "Ideas for later"): multi-user
-  accounts, comments/reactions, search, tags, RSS, email, video, encryption
-  at rest, i18n, offline support/service worker, story deletion. Don't add
-  these speculatively — if one becomes worth doing, it belongs in a
-  discussion first, not a surprise PR.
+- Deliberately out of scope (see README's "Ideas for later"):
+  comments/reactions, search, tags, RSS, email, video, encryption at rest,
+  i18n, offline support/service worker, story deletion. Don't add these
+  speculatively — if one becomes worth doing, it belongs in a discussion
+  first, not a surprise PR. (Multi-user accounts were on this list too,
+  until F19 shipped them as an opt-in feature — see `app/accounts.py`
+  below.)
 
 ## Architecture
 
 - `app/__init__.py` — `create_app()` factory; all config comes from
   `STORYBOOK_*` env vars (see `.env.example`), nothing is hardcoded.
-- `app/auth.py` — single shared password, no accounts/roles. `login_required`
-  decorator gates every page and API route except `/manifest.webmanifest`
-  (must stay public for home-screen install) and `/login` itself.
+- `app/auth.py` — login/logout and the `@login_required`/`@admin_required`/
+  `@delegate_required` decorators, gating every page and API route except
+  `/manifest.webmanifest` (must stay public for home-screen install) and
+  `/login` itself. Two modes, selected by `STORYBOOK_ACCOUNTS` (F19): off
+  (default) is the original single shared password, no accounts, no roles;
+  on switches to per-person username/password accounts (`app/accounts.py`,
+  admin/family roles) plus an optional narrower delegate session
+  (`app/write_links.py`) for a bearer-token link that only unlocks
+  submitting one attributed story, nothing else.
 - `app/storage.py` — **all filesystem read/write for stories lives here**.
   Pure functions that take `stories_dir` explicitly (no hidden global
   state), which is what makes them easy to test against a tmp directory.
@@ -75,9 +83,15 @@ undocumented.
   export, markdown-to-HTML rendering, age-label computation, and story
   prompts, respectively.
 - `app/static/js/tree-logic.js` — pure, dependency-free tree math (BFS
-  ancestor walks, chain validation), unit-tested directly under Node via
-  `tests/js/tree_logic_test.mjs`. Keep new pure tree logic here rather than
-  inline in `tree.js`, so it stays testable without a browser.
+  ancestor walks, chain validation) for the family-chart-based views;
+  `tree-graph-logic.js` is the same idea for the "Everyone" view's own DAG
+  layout (generation layering, row ordering, edge grouping). Both are
+  unit-tested directly under Node (`tests/js/tree_logic_test.mjs`,
+  `tests/js/tree_graph_logic_test.mjs`), alongside `safe-storage.js` (the
+  localStorage wrapper) and `fetch-json.js` (the shared fetch/JSON-response
+  helper) and their own test files. Keep new dependency-free logic in a
+  module like these rather than inline in `tree.js`/`editor.js`, so it
+  stays testable without a browser.
 - `app/static/vendor/` — vendored third-party JS (family-chart, d3, Toast UI
   Editor). Treat as read-only/generated; if you need to update one, redo the
   vendoring process documented in its banner comment, don't hand-edit it.
@@ -126,9 +140,11 @@ the app refuses to start without one once `STORYBOOK_PASSWORD` is set. See
 ## Testing
 
 ```bash
-pytest              # full suite: Python tests + two JS test files run via subprocess
-node tests/js/tree_logic_test.mjs     # pure-function tree logic tests directly
-node tests/js/safe_storage_test.mjs   # localStorage wrapper tests directly
+pytest              # full suite: Python tests + four JS test files run via subprocess
+node tests/js/tree_logic_test.mjs         # pure-function tree logic tests directly
+node tests/js/tree_graph_logic_test.mjs   # "Everyone" view DAG layout tests directly
+node tests/js/safe_storage_test.mjs       # localStorage wrapper tests directly
+node tests/js/fetch_json_test.mjs         # fetch/JSON-response helper tests directly
 ```
 
 - Python tests live in `tests/*.py`, one file per feature area; `conftest.py`
