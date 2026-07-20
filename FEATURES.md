@@ -2801,10 +2801,15 @@ strokes and leaves everything else pixel-for-pixel alone:
 
 Run manually (`python scripts/delined_tree_map_tiles.py`); not part of
 the app, and not expected to run again unless the tiles are retouched
-further. Verified by re-deriving the grid coordinates from column/row
-brightness averages on the output (none left) and by tiling the result
-2×2 to confirm the shift-copy and dot placement stay seamless across
-the tile boundary.
+further. Verified on the committed output by re-running the same
+column/row brightness-average check that found the original grid:
+excluding the ~15px neighborhood around each intentional landmark dot
+(which does, by design, shift its own row/column's average — that's
+the dot, not a line), every former grid column/row is statistically
+indistinguishable from a same-sized sample of ordinary cell-center
+columns/rows — i.e. no continuous line signal survives outside the
+dots themselves. Also tiled the result 2×2 to confirm the shift-copy
+and dot placement stay seamless across the tile boundary.
 
 **Per-family connector colors** (`tree.js`'s `renderFamilyGraph`,
 "Everyone" view only — this is where families' bars actually overlap;
@@ -2820,7 +2825,7 @@ child's drop — gets the hue via an inline `--tree-line-hue` custom
 property; `.tree-graph__link` in `main.css` consumes it in
 `hsl(var(--tree-line-hue, 38), S%, L%)`, with saturation and lightness
 left exactly at the pre-round-8 per-theme values (23%/51% dark, 18%/46%
-light) — only the hue rotates, across a fixed 8–98 range (rust through
+light) — only the hue rotates, across a fixed 8–97 range (rust through
 amber to olive) chosen to stay inside the ranch map's warm sepia
 family rather than wandering into a blue/green/purple that would look
 foreign next to the parchment or leather. Partner (marriage) lines
