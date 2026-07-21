@@ -86,7 +86,9 @@
       entries.forEach(function (entry) {
         var title = entry.querySelector(".timeline__title");
         var author = entry.querySelector(".timeline__author");
-        var text = (title ? title.textContent : "") + " " + (author ? author.textContent : "");
+        var tags = entry.querySelector(".timeline__tags");
+        var text = (title ? title.textContent : "") + " " + (author ? author.textContent : "")
+          + " " + (tags ? tags.textContent : "");
         var match = !query || text.toLowerCase().indexOf(query) !== -1;
         entry.hidden = !match;
         if (match) visibleCount++;

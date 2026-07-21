@@ -5,21 +5,6 @@
 {% block head %}
 {% include "_editor_head.html" %}
 {% endblock %}
-{% macro chip_group(container_id, label, selected_slugs) %}
-<div class="editor__family-group">
-  <p class="editor__family-label">{{ label }}</p>
-  <div class="editor__family-chips" id="{{ container_id }}">
-    {% for other in other_people %}
-    <button type="button" class="btn editor__author-chip family-chip" data-person-slug="{{ other.slug }}"
-            aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
-      {{ macros.photo_thumb(other, "family-chip") }}
-      {{ other.name }}
-    </button>
-    {% endfor %}
-  </div>
-</div>
-{% endmacro %}
-
 {% block content %}
 {% include "_editor_recovery.html" %}
 <form id="editor-form" class="editor" data-story-id="{{ person.slug if person else '' }}"
@@ -93,9 +78,9 @@
   {% if other_people %}
   <fieldset class="editor__family" id="editor-family">
     <legend class="editor__family-legend">Family</legend>
-    {{ chip_group("family-parents", "Parents (up to two)", person.parents if person else []) }}
-    {{ chip_group("family-partners", "Partner", person.partners if person else []) }}
-    {{ chip_group("family-friend-of", "Friend of", person.friend_of if person else []) }}
+    {{ macros.people_picker("family-parents", "Parents (up to two)", person.parents if person else [], other_people) }}
+    {{ macros.people_picker("family-partners", "Partner", person.partners if person else [], other_people) }}
+    {{ macros.people_picker("family-friend-of", "Friend of", person.friend_of if person else [], other_people) }}
     <div class="editor__family-group">
       <p class="editor__family-label">Gender</p>
       <div class="editor__gender-segmented" id="family-gender">
@@ -112,6 +97,12 @@
   <p class="editor__family-hint">Add another person and you'll be able to link parents, a
     partner, and gender here — those pickers need someone else to point at.</p>
   {% endif %}
+  <div class="editor__sources" id="editor-sources">
+    <p class="editor__family-label">Sources</p>
+    <div class="editor__sources-list" id="editor-sources-list"></div>
+    <button type="button" class="btn" id="editor-sources-add">+ Add source</button>
+  </div>
+  <script type="application/json" id="editor-sources-data">{{ (person.sources if person else []) | tojson }}</script>
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ person.body if person else '' }}</textarea>
   </div>

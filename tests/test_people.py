@@ -136,6 +136,40 @@ def test_update_person_family_fields_empty_list_clears(stories_dir):
     assert p.partners == []
 
 
+def test_create_person_with_sources(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Someone", sources=[{"url": "https://example.com", "note": "x"}]
+    )
+    p = people.get_person(people_dir, slug)
+    assert p.sources == [{"url": "https://example.com", "note": "x"}]
+
+
+def test_new_person_defaults_sources_to_empty_list(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone")
+    assert people.get_person(people_dir, slug).sources == []
+
+
+def test_update_person_sources_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Kept", sources=[{"url": "https://example.com", "note": "x"}]
+    )
+    people.update_person(people_dir, slug, "Kept", body="updated")
+    p = people.get_person(people_dir, slug)
+    assert p.sources == [{"url": "https://example.com", "note": "x"}]
+
+
+def test_update_person_sources_empty_list_clears(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Cleared", sources=[{"url": "https://example.com", "note": "x"}]
+    )
+    people.update_person(people_dir, slug, "Cleared", sources=[])
+    assert people.get_person(people_dir, slug).sources == []
+
+
 def test_update_person_gender_empty_string_clears(stories_dir):
     people_dir = _people_dir(stories_dir)
     slug = people.create_person(people_dir, "Ungendered", gender="m")

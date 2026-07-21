@@ -40,6 +40,46 @@ def test_person_page_shows_parents(auth_client, stories_dir):
     assert f'href="/people/{papi}"' in html
 
 
+def test_person_page_shows_appears_in_stories(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    slug = people.create_person(_people_dir(stories_dir), "Grandma")
+    storage.create_story(stories_dir, "Beach day", date(2026, 1, 1), "", people=[slug])
+
+    resp = auth_client.get(f"/people/{slug}")
+    html = resp.data.decode()
+    assert "Appears in" in html
+    assert "Beach day" in html
+
+
+def test_person_page_appears_in_excludes_draft_stories(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    slug = people.create_person(_people_dir(stories_dir), "Grandma")
+    storage.create_story(
+        stories_dir, "Unfinished draft", date(2026, 1, 1), "", people=[slug], draft=True,
+    )
+
+    resp = auth_client.get(f"/people/{slug}")
+    html = resp.data.decode()
+    assert "Unfinished draft" not in html
+
+
+def test_person_page_shows_sources(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Papi", sources=[{"url": "https://example.com/obituary", "note": "Local paper, 1998"}]
+    )
+    resp = auth_client.get(f"/people/{slug}")
+    html = resp.data.decode()
+    assert "Local paper, 1998" in html
+    assert 'href="https://example.com/obituary"' in html
+
+
 def test_person_page_shows_partner(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     papa = people.create_person(people_dir, "Papa")

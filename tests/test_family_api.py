@@ -43,6 +43,34 @@ def test_update_person_author_color_empty_string_clears(auth_client, stories_dir
     assert people.get_person(people_dir, slug).author_color is None
 
 
+def test_create_person_with_sources(auth_client, stories_dir):
+    resp = auth_client.post(
+        "/api/people",
+        json={"name": "Papi", "sources": [{"url": "https://example.com/obituary", "note": "1998"}]},
+    )
+    assert resp.status_code == 200
+    p = people.get_person(_people_dir(stories_dir), "papi")
+    assert p.sources == [{"url": "https://example.com/obituary", "note": "1998"}]
+
+
+def test_create_person_rejects_data_url_source(auth_client):
+    resp = auth_client.post(
+        "/api/people",
+        json={"name": "Papi", "sources": [{"url": "data:text/html,<script>", "note": ""}]},
+    )
+    assert resp.status_code == 400
+
+
+def test_update_person_sources_none_leaves_unchanged(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Someone", sources=[{"url": "https://example.com", "note": "x"}]
+    )
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone"})
+    assert resp.status_code == 200
+    assert people.get_person(people_dir, slug).sources == [{"url": "https://example.com", "note": "x"}]
+
+
 def test_create_person_with_parents(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     papi = people.create_person(people_dir, "Papi")

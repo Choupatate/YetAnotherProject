@@ -73,6 +73,63 @@ def test_update_story_invalid_id_returns_404(auth_client):
     assert resp.status_code == 404
 
 
+def test_create_story_with_people_tags_sources_via_api(auth_client, stories_dir):
+    from app import people
+
+    people_dir = stories_dir / "people"
+    grandma = people.create_person(people_dir, "Grandma")
+
+    resp = auth_client.post(
+        "/api/stories",
+        json={
+            "title": "Beach day", "date": "2026-01-05", "markdown": "",
+            "people": [grandma], "tags": ["beach", "summer"],
+            "sources": [{"url": "https://example.com/photo", "note": "from aunt Jane"}],
+        },
+    )
+    assert resp.status_code == 200
+    story = storage.get_story(stories_dir, resp.get_json()["id"])
+    assert story.people == [grandma]
+    assert story.tags == ["beach", "summer"]
+    assert story.sources == [{"url": "https://example.com/photo", "note": "from aunt Jane"}]
+
+
+def test_create_story_unknown_person_slug_returns_400(auth_client):
+    resp = auth_client.post(
+        "/api/stories",
+        json={"title": "Title", "date": "2026-01-05", "markdown": "", "people": ["nobody"]},
+    )
+    assert resp.status_code == 400
+
+
+def test_create_story_rejects_javascript_url_source(auth_client):
+    resp = auth_client.post(
+        "/api/stories",
+        json={
+            "title": "Title", "date": "2026-01-05", "markdown": "",
+            "sources": [{"url": "javascript:alert(1)", "note": "evil"}],
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_update_story_tags_and_sources_persist(auth_client, stories_dir):
+    from datetime import date
+
+    story_id = storage.create_story(stories_dir, "Story", date(2026, 1, 1), "body")
+    resp = auth_client.put(
+        f"/api/stories/{story_id}",
+        json={
+            "title": "Story", "date": "2026-01-01", "markdown": "body",
+            "tags": ["milestone"], "sources": [{"url": "https://example.com", "note": ""}],
+        },
+    )
+    assert resp.status_code == 200
+    story = storage.get_story(stories_dir, story_id)
+    assert story.tags == ["milestone"]
+    assert story.sources == [{"url": "https://example.com", "note": ""}]
+
+
 def test_update_story_requires_title(auth_client, stories_dir):
     from datetime import date
 
