@@ -81,27 +81,68 @@
   // --- Family pickers (FEATURES.md F18) --------------------------------------
   var familyRoot = document.getElementById("editor-family");
 
-  function initChipPicker(root, maxSelected) {
-    var chips = root ? Array.prototype.slice.call(root.querySelectorAll(".family-chip")) : [];
-
-    function selected() {
-      return chips
-        .filter(function (c) {
-          return c.getAttribute("aria-pressed") === "true";
-        })
-        .map(function (c) {
-          return c.dataset.personSlug;
-        });
+  // A searchable, scrollable list rather than a wrapped wall of chips — a
+  // ticked row always sorts to the top and is never hidden by the search
+  // filter, so a selection can't get lost to scrolling or searching.
+  function initPeoplePicker(root, maxSelected) {
+    if (!root) {
+      return { getSelected: function () { return []; }, setSelected: function () {} };
     }
 
-    chips.forEach(function (chip) {
-      chip.addEventListener("click", function () {
-        var pressed = chip.getAttribute("aria-pressed") === "true";
+    var searchInput = root.querySelector(".people-picker__search");
+    var listEl = root.querySelector(".people-picker__list");
+    var rows = listEl ? Array.prototype.slice.call(listEl.querySelectorAll(".people-picker__row")) : [];
+
+    function isSelected(row) {
+      return row.getAttribute("aria-pressed") === "true";
+    }
+
+    function selected() {
+      return rows.filter(isSelected).map(function (r) {
+        return r.dataset.personSlug;
+      });
+    }
+
+    function byName(a, b) {
+      return a.dataset.personName < b.dataset.personName ? -1 : a.dataset.personName > b.dataset.personName ? 1 : 0;
+    }
+
+    function reorder() {
+      var selectedRows = rows.filter(isSelected).sort(byName);
+      var unselectedRows = rows.filter(function (r) { return !isSelected(r); }).sort(byName);
+      selectedRows.concat(unselectedRows).forEach(function (row) {
+        listEl.appendChild(row);
+      });
+    }
+
+    function applyFilter() {
+      var query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+      rows.forEach(function (row) {
+        if (isSelected(row)) {
+          row.hidden = false;
+          return;
+        }
+        row.hidden = !!query && row.dataset.personName.indexOf(query) === -1;
+      });
+    }
+
+    rows.forEach(function (row) {
+      row.addEventListener("click", function () {
+        var pressed = isSelected(row);
         if (!pressed && maxSelected && selected().length >= maxSelected) return;
-        chip.setAttribute("aria-pressed", pressed ? "false" : "true");
+        row.setAttribute("aria-pressed", pressed ? "false" : "true");
+        reorder();
+        applyFilter();
         markDirty();
       });
     });
+
+    if (searchInput) {
+      searchInput.addEventListener("input", applyFilter);
+    }
+
+    reorder();
+    applyFilter();
 
     return {
       getSelected: selected,
@@ -110,20 +151,22 @@
         (slugs || []).forEach(function (s) {
           set[s] = true;
         });
-        chips.forEach(function (c) {
-          c.setAttribute("aria-pressed", set[c.dataset.personSlug] ? "true" : "false");
+        rows.forEach(function (r) {
+          r.setAttribute("aria-pressed", set[r.dataset.personSlug] ? "true" : "false");
         });
+        reorder();
+        applyFilter();
       },
     };
   }
 
-  var parentsPicker = initChipPicker(document.getElementById("family-parents"), 2);
-  var partnersPicker = initChipPicker(document.getElementById("family-partners"));
-  var friendOfPicker = initChipPicker(document.getElementById("family-friend-of"));
+  var parentsPicker = initPeoplePicker(document.getElementById("family-parents"), 2);
+  var partnersPicker = initPeoplePicker(document.getElementById("family-partners"));
+  var friendOfPicker = initPeoplePicker(document.getElementById("family-friend-of"));
 
   // --- Story people picker + tags + sources -----------------------------
   var storyPeopleRoot = document.getElementById("story-people");
-  var storyPeoplePicker = initChipPicker(storyPeopleRoot);
+  var storyPeoplePicker = initPeoplePicker(storyPeopleRoot);
   var tagsInput = document.getElementById("story-tags");
   if (tagsInput) tagsInput.addEventListener("input", markDirty);
 

@@ -9,17 +9,22 @@
 {% endif %}
 {% endmacro %}
 
-{% macro chip_group(container_id, label, selected_slugs, people_list) %}
+{% macro people_picker(container_id, label, selected_slugs, people_list) %}
 <div class="editor__family-group">
   <p class="editor__family-label">{{ label }}</p>
-  <div class="editor__family-chips" id="{{ container_id }}">
-    {% for other in people_list %}
-    <button type="button" class="btn editor__author-chip family-chip" data-person-slug="{{ other.slug }}"
-            aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
-      {{ photo_thumb(other, "family-chip") }}
-      {{ other.name }}
-    </button>
-    {% endfor %}
+  <div class="people-picker" id="{{ container_id }}">
+    <input type="search" class="people-picker__search" aria-label="Search {{ label }}" placeholder="Search names&hellip;">
+    <div class="people-picker__list">
+      {% for other in people_list %}
+      <button type="button" class="btn people-picker__row" data-person-slug="{{ other.slug }}"
+              data-person-name="{{ other.name|lower }}"
+              aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
+        {{ photo_thumb(other, "family-chip") }}
+        <span class="people-picker__name">{{ other.name }}</span>
+        <span class="people-picker__check" aria-hidden="true">&#10003;</span>
+      </button>
+      {% endfor %}
+    </div>
   </div>
 </div>
 {% endmacro %}

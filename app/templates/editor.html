@@ -28,7 +28,7 @@
   {% if all_people %}
   <fieldset class="editor__family" id="editor-people">
     <legend class="editor__family-legend">People</legend>
-    {{ macros.chip_group("story-people", "Who's in this story", story.people if story else [], all_people) }}
+    {{ macros.people_picker("story-people", "Who's in this story", story.people if story else [], all_people) }}
   </fieldset>
   {% endif %}
   <div class="editor__toolrow" id="editor-toolrow">

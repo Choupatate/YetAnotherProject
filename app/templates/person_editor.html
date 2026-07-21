@@ -78,9 +78,9 @@
   {% if other_people %}
   <fieldset class="editor__family" id="editor-family">
     <legend class="editor__family-legend">Family</legend>
-    {{ macros.chip_group("family-parents", "Parents (up to two)", person.parents if person else [], other_people) }}
-    {{ macros.chip_group("family-partners", "Partner", person.partners if person else [], other_people) }}
-    {{ macros.chip_group("family-friend-of", "Friend of", person.friend_of if person else [], other_people) }}
+    {{ macros.people_picker("family-parents", "Parents (up to two)", person.parents if person else [], other_people) }}
+    {{ macros.people_picker("family-partners", "Partner", person.partners if person else [], other_people) }}
+    {{ macros.people_picker("family-friend-of", "Friend of", person.friend_of if person else [], other_people) }}
     <div class="editor__family-group">
       <p class="editor__family-label">Gender</p>
       <div class="editor__gender-segmented" id="family-gender">

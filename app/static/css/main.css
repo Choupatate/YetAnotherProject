@@ -390,7 +390,8 @@ mark {
 .editor__unlock,
 .editor__tags,
 .editor__source-url,
-.editor__source-note {
+.editor__source-note,
+.people-picker__search {
   min-height: 44px;
   border-radius: 0.5rem;
   border: 1px solid var(--color-border);
@@ -408,7 +409,8 @@ mark {
 .editor__unlock,
 .editor__tags,
 .editor__source-url,
-.editor__source-note {
+.editor__source-note,
+.people-picker__search {
   padding: 0 0.75rem;
 }
 
@@ -2192,10 +2194,61 @@ img.person-family__thumb {
   cursor: pointer;
 }
 
-.editor__family-chips {
+.people-picker {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.5rem;
+}
+
+.people-picker__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 14rem;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+
+.people-picker__row {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  gap: 0.5rem;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--color-border);
+  white-space: normal;
+  text-align: left;
+}
+
+.people-picker__row:last-child {
+  border-bottom: none;
+}
+
+.people-picker__row[hidden] {
+  display: none;
+}
+
+.people-picker__row[aria-pressed="true"] {
+  color: var(--color-accent);
+}
+
+.people-picker__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-picker__check {
+  flex: none;
+  visibility: hidden;
+  color: var(--color-accent);
+}
+
+.people-picker__row[aria-pressed="true"] .people-picker__check {
+  visibility: visible;
 }
 
 .family-chip__thumb {

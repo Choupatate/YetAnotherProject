@@ -2858,3 +2858,34 @@ on both a tag and a linked person's name, a sealed story's tags/people
 never appearing in the page source, and a `javascript:` source URL being
 rejected with an inline error rather than saved. `pytest` and
 `ruff check .` green.
+
+## F21. People picker: searchable scrolling list, ticked stays on top
+
+Direct feedback on F18/F20's chip-wall picker (parents/partners/friend_of,
+plus F20's story-people field): it's a wrapped wall of pill buttons with
+no search, and once the cast grows there's no reliable way to confirm
+who's ticked without scanning the whole thing.
+
+Replaced the shared `chip_group` macro (`_macros.html`) and its
+`initChipPicker` JS (`editor.js`) — used at all four call sites — with a
+`people_picker` macro + `initPeoplePicker`: a search box above a
+fixed-height (`14rem`, ~5 rows) scrollable list of row buttons. Ticked
+rows always sort to the top (alphabetically within each of the
+selected/unselected groups) and are **never hidden by the search filter**
+— only the unselected pool gets filtered — so a selection can't get lost
+to scrolling or to typing an unrelated query afterwards.
+
+Kept the exact same JS API (`getSelected()`, `setSelected(slugs)`,
+`maxSelected`) so `buildStoryPayload`/`addFamilyFields`/the autosave
+`applyDraft` needed zero changes, and the same `<button
+data-person-slug="..." aria-pressed="...">` shape existing tests assert
+on — this is a rendering/interaction change only, no data-model or
+validation change. Authors chips and gender buttons (separate, small,
+fixed-option widgets) are untouched.
+
+All 687 existing tests passed unmodified. Manually verified with
+Playwright at a 390px mobile width against a 10-person fixture: search
+narrows the unselected rows, a ticked-then-searched-away row stays
+visible and pinned at top, `maxSelected=2` still blocks a third parent,
+and reopening the edit page reloads with both selections pinned at the
+top. `pytest` (687) and `ruff check .` green.
