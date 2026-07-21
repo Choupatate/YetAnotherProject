@@ -1,6 +1,7 @@
 import zipfile
 from datetime import date as date_cls
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, jsonify, request, session, url_for
 
@@ -119,6 +120,71 @@ def _validate_cover(data, stories_dir, story_id):
     )
 
 
+_SOURCE_MAX = 20
+_SOURCE_NOTE_MAX = 200
+_SOURCE_URL_MAX = 500
+
+
+def _validate_story_people(data):
+    """Resolve and validate the optional 'people' field: person slugs
+    appearing in the story. None means absent ('leave unchanged' on
+    update)."""
+    valid_slugs = {p.slug for p in people.list_people(_people_dir())}
+    return _validate_slug_list(data, "people", valid_slugs, self_slug=None)
+
+
+def _validate_tags(data):
+    """Resolve and validate the optional 'tags' field: free-form event
+    tags on a story. None means absent ('leave unchanged' on update)."""
+    if "tags" not in data:
+        return None, None
+    raw = data.get("tags")
+    if not isinstance(raw, list):
+        return None, _error("Tags must be a list.", 400)
+    cleaned = []
+    seen = set()
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        item = item.strip()[: storage.MAX_TAG_LENGTH]
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        cleaned.append(item)
+    if len(cleaned) > storage.MAX_TAGS:
+        return None, _error(f"At most {storage.MAX_TAGS} tags allowed.", 400)
+    return cleaned, None
+
+
+def _validate_sources(data):
+    """Resolve and validate the optional 'sources' field: a list of
+    {"url": ..., "note": ...} citation links, pasted in manually and never
+    fetched by the app. None means absent ('leave unchanged' on update).
+
+    Only http(s) URLs are accepted — these render back as `<a href>`, so a
+    `javascript:`/`data:` scheme here would be a stored-XSS vector.
+    """
+    if "sources" not in data:
+        return None, None
+    raw = data.get("sources")
+    if not isinstance(raw, list):
+        return None, _error("Sources must be a list.", 400)
+    cleaned = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        url = (item.get("url") or "").strip()
+        if not url:
+            continue
+        if urlparse(url).scheme.lower() not in ("http", "https"):
+            return None, _error("Source links must be http:// or https:// URLs.", 400)
+        note = (item.get("note") or "").strip()
+        cleaned.append({"url": url[:_SOURCE_URL_MAX], "note": note[:_SOURCE_NOTE_MAX]})
+    if len(cleaned) > _SOURCE_MAX:
+        return None, _error(f"At most {_SOURCE_MAX} sources allowed.", 400)
+    return cleaned, None
+
+
 def _parse_story_fields(data):
     """The raw title/date/markdown/draft/archived fields shared by
     create/update, plus the one validation rule both apply identically
@@ -161,10 +227,20 @@ def create_story():
     unlock, error = _validate_unlock(data)
     if error:
         return error
+    story_people, error = _validate_story_people(data)
+    if error:
+        return error
+    tags, error = _validate_tags(data)
+    if error:
+        return error
+    sources, error = _validate_sources(data)
+    if error:
+        return error
 
     story_id = storage.create_story(
         current_app.config["STORIES_DIR"], title, story_date, markdown, author=author,
         draft=draft, unlock=unlock, archived=archived, kind=kind,
+        people=story_people, tags=tags, sources=sources,
     )
     return jsonify({"id": story_id, "title": title})
 
@@ -192,11 +268,21 @@ def update_story(story_id):
     cover, error = _validate_cover(data, current_app.config["STORIES_DIR"], story_id)
     if error:
         return error
+    story_people, error = _validate_story_people(data)
+    if error:
+        return error
+    tags, error = _validate_tags(data)
+    if error:
+        return error
+    sources, error = _validate_sources(data)
+    if error:
+        return error
 
     try:
         storage.save_story(
             current_app.config["STORIES_DIR"], story_id, title, story_date, markdown,
             cover=cover, author=author, draft=draft, unlock=unlock, archived=archived,
+            people=story_people, tags=tags, sources=sources,
         )
     except FileNotFoundError:
         return _error("Story not found.", 404)
@@ -464,13 +550,16 @@ def create_person():
     author_color, error = _validate_author_color(data)
     if error:
         return error
+    sources, error = _validate_sources(data)
+    if error:
+        return error
 
     people_dir = _people_dir()
     slug = people.create_person(
         people_dir, name, relation=relation, body=markdown,
         parents=fields["parents"], partners=fields["partners"],
         friend_of=fields["friend_of"], gender=fields["gender"],
-        author_color=author_color,
+        author_color=author_color, sources=sources,
     )
     _sync_partner_symmetry(people_dir, slug, [], fields["partners"] or [])
     return jsonify({"id": slug, "title": name})
@@ -504,6 +593,9 @@ def update_person(slug):
     fields, all_people, error = _validate_person_family(data, self_slug=slug)
     if error:
         return error
+    sources, error = _validate_sources(data)
+    if error:
+        return error
 
     people_dir = _people_dir()
     existing = people.get_person(people_dir, slug)
@@ -515,7 +607,7 @@ def update_person(slug):
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
-            photo_sepia=photo_sepia, author_color=author_color,
+            photo_sepia=photo_sepia, author_color=author_color, sources=sources,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)

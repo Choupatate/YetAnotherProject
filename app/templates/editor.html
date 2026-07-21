@@ -22,6 +22,15 @@
     <input class="editor__unlock" id="story-unlock" name="unlock" type="date"
            value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
   </div>
+  <input class="editor__tags" id="story-tags" name="tags" type="text"
+         placeholder="Tags, comma separated"
+         value="{{ story.tags | join(', ') if story else '' }}">
+  {% if all_people %}
+  <fieldset class="editor__family" id="editor-people">
+    <legend class="editor__family-legend">People</legend>
+    {{ macros.chip_group("story-people", "Who's in this story", story.people if story else [], all_people) }}
+  </fieldset>
+  {% endif %}
   <div class="editor__toolrow" id="editor-toolrow">
     {% if authors and not config.ACCOUNTS_ENABLED %}
     {{ macros.author_chip_row(authors, story.author if story else none) }}
@@ -41,6 +50,12 @@
   </p>
   <script type="application/json" id="editor-prompts-data">{{ prompts | tojson }}</script>
   {% endif %}
+  <div class="editor__sources" id="editor-sources">
+    <p class="editor__family-label">Sources</p>
+    <div class="editor__sources-list" id="editor-sources-list"></div>
+    <button type="button" class="btn" id="editor-sources-add">+ Add source</button>
+  </div>
+  <script type="application/json" id="editor-sources-data">{{ (story.sources if story else []) | tojson }}</script>
   <div id="editor-root" class="editor__root">
     <textarea id="markdown-source" class="editor__source">{{ story.body if story else '' }}</textarea>
   </div>

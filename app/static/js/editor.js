@@ -121,6 +121,96 @@
   var partnersPicker = initChipPicker(document.getElementById("family-partners"));
   var friendOfPicker = initChipPicker(document.getElementById("family-friend-of"));
 
+  // --- Story people picker + tags + sources -----------------------------
+  var storyPeopleRoot = document.getElementById("story-people");
+  var storyPeoplePicker = initChipPicker(storyPeopleRoot);
+  var tagsInput = document.getElementById("story-tags");
+  if (tagsInput) tagsInput.addEventListener("input", markDirty);
+
+  function parseTags(raw) {
+    var seen = {};
+    var result = [];
+    (raw || "").split(",").forEach(function (t) {
+      t = t.trim();
+      if (!t || seen[t]) return;
+      seen[t] = true;
+      result.push(t);
+    });
+    return result;
+  }
+
+  var sourcesListEl = document.getElementById("editor-sources-list");
+  var sourcesAddBtn = document.getElementById("editor-sources-add");
+  var sourcesDataEl = document.getElementById("editor-sources-data");
+
+  function makeSourceRow(url, note) {
+    var row = document.createElement("div");
+    row.className = "editor__source-row";
+
+    var urlInput = document.createElement("input");
+    urlInput.type = "url";
+    urlInput.placeholder = "https://...";
+    urlInput.className = "editor__source-url";
+    urlInput.value = url || "";
+    urlInput.addEventListener("input", markDirty);
+
+    var noteInput = document.createElement("input");
+    noteInput.type = "text";
+    noteInput.placeholder = "Note (optional)";
+    noteInput.className = "editor__source-note";
+    noteInput.value = note || "";
+    noteInput.addEventListener("input", markDirty);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn editor__source-remove";
+    removeBtn.setAttribute("aria-label", "Remove source");
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", function () {
+      row.remove();
+      markDirty();
+    });
+
+    row.appendChild(urlInput);
+    row.appendChild(noteInput);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  if (sourcesListEl && sourcesDataEl) {
+    var initialSources = [];
+    try {
+      initialSources = JSON.parse(sourcesDataEl.textContent) || [];
+    } catch (e) {
+      initialSources = [];
+    }
+    initialSources.forEach(function (s) {
+      sourcesListEl.appendChild(makeSourceRow(s.url, s.note));
+    });
+  }
+
+  if (sourcesAddBtn) {
+    sourcesAddBtn.addEventListener("click", function () {
+      sourcesListEl.appendChild(makeSourceRow("", ""));
+      markDirty();
+    });
+  }
+
+  function getSources() {
+    if (!sourcesListEl) return [];
+    return Array.prototype.slice
+      .call(sourcesListEl.querySelectorAll(".editor__source-row"))
+      .map(function (row) {
+        return {
+          url: row.querySelector(".editor__source-url").value.trim(),
+          note: row.querySelector(".editor__source-note").value.trim(),
+        };
+      })
+      .filter(function (s) {
+        return s.url;
+      });
+  }
+
   var genderRoot = document.getElementById("family-gender");
   var genderButtons = genderRoot
     ? Array.prototype.slice.call(genderRoot.querySelectorAll(".editor__gender-btn"))
@@ -517,6 +607,9 @@
     if (relationInput) payload.relation = relationInput.value.trim();
     if (authorColorInput) payload.author_color = authorColorInput.value;
     addFamilyFields(payload);
+    if (storyPeopleRoot) payload.people = storyPeoplePicker.getSelected();
+    if (tagsInput) payload.tags = parseTags(tagsInput.value);
+    if (sourcesListEl) payload.sources = getSources();
     return payload;
   }
 
@@ -987,6 +1080,14 @@
     }
     if (hasPhoto && draftData.photo_sepia !== undefined) {
       setPhotoSepia(draftData.photo_sepia);
+    }
+    if (storyPeopleRoot) storyPeoplePicker.setSelected(draftData.people || []);
+    if (tagsInput) tagsInput.value = (draftData.tags || []).join(", ");
+    if (sourcesListEl && draftData.sources) {
+      sourcesListEl.innerHTML = "";
+      draftData.sources.forEach(function (s) {
+        sourcesListEl.appendChild(makeSourceRow(s.url, s.note));
+      });
     }
     markDirty();
   }

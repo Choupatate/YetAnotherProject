@@ -129,6 +129,29 @@ def test_story_page_404_for_missing_story(auth_client):
     assert resp.status_code == 404
 
 
+def test_story_page_renders_tags_people_and_sources(auth_client, stories_dir):
+    from datetime import date
+
+    from app import people, storage
+
+    people_dir = stories_dir / "people"
+    grandma = people.create_person(people_dir, "Grandma")
+    story_id = storage.create_story(
+        stories_dir, "Beach day", date(2026, 1, 1), "body",
+        people=[grandma], tags=["beach", "summer"],
+        sources=[{"url": "https://example.com/photo", "note": "from aunt Jane"}],
+    )
+
+    resp = auth_client.get(f"/story/{story_id}")
+    html = resp.data.decode()
+    assert "beach" in html
+    assert "summer" in html
+    assert f'href="/people/{grandma}"' in html
+    assert "Grandma" in html
+    assert "from aunt Jane" in html
+    assert 'href="https://example.com/photo"' in html
+
+
 def test_404_page_renders_custom_template(auth_client):
     resp = auth_client.get("/this-route-does-not-exist")
     assert resp.status_code == 404

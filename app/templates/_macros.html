@@ -9,6 +9,21 @@
 {% endif %}
 {% endmacro %}
 
+{% macro chip_group(container_id, label, selected_slugs, people_list) %}
+<div class="editor__family-group">
+  <p class="editor__family-label">{{ label }}</p>
+  <div class="editor__family-chips" id="{{ container_id }}">
+    {% for other in people_list %}
+    <button type="button" class="btn editor__author-chip family-chip" data-person-slug="{{ other.slug }}"
+            aria-pressed="{{ 'true' if other.slug in selected_slugs else 'false' }}">
+      {{ photo_thumb(other, "family-chip") }}
+      {{ other.name }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
 {% macro author_chip_row(authors, selected_name=none) %}
 <div class="editor__authors" id="editor-authors">
   {% for a in authors %}

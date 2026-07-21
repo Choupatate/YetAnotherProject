@@ -103,6 +103,63 @@ def test_save_story_invalid_id_raises(stories_dir):
         storage.save_story(stories_dir, "../nope", "T", date(2026, 1, 1), "b")
 
 
+def test_create_story_round_trips_people_tags_sources(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "Beach day", date(2026, 1, 1), "body",
+        people=["grandma", "uncle-jean"], tags=["beach", "summer"],
+        sources=[{"url": "https://example.com/photo", "note": "from aunt Jane"}],
+    )
+    story = storage.get_story(stories_dir, story_id)
+    assert story.people == ["grandma", "uncle-jean"]
+    assert story.tags == ["beach", "summer"]
+    assert story.sources == [{"url": "https://example.com/photo", "note": "from aunt Jane"}]
+
+
+def test_new_story_defaults_people_tags_sources_to_empty_list(stories_dir):
+    story_id = storage.create_story(stories_dir, "Plain story", date(2026, 1, 1), "body")
+    story = storage.get_story(stories_dir, story_id)
+    assert story.people == []
+    assert story.tags == []
+    assert story.sources == []
+
+
+def test_save_story_none_leaves_people_tags_sources_unchanged(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body",
+        people=["grandma"], tags=["beach"], sources=[{"url": "https://example.com", "note": ""}],
+    )
+    storage.save_story(stories_dir, story_id, "Story", date(2026, 1, 1), "new body")
+
+    story = storage.get_story(stories_dir, story_id)
+    assert story.people == ["grandma"]
+    assert story.tags == ["beach"]
+    assert story.sources == [{"url": "https://example.com", "note": ""}]
+
+
+def test_save_story_empty_list_clears_people_tags_sources(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body",
+        people=["grandma"], tags=["beach"], sources=[{"url": "https://example.com", "note": ""}],
+    )
+    storage.save_story(
+        stories_dir, story_id, "Story", date(2026, 1, 1), "new body",
+        people=[], tags=[], sources=[],
+    )
+
+    story = storage.get_story(stories_dir, story_id)
+    assert story.people == []
+    assert story.tags == []
+    assert story.sources == []
+
+
+def test_stories_featuring_returns_only_matching_stories(stories_dir):
+    id1 = storage.create_story(stories_dir, "With grandma", date(2026, 1, 1), "", people=["grandma"])
+    storage.create_story(stories_dir, "Without grandma", date(2026, 1, 2), "")
+
+    featured = storage.stories_featuring(stories_dir, "grandma")
+    assert [s.id for s in featured] == [id1]
+
+
 def test_path_safety_story_id_regex():
     assert storage.is_valid_story_id("2026-07-14-first-bike-ride")
     assert not storage.is_valid_story_id("../etc/passwd")

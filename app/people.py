@@ -40,6 +40,7 @@ class Person:
     friend_of: list = None
     gender: Optional[str] = None
     author_color: Optional[str] = None
+    sources: list = None
 
     def __post_init__(self):
         if self.parents is None:
@@ -48,6 +49,8 @@ class Person:
             self.partners = []
         if self.friend_of is None:
             self.friend_of = []
+        if self.sources is None:
+            self.sources = []
 
 
 def _parse_slug_list(value) -> list:
@@ -87,6 +90,29 @@ def _parse_author_color(value) -> Optional[str]:
     return value if is_valid_author_color(value) else None
 
 
+def _parse_sources(value) -> list:
+    """Tolerant parsing of a frontmatter `sources` field: a list of
+    `{"url": ..., "note": ...}` dicts. Malformed entries (missing/blank
+    url) are dropped rather than raised (files outlive edits). Duplicated
+    from storage.py's version rather than imported, same convention as
+    _AUTHOR_COLOR_RE above."""
+    if not isinstance(value, list):
+        return []
+    result = []
+    for v in value:
+        if not isinstance(v, dict):
+            continue
+        url = v.get("url")
+        if not isinstance(url, str) or not url.strip():
+            continue
+        note = v.get("note")
+        result.append({
+            "url": url.strip(),
+            "note": note.strip() if isinstance(note, str) else "",
+        })
+    return result
+
+
 def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Optional[Person]:
     metadata = post.metadata
     name = metadata.get("name")
@@ -119,6 +145,7 @@ def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Option
         friend_of=_parse_slug_list(metadata.get("friend_of")),
         gender=gender,
         author_color=_parse_author_color(metadata.get("author_color")),
+        sources=_parse_sources(metadata.get("sources")),
     )
 
 
@@ -172,7 +199,8 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
                   relation: Optional[str], photo: Optional[str], body: str,
                   parents: Optional[list] = None, partners: Optional[list] = None,
                   friend_of: Optional[list] = None, gender: Optional[str] = None,
-                  photo_sepia: Optional[int] = None, author_color: Optional[str] = None) -> None:
+                  photo_sepia: Optional[int] = None, author_color: Optional[str] = None,
+                  sources: Optional[list] = None) -> None:
     post = frontmatter.Post(body)
     post["name"] = name
     post["created"] = created.isoformat()
@@ -193,6 +221,8 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
         post["gender"] = gender
     if author_color:
         post["author_color"] = author_color
+    if sources:
+        post["sources"] = sources
     index_path = Path(people_dir) / slug / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -202,7 +232,7 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
 def create_person(people_dir, name: str, relation: Optional[str] = None, body: str = "",
                    parents: Optional[list] = None, partners: Optional[list] = None,
                    friend_of: Optional[list] = None, gender: Optional[str] = None,
-                   author_color: Optional[str] = None) -> str:
+                   author_color: Optional[str] = None, sources: Optional[list] = None) -> str:
     """Create a new person folder, returning its slug (the folder name).
 
     On slug collision, append -2, -3, ... (same rule as storage.create_story).
@@ -221,7 +251,7 @@ def create_person(people_dir, name: str, relation: Optional[str] = None, body: s
     now = datetime.now()
     _write_index(people_dir, slug, name, now, now, relation, None, body,
                  parents=parents, partners=partners, friend_of=friend_of, gender=gender,
-                 author_color=author_color)
+                 author_color=author_color, sources=sources)
     return slug
 
 
@@ -229,12 +259,13 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
                    body: str = "", photo: Optional[str] = None,
                    parents: Optional[list] = None, partners: Optional[list] = None,
                    friend_of: Optional[list] = None, gender: Optional[str] = None,
-                   photo_sepia: Optional[int] = None, author_color: Optional[str] = None) -> None:
+                   photo_sepia: Optional[int] = None, author_color: Optional[str] = None,
+                   sources: Optional[list] = None) -> None:
     """Update an existing person's content in place. The slug never changes.
 
     `photo` of None means "leave unchanged"; an empty string clears it.
-    `parents`/`partners`/`friend_of`/`gender`/`author_color` of None means
-    "leave unchanged" — pass an empty string to clear `author_color`.
+    `parents`/`partners`/`friend_of`/`gender`/`author_color`/`sources` of
+    None means "leave unchanged" — pass an empty string/list to clear them.
     `photo_sepia` of None means "leave unchanged" — pass an explicit int
     (including 0) to set it.
     """
@@ -258,6 +289,8 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
         gender = existing.gender
     if author_color is None:
         author_color = existing.author_color
+    if sources is None:
+        sources = existing.sources
     _write_index(people_dir, slug, name, created, datetime.now(), relation, photo, body,
                  parents=parents, partners=partners, friend_of=friend_of, gender=gender,
-                 photo_sepia=photo_sepia, author_color=author_color)
+                 photo_sepia=photo_sepia, author_color=author_color, sources=sources)

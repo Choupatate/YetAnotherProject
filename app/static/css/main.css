@@ -387,7 +387,10 @@ mark {
 .instant__date,
 .editor__relation,
 .editor__date,
-.editor__unlock {
+.editor__unlock,
+.editor__tags,
+.editor__source-url,
+.editor__source-note {
   min-height: 44px;
   border-radius: 0.5rem;
   border: 1px solid var(--color-border);
@@ -402,7 +405,10 @@ mark {
 .instant__date,
 .editor__relation,
 .editor__date,
-.editor__unlock {
+.editor__unlock,
+.editor__tags,
+.editor__source-url,
+.editor__source-note {
   padding: 0 0.75rem;
 }
 
@@ -1253,12 +1259,56 @@ img.people__portrait {
   margin: 0 0 1rem;
 }
 
+.story__people {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-dim);
+  margin: 0 0 0.5rem;
+}
+
+.story__person-link {
+  color: inherit;
+}
+
+.story__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+}
+
+.story__tag {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+}
+
 .story__flourish {
   width: 160px;
   height: 23px;
   border: none;
   margin: 0 auto;
   background: url("../img/rope-divider.png") no-repeat center / contain;
+}
+
+.story__sources {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text-dim);
+}
+
+.story__sources li + li {
+  margin-top: 0.35rem;
 }
 
 .story__cover {
@@ -2168,6 +2218,45 @@ img.family-chip__thumb {
   color: var(--color-text-dim);
   font-family: var(--font-serif);
   font-size: 0.75rem;
+}
+
+.editor__tags {
+  width: 100%;
+}
+
+.editor__sources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.editor__sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.editor__source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.editor__source-url {
+  flex: 2 1 12rem;
+  min-width: 0;
+}
+
+.editor__source-note {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.editor__source-remove {
+  flex: none;
+  padding: 0 0.6rem;
+  color: var(--color-text-dim);
 }
 
 .editor__family-hint {

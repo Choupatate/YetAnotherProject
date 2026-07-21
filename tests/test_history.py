@@ -96,6 +96,26 @@ def test_restore_version_reproduces_author_draft_unlock_archived(stories_dir):
     assert story.archived is True
 
 
+def test_restore_version_reproduces_people_tags_sources(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body",
+        people=["grandma"], tags=["beach"], sources=[{"url": "https://example.com", "note": "x"}],
+    )
+    time.sleep(0.01)
+    storage.save_story(
+        stories_dir, story_id, "Story", date(2026, 1, 1), "new body",
+        people=[], tags=[], sources=[],
+    )
+
+    versions = storage.list_versions(stories_dir, story_id)
+    storage.restore_version(stories_dir, story_id, versions[0]["id"])
+
+    story = storage.get_story(stories_dir, story_id)
+    assert story.people == ["grandma"]
+    assert story.tags == ["beach"]
+    assert story.sources == [{"url": "https://example.com", "note": "x"}]
+
+
 def test_restore_invalid_version_id_raises(stories_dir):
     story_id = storage.create_story(stories_dir, "Story", date(2026, 1, 1), "body")
     with pytest.raises(storage.InvalidVersionId):

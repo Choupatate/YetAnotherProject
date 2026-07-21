@@ -2765,3 +2765,96 @@ co-parents fixture, the blended fixture, and the 30-person ring — all
 consistency metrics unchanged from round 6 (connector geometry doesn't
 move cards), zero overlaps, every line starting at a real card. `pytest`
 (664), `ruff check .`, and the 36 Node tests green.
+
+## F20. Event tagging, story↔people linkage, and source citations
+
+README/FEATURES (F19) had twice declared `tags` deliberately out of scope
+for v1 — "belongs in a discussion first, not a surprise addition." This is
+that discussion, revisited on direct request: a parent wanted (1) event
+tags, (2) a way to say who's *in* a given story, on top of the existing
+genealogy (F14/F18), and (3) somewhere to paste a citation link for a photo
+or fact ("this came from aunt Jane's post"). A fourth idea — automated
+OSINT-style tooling to gather information about family members from public
+sources — was explicitly ruled out during that discussion: the family tree
+includes a real child by design (`STORYBOOK_CHILD`), consent from other
+living relatives is murky, and it flatly contradicts the "no runtime
+network dependencies" rule. Nothing here fetches anything; every link is
+pasted in by hand.
+
+To keep this inside "book, not blog" (no search, no discovery surface),
+tags/people/sources are **display metadata plus a filter on the existing
+single-purpose timeline search box** — not a new tag-browsing/tag-cloud
+page, and not a general search feature.
+
+### Storage
+
+- `Story` (storage.py) gains `people` (list of person slugs), `tags` (list
+  of free strings, capped at `MAX_TAGS`=20 × `MAX_TAG_LENGTH`=40, deduped),
+  and `sources` (list of `{"url", "note"}` dicts) — all tolerantly parsed
+  (garbage silently dropped, same philosophy as every other frontmatter
+  field), threaded through `create_story`/`save_story`/`_write_index`/
+  `restore_version` with the same "`None` means leave unchanged, empty
+  clears" convention `cover`/`author` already use.
+- `Person` (people.py) gains `sources` only — a person doesn't link to
+  itself.
+- New `storage.stories_featuring(stories_dir, person_slug)`: stories whose
+  `people` includes the slug, for the person page's new "Appears in"
+  section (filtered through `readable_stories` — a draft or sealed story
+  doesn't leak its existence just because someone's tagged in it).
+
+### API validation (routes_api.py)
+
+- `_validate_story_people` reuses the existing `_validate_slug_list` (the
+  same one `parents`/`partners`/`friend_of` already use) — no new
+  slug-validation logic needed.
+- `_validate_tags`: trims/dedupes/caps, no other rules — tags are display
+  metadata, not an identity system.
+- `_validate_sources`: **restricts `url` to `http://`/`https://` only.**
+  These render back as `<a href>` on the story/person page, so accepting a
+  `javascript:`/`data:` scheme here would be a stored-XSS vector — this is
+  the one place in the feature where "just paste a link" needed a real
+  guardrail.
+
+### Editor UI (editor.js, shared by story + person forms)
+
+- Story editor gets a people chip-picker (reusing the same `initChipPicker`
+  widget the family pickers already use, via a generalized `chip_group`
+  macro lifted from `person_editor.html` into `_macros.html`) and a plain
+  comma-separated tags input — no new chip-input widget for free text.
+- Both story and person editors get a small repeatable-row "Sources"
+  widget (add/remove URL+note pairs), hydrated from a
+  `<script type="application/json">` block the same way F16's prompt list
+  already is. Autosave/crash-recovery (`applyDraft`) restores all three
+  fields too, same as every other editor field.
+
+### Display
+
+- Story page: linked people as name links under the title, tags as small
+  quiet pills, sources as a plain list at the bottom — no counts, no
+  engagement chrome.
+- Person page: a new "Appears in" section (styled like the existing family
+  sections) plus the person's own sources list.
+- Timeline: entries carry a `hidden` (DOM-only, not visually shown — the
+  single-row timeline layout has no room for a subtitle line) span with the
+  entry's tags + linked people's names, so the existing client-side search
+  box matches on them too. Never rendered for a sealed entry, so a sealed
+  letter's tags/people stay hidden along with everything else about it.
+  Search placeholder updated to "Search titles, tags, people…".
+
+### Explicitly not built
+
+- Automated OSINT/scraping/link-fetching of any kind.
+- Shareable no-password links for relatives — breaks the single
+  shared-password auth model, needs its own discussion.
+- A dedicated tag-browse/tag-cloud page — would cross from "metadata" into
+  the excluded "search" territory.
+
+23 new tests across `test_storage.py`, `test_history.py`, `test_api.py`,
+`test_family_api.py`, `test_people.py`, `test_family_pages.py`,
+`test_pages.py`, and `test_timeline_search.py` (687 total). Manually
+verified end-to-end with Playwright: person + story creation with
+tags/people/sources, story/person page rendering, timeline search matching
+on both a tag and a linked person's name, a sealed story's tags/people
+never appearing in the page source, and a `javascript:` source URL being
+rejected with an inline error rather than saved. `pytest` and
+`ruff check .` green.

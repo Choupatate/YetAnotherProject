@@ -111,6 +111,7 @@ def timeline():
     for story in stories:
         years.setdefault(story.date.year, []).append(story)
     authors, author_colors = _authors_and_colors()
+    people_by_slug = {p.slug: p for p in people.list_people(_people_dir())}
     return render_template(
         "timeline.html",
         years=sorted(years.items()),
@@ -122,6 +123,7 @@ def timeline():
         today=today,
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
+        people_by_slug=people_by_slug,
     )
 
 
@@ -185,6 +187,7 @@ def book():
         body_html = render_markdown(full.body, f"/story/{full.id}/media")
         author_color = _author_color(authors, author_colors, full.author)
         entries.append({"story": full, "body_html": body_html, "author_color": author_color})
+    people_by_slug = {p.slug: p for p in people.list_people(_people_dir())}
     return render_template(
         "book.html",
         entries=entries,
@@ -192,6 +195,7 @@ def book():
         birthdate=current_app.config.get("BIRTHDATE"),
         min_year=readable[0].date.year if readable else None,
         max_year=readable[-1].date.year if readable else None,
+        people_by_slug=people_by_slug,
     )
 
 
@@ -285,10 +289,11 @@ def story(story_id):
     body_html = render_markdown(s.body, f"/story/{story_id}/media")
     prev_story, next_story = _reading_order_neighbors(current_app.config["STORIES_DIR"], s)
     memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
+    people_by_slug = {p.slug: p for p in people.list_people(_people_dir())}
     return render_template(
         "story.html", story=s, body_html=body_html, authors=authors, author_color=author_color,
         prev_story=prev_story, next_story=next_story, memos=memos,
-        birthdate=current_app.config.get("BIRTHDATE"),
+        birthdate=current_app.config.get("BIRTHDATE"), people_by_slug=people_by_slug,
     )
 
 
@@ -332,6 +337,7 @@ def new_story():
     return render_template(
         "editor.html", story=None, today=date.today(), authors=authors,
         prompts=prompt_list, initial_prompt=initial_prompt, memos=[],
+        all_people=_other_people_refs(),
     )
 
 
@@ -348,7 +354,10 @@ def edit_story(story_id):
     s = _get_story_or_404(current_app.config["STORIES_DIR"], story_id)
     authors = current_app.config.get("AUTHORS") or []
     memos = storage.list_memos(current_app.config["STORIES_DIR"] / story_id)
-    return render_template("editor.html", story=s, today=date.today(), authors=authors, memos=memos)
+    return render_template(
+        "editor.html", story=s, today=date.today(), authors=authors, memos=memos,
+        all_people=_other_people_refs(),
+    )
 
 
 def _people_dir():
@@ -420,9 +429,13 @@ def person_page(slug):
     }
     family = {key: [ref for ref in refs if ref] for key, refs in family.items()}
 
+    stories_dir = current_app.config["STORIES_DIR"]
+    appears_in = storage.readable_stories(storage.stories_featuring(stories_dir, slug))
+
     return render_template(
         "person.html", person=p, body_html=body_html,
         kinship_line=kinship_line, friend_of_line=friend_of_line, family=family,
+        appears_in=appears_in,
     )
 
 

@@ -1,9 +1,13 @@
 {# Shared header + cover + body for a single story (FEATURES.md F10).
 
-Expects in scope: story, body_html, authors, birthdate. Does not render the
-outer <article> tag — callers wrap this with their own <article class="story"
-style="--author-color: ..."> so the CSS custom property scope and any
-per-page footer stay under the caller's control. #}
+Expects in scope: story, body_html, authors, birthdate. `people_by_slug`
+(slug -> person-like dict/object with .name) is optional — when absent or
+missing an entry, that person link is silently skipped rather than raised,
+same tolerant-rendering philosophy as everywhere else a slug might be
+stale. Does not render the outer <article> tag — callers wrap this with
+their own <article class="story" style="--author-color: ..."> so the CSS
+custom property scope and any per-page footer stay under the caller's
+control. #}
 <header class="story__header">
   <p class="story__date">
     {% if story.draft %}<span class="story__draft-pill">DRAFT</span>{% endif %}
@@ -17,6 +21,19 @@ per-page footer stay under the caller's control. #}
     {% endif %}
   </p>
   <h1 class="story__title">{{ story.title }}</h1>
+  {% if story.people %}
+  <p class="story__people">
+    {% for slug in story.people %}
+    {% set p = (people_by_slug or {}).get(slug) %}
+    {% if p %}<a class="story__person-link" href="{{ url_for('pages.person_page', slug=slug) }}">{{ p.name }}</a>{% if not loop.last %}, {% endif %}{% endif %}
+    {% endfor %}
+  </p>
+  {% endif %}
+  {% if story.tags %}
+  <p class="story__tags">
+    {% for tag in story.tags %}<span class="story__tag">{{ tag }}</span>{% endfor %}
+  </p>
+  {% endif %}
   <hr class="story__flourish" aria-hidden="true">
 </header>
 {% if story.cover %}
@@ -25,3 +42,10 @@ per-page footer stay under the caller's control. #}
 <div class="story__body">
   {{ body_html|safe }}
 </div>
+{% if story.sources %}
+<ul class="story__sources">
+  {% for src in story.sources %}
+  <li><a href="{{ src.url }}" rel="noopener noreferrer" target="_blank">{{ src.note or src.url }}</a></li>
+  {% endfor %}
+</ul>
+{% endif %}

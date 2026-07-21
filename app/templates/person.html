@@ -51,6 +51,29 @@
     {{ family_group("Siblings", family.siblings) }}
   </section>
   {% endif %}
+  {% if appears_in %}
+  <section class="person-family">
+    <div class="person-family__group">
+      <h2 class="person-family__heading">Appears in</h2>
+      <ul class="person-family__list">
+        {% for s in appears_in %}
+        <li class="person-family__item">
+          <a class="person-family__link" href="{{ url_for('pages.story', story_id=s.id) }}">
+            <span class="person-family__name">{{ s.title }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+  {% if person.sources %}
+  <ul class="story__sources">
+    {% for src in person.sources %}
+    <li><a href="{{ src.url }}" rel="noopener noreferrer" target="_blank">{{ src.note or src.url }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   <footer class="story__footer">
     <div class="story__navrow">
       <a class="story__back" href="{{ url_for('pages.people_page') }}">&lsaquo; People</a>

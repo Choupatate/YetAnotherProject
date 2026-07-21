@@ -40,7 +40,7 @@
 {% endif %}
 <div class="timeline__toolbar">
   <input type="search" id="timeline-search" class="timeline__search"
-         placeholder="Search titles&hellip;" aria-label="Search stories by title">
+         placeholder="Search titles, tags, people&hellip;" aria-label="Search stories by title, tag, or person">
   <a href="#" id="timeline-jump-latest" class="timeline__jump">Jump to the latest &darr;</a>
 </div>
 <p class="timeline__search-empty" id="timeline-search-empty" hidden>
@@ -80,6 +80,19 @@
         {% if story.cover %}
         <img class="timeline__thumb" src="{{ url_for('pages.story_media', story_id=story.id, filename=thumb_filename(story.cover)) }}" alt="" loading="lazy">
         {% endif %}
+        {% endif %}
+        {% if story.tags or story.people %}
+        {% set ns = namespace(people_names=[]) %}
+        {% for slug in story.people %}
+        {% set p = (people_by_slug or {}).get(slug) %}
+        {% if p %}{% set ns.people_names = ns.people_names + [p.name] %}{% endif %}
+        {% endfor %}
+        {# Not shown — the single-row timeline layout has no room for a
+           subtitle line. Present in the DOM only so the search box in
+           timeline.js can match against tags/people too. Only rendered in
+           this (non-sealed) branch — a sealed letter's tags/people stay
+           hidden along with everything else about it. #}
+        <span class="timeline__tags" hidden>{{ (story.tags + ns.people_names) | join(' · ') }}</span>
         {% endif %}
         {% endif %}
       </a>
