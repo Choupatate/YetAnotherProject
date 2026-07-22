@@ -2773,13 +2773,8 @@ for v1 — "belongs in a discussion first, not a surprise addition." This is
 that discussion, revisited on direct request: a parent wanted (1) event
 tags, (2) a way to say who's *in* a given story, on top of the existing
 genealogy (F14/F18), and (3) somewhere to paste a citation link for a photo
-or fact ("this came from aunt Jane's post"). A fourth idea — automated
-OSINT-style tooling to gather information about family members from public
-sources — was explicitly ruled out during that discussion: the family tree
-includes a real child by design (`STORYBOOK_CHILD`), consent from other
-living relatives is murky, and it flatly contradicts the "no runtime
-network dependencies" rule. Nothing here fetches anything; every link is
-pasted in by hand.
+or fact ("this came from aunt Jane's post"). Nothing here fetches
+anything; every link is pasted in by hand.
 
 To keep this inside "book, not blog" (no search, no discovery surface),
 tags/people/sources are **display metadata plus a filter on the existing
@@ -2843,9 +2838,6 @@ page, and not a general search feature.
 
 ### Explicitly not built
 
-- Automated OSINT/scraping/link-fetching of any kind.
-- Shareable no-password links for relatives — breaks the single
-  shared-password auth model, needs its own discussion.
 - A dedicated tag-browse/tag-cloud page — would cross from "metadata" into
   the excluded "search" territory.
 
