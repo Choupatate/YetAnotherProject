@@ -1,6 +1,7 @@
 """Tests for FEATURES.md F14: people (the cast of the book)."""
 
 import re
+from datetime import date
 
 from PIL import Image
 
@@ -215,6 +216,90 @@ def test_create_person_without_author_color_is_none(stories_dir):
     slug = people.create_person(people_dir, "Papa")
     p = people.get_person(people_dir, slug)
     assert p.author_color is None
+
+
+# --- Life dates: born/died/unions (FEATURES.md F27) ---------------------------
+
+
+def test_person_defaults_life_dates_empty(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Solo")
+    p = people.get_person(people_dir, slug)
+    assert p.born is None
+    assert p.died is None
+    assert p.unions == []
+
+
+def test_create_person_with_born_and_died(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Grandma", born=date(1940, 5, 3), died=date(2022, 11, 20)
+    )
+    p = people.get_person(people_dir, slug)
+    assert p.born == date(1940, 5, 3)
+    assert p.died == date(2022, 11, 20)
+
+
+def test_update_person_born_died_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Kept", born=date(1940, 5, 3))
+    people.update_person(people_dir, slug, "Kept", body="updated")
+    assert people.get_person(people_dir, slug).born == date(1940, 5, 3)
+
+
+def test_update_person_born_empty_string_clears(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Cleared", born=date(1940, 5, 3))
+    people.update_person(people_dir, slug, "Cleared", born="")
+    assert people.get_person(people_dir, slug).born is None
+
+
+def test_create_person_with_unions(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    slug = people.create_person(
+        people_dir, "Papa", partners=[claire],
+        unions=[{"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}],
+    )
+    p = people.get_person(people_dir, slug)
+    assert p.unions == [
+        {"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}
+    ]
+
+
+def test_update_person_unions_none_leaves_unchanged(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    union = [{"partner": "claire", "kind": "wedding", "since": date(2015, 6, 20), "until": None}]
+    slug = people.create_person(people_dir, "Kept", unions=union)
+    people.update_person(people_dir, slug, "Kept", body="updated")
+    assert people.get_person(people_dir, slug).unions == union
+
+
+def test_union_with_until_round_trips(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    union = [{
+        "partner": "claire", "kind": "wedding",
+        "since": date(2015, 6, 20), "until": date(2020, 1, 1),
+    }]
+    slug = people.create_person(people_dir, "Kept", unions=union)
+    assert people.get_person(people_dir, slug).unions == union
+
+
+def test_unions_tolerant_of_malformed_frontmatter(stories_dir):
+    people_dir = _people_dir(stories_dir)
+    person_dir = people_dir / "weird"
+    person_dir.mkdir(parents=True)
+    (person_dir / "index.md").write_text(
+        "---\nname: Weird\nborn: not-a-date\n"
+        "unions:\n  - partner: someone\n    kind: not-a-kind\n    since: 2015-06-20\n"
+        "  - partner: other\n    kind: wedding\n    since: not-a-date\n"
+        "  - kind: wedding\n    since: 2015-06-20\n"
+        "---\nbody",
+        encoding="utf-8",
+    )
+    p = people.get_person(people_dir, "weird")
+    assert p.born is None
+    assert p.unions == []
 
 
 def test_update_person_author_color_none_leaves_unchanged(stories_dir):

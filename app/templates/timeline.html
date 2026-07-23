@@ -12,7 +12,7 @@
   </a>
 </div>
 {% else %}
-{% if on_this_day %}
+{% if on_this_day or birthdays_today or union_anniversaries_today %}
 <div class="timeline__onthisday">
   {% for m in on_this_day %}
   {% set years_ago = today.year - m.date.year %}
@@ -20,6 +20,21 @@
   <p class="timeline__onthisday-item"{% if color %} style="--author-color: {{ color }}"{% endif %}>
     {{ years_ago }} year{{ 's' if years_ago != 1 else '' }} ago today &mdash;
     <a href="{{ url_for('pages.story', story_id=m.id) }}">{{ m.title }}</a>
+  </p>
+  {% endfor %}
+  {% for p in birthdays_today %}
+  {% set age = today.year - p.born.year %}
+  <p class="timeline__onthisday-item">
+    <a href="{{ url_for('pages.person_page', slug=p.slug) }}">{{ p.name }}</a> turns {{ age }} today
+  </p>
+  {% endfor %}
+  {% for u in union_anniversaries_today %}
+  {% set years = today.year - u.since.year %}
+  {% set kind_label = {"wedding": "wedding anniversary", "pacs": "PACS anniversary", "union": "anniversary"}[u.kind] %}
+  <p class="timeline__onthisday-item">
+    <a href="{{ url_for('pages.person_page', slug=u.person.slug) }}">{{ u.person.name }}</a> &amp;
+    <a href="{{ url_for('pages.person_page', slug=u.partner.slug) }}">{{ u.partner.name }}</a>
+    &mdash; {{ years }}-year {{ kind_label }} today
   </p>
   {% endfor %}
 </div>

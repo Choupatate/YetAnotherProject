@@ -211,6 +211,21 @@ paper-and-ink book as the illustrations, instead of clashing with it.
 Uploading a new photo always resets the tone back to the default, since a
 new photo needs a fresh one.
 
+### Life dates — birthdays, deaths, and unions
+
+A person can optionally record a birth date, a death date, and one or
+more unions (a wedding, a PACS, or a plain "together since" date) with an
+existing partner — each union can also record when it ended. These show
+up on the person's own page, and everywhere at once on `/almanac`
+(linked from `/people`): every recorded date, month by month, like a real
+family record book's calendar page, independent of year.
+
+The timeline also gets quiet banners for a living person's birthday and
+an ongoing union's anniversary, right next to the existing "X years ago
+today". Death anniversaries and ended unions are recorded but never
+banner-surfaced — they're something you can go look up, not something
+that shows up uninvited.
+
 ### The family tree
 
 Person pages can optionally record `parents` (up to two), `partners`

@@ -6,9 +6,9 @@ onto the `bp` object defined here rather than declaring its own
 blueprint, so every `url_for("api.xxx")` reference keeps working
 unchanged regardless of which file a route's code actually lives in.
 It's imported at the bottom of this file (after `bp` and the handful of
-helpers it needs — `_error`, `_people_dir`, `_validate_media_filename`,
-`_validate_slug_list`, `_validate_sources` — already exist) purely for
-that side effect: registering its routes.
+helpers it needs — `_error`, `_parse_date`, `_people_dir`,
+`_validate_media_filename`, `_validate_slug_list`, `_validate_sources` —
+already exist) purely for that side effect: registering its routes.
 """
 
 import zipfile

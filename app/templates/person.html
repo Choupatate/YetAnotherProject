@@ -34,6 +34,17 @@
       {%- endif -%}
     </p>
     <h1 class="story__title">{{ person.name }}</h1>
+    {% if person.born or person.died %}
+    <p class="person-life-dates">
+      {%- if person.born and person.died -%}
+      {{ person.born.strftime('%B %-d, %Y') }} &ndash; {{ person.died.strftime('%B %-d, %Y') }}
+      {%- elif person.born -%}
+      Born {{ person.born.strftime('%B %-d, %Y') }} &middot; {{ age_label(person.born, today) }}
+      {%- else -%}
+      Died {{ person.died.strftime('%B %-d, %Y') }}
+      {%- endif -%}
+    </p>
+    {% endif %}
     <hr class="story__flourish" aria-hidden="true">
   </header>
   {% if person.photo %}
@@ -49,6 +60,27 @@
     {{ family_group("Partner" if family.partners|length == 1 else "Partners", family.partners) }}
     {{ family_group("Children", family.children) }}
     {{ family_group("Siblings", family.siblings) }}
+  </section>
+  {% endif %}
+  {% if unions %}
+  <section class="person-family">
+    <div class="person-family__group">
+      <h2 class="person-family__heading">Unions</h2>
+      <ul class="person-family__list">
+        {% for u in unions %}
+        {% set kind_label = {"wedding": "Wedding", "pacs": "PACS", "union": "Union"}[u.kind] %}
+        <li class="person-family__item person-family__item--union">
+          <a class="person-family__link" href="{{ url_for('pages.person_page', slug=u.partner.slug) }}">
+            {{ macros.photo_thumb(u.partner, "person-family") }}
+            <span class="person-family__name">{{ u.partner.name }}</span>
+          </a>
+          <span class="person-family__union-note">
+            {{ kind_label }}, {{ u.since.year }}{% if u.until %}&ndash;{{ u.until.year }}{% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
   </section>
   {% endif %}
   {% if appears_in %}

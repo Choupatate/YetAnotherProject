@@ -7,9 +7,10 @@ import logging
 import os
 import re
 from dataclasses import dataclass
+from datetime import date as date_cls
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import frontmatter
 
@@ -41,6 +42,9 @@ class Person:
     gender: Optional[str] = None
     author_color: Optional[str] = None
     sources: list = None
+    born: Optional[date_cls] = None
+    died: Optional[date_cls] = None
+    unions: list = None
 
     def __post_init__(self):
         if self.parents is None:
@@ -51,6 +55,8 @@ class Person:
             self.friend_of = []
         if self.sources is None:
             self.sources = []
+        if self.unions is None:
+            self.unions = []
 
 
 def _parse_slug_list(value) -> list:
@@ -88,6 +94,48 @@ def _parse_author_color(value) -> Optional[str]:
     the byline/legend just render neutral for that person, same
     graceful-degradation F1 already used for an unmatched author name."""
     return value if is_valid_author_color(value) else None
+
+
+_UNION_KINDS = ("wedding", "pacs", "union")
+
+
+def _parse_date(value) -> Optional[date_cls]:
+    """Tolerantly parse an ISO date string frontmatter field (`born`/
+    `died`, and a union's `since`/`until`). Malformed values silently drop
+    to None (files outlive edits), same convention as storage.py's
+    `_parse_unlock`."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return date_cls.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _parse_unions(value) -> list:
+    """Tolerant parsing of a frontmatter `unions` field (FEATURES.md F27):
+    a list of `{"partner", "kind", "since", "until"}` dicts recording when
+    a partnership began (wedding/PACS/plain union) and, optionally, ended.
+    Malformed entries (unknown/missing partner, bad kind, unparseable
+    `since`) are dropped rather than raised, same as `_parse_sources`."""
+    if not isinstance(value, list):
+        return []
+    result = []
+    for v in value:
+        if not isinstance(v, dict):
+            continue
+        partner = v.get("partner")
+        if not isinstance(partner, str) or not partner:
+            continue
+        kind = v.get("kind")
+        if kind not in _UNION_KINDS:
+            continue
+        since = _parse_date(v.get("since"))
+        if since is None:
+            continue
+        until = _parse_date(v.get("until"))
+        result.append({"partner": partner, "kind": kind, "since": since, "until": until})
+    return result
 
 
 def _parse_sources(value) -> list:
@@ -146,6 +194,9 @@ def _parse_post(slug: str, post: frontmatter.Post, include_body: bool) -> Option
         gender=gender,
         author_color=_parse_author_color(metadata.get("author_color")),
         sources=_parse_sources(metadata.get("sources")),
+        born=_parse_date(metadata.get("born")),
+        died=_parse_date(metadata.get("died")),
+        unions=_parse_unions(metadata.get("unions")),
     )
 
 
@@ -195,12 +246,20 @@ def get_person(people_dir, slug: str) -> Optional[Person]:
         return None
 
 
+def _serialize_union(u: dict) -> dict:
+    entry = {"partner": u["partner"], "kind": u["kind"], "since": u["since"].isoformat()}
+    if u.get("until"):
+        entry["until"] = u["until"].isoformat()
+    return entry
+
+
 def _write_index(people_dir, slug: str, name: str, created: datetime, updated: datetime,
                   relation: Optional[str], photo: Optional[str], body: str,
                   parents: Optional[list] = None, partners: Optional[list] = None,
                   friend_of: Optional[list] = None, gender: Optional[str] = None,
                   photo_sepia: Optional[int] = None, author_color: Optional[str] = None,
-                  sources: Optional[list] = None) -> None:
+                  sources: Optional[list] = None, born: Optional[date_cls] = None,
+                  died: Optional[date_cls] = None, unions: Optional[list] = None) -> None:
     post = frontmatter.Post(body)
     post["name"] = name
     post["created"] = created.isoformat()
@@ -223,6 +282,12 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
         post["author_color"] = author_color
     if sources:
         post["sources"] = sources
+    if born:
+        post["born"] = born.isoformat()
+    if died:
+        post["died"] = died.isoformat()
+    if unions:
+        post["unions"] = [_serialize_union(u) for u in unions]
     index_path = Path(people_dir) / slug / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -232,7 +297,9 @@ def _write_index(people_dir, slug: str, name: str, created: datetime, updated: d
 def create_person(people_dir, name: str, relation: Optional[str] = None, body: str = "",
                    parents: Optional[list] = None, partners: Optional[list] = None,
                    friend_of: Optional[list] = None, gender: Optional[str] = None,
-                   author_color: Optional[str] = None, sources: Optional[list] = None) -> str:
+                   author_color: Optional[str] = None, sources: Optional[list] = None,
+                   born: Optional[date_cls] = None, died: Optional[date_cls] = None,
+                   unions: Optional[list] = None) -> str:
     """Create a new person folder, returning its slug (the folder name).
 
     On slug collision, append -2, -3, ... (same rule as storage.create_story).
@@ -251,7 +318,8 @@ def create_person(people_dir, name: str, relation: Optional[str] = None, body: s
     now = datetime.now()
     _write_index(people_dir, slug, name, now, now, relation, None, body,
                  parents=parents, partners=partners, friend_of=friend_of, gender=gender,
-                 author_color=author_color, sources=sources)
+                 author_color=author_color, sources=sources, born=born, died=died,
+                 unions=unions)
     return slug
 
 
@@ -260,14 +328,18 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
                    parents: Optional[list] = None, partners: Optional[list] = None,
                    friend_of: Optional[list] = None, gender: Optional[str] = None,
                    photo_sepia: Optional[int] = None, author_color: Optional[str] = None,
-                   sources: Optional[list] = None) -> None:
+                   sources: Optional[list] = None,
+                   born: Optional[Union[date_cls, str]] = None,
+                   died: Optional[Union[date_cls, str]] = None,
+                   unions: Optional[list] = None) -> None:
     """Update an existing person's content in place. The slug never changes.
 
     `photo` of None means "leave unchanged"; an empty string clears it.
-    `parents`/`partners`/`friend_of`/`gender`/`author_color`/`sources` of
-    None means "leave unchanged" — pass an empty string/list to clear them.
-    `photo_sepia` of None means "leave unchanged" — pass an explicit int
-    (including 0) to set it.
+    `parents`/`partners`/`friend_of`/`gender`/`author_color`/`sources`/
+    `unions` of None means "leave unchanged" — pass an empty string/list to
+    clear them. `photo_sepia` of None means "leave unchanged" — pass an
+    explicit int (including 0) to set it. `born`/`died` of None means
+    "leave unchanged"; an empty string clears it; a `date` sets it.
     """
     if not storage.is_valid_story_id(slug):
         raise storage.InvalidStoryId(slug)
@@ -291,6 +363,17 @@ def update_person(people_dir, slug: str, name: str, relation: Optional[str] = No
         author_color = existing.author_color
     if sources is None:
         sources = existing.sources
+    if born is None:
+        born = existing.born
+    elif born == "":
+        born = None
+    if died is None:
+        died = existing.died
+    elif died == "":
+        died = None
+    if unions is None:
+        unions = existing.unions
     _write_index(people_dir, slug, name, created, datetime.now(), relation, photo, body,
                  parents=parents, partners=partners, friend_of=friend_of, gender=gender,
-                 photo_sepia=photo_sepia, author_color=author_color, sources=sources)
+                 photo_sepia=photo_sepia, author_color=author_color, sources=sources,
+                 born=born, died=died, unions=unions)

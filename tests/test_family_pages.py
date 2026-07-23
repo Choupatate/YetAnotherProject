@@ -80,6 +80,55 @@ def test_person_page_shows_sources(auth_client, stories_dir):
     assert 'href="https://example.com/obituary"' in html
 
 
+# --- Life dates (FEATURES.md F27) -----------------------------------------
+
+
+def test_person_page_shows_born_and_died(auth_client, stories_dir):
+    from datetime import date
+
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(
+        people_dir, "Grandma", born=date(1940, 5, 3), died=date(2022, 11, 20)
+    )
+    resp = auth_client.get(f"/people/{slug}")
+    html = resp.data.decode()
+    assert "May 3, 1940" in html
+    assert "November 20, 2022" in html
+
+
+def test_person_page_shows_age_when_only_born_set(auth_client, stories_dir):
+    from datetime import date
+
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Kid", born=date(2020, 1, 1))
+    resp = auth_client.get(f"/people/{slug}")
+    html = resp.data.decode()
+    assert "Born January 1, 2020" in html
+    assert "old" in html
+
+
+def test_person_page_shows_union(auth_client, stories_dir):
+    from datetime import date
+
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    slug = people.create_person(
+        people_dir, "Papa", partners=[claire],
+        unions=[{"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}],
+    )
+    resp = auth_client.get(f"/people/{slug}")
+    html = resp.data.decode()
+    assert "Unions" in html
+    assert "Wedding, 2015" in html
+    assert f'href="/people/{claire}"' in html
+
+
+def test_person_page_no_life_dates_section_when_unset(auth_client, stories_dir):
+    slug = people.create_person(_people_dir(stories_dir), "Solo")
+    resp = auth_client.get(f"/people/{slug}")
+    assert b"person-life-dates" not in resp.data
+
+
 def test_person_page_shows_partner(auth_client, stories_dir):
     people_dir = _people_dir(stories_dir)
     papa = people.create_person(people_dir, "Papa")

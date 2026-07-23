@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Almanac — {{ app_title }}{% endblock %}
+{% block body_class %}page-almanac{% endblock %}
+{% block content %}
+<div class="almanac">
+  <p class="almanac__back"><a href="{{ url_for('pages.people_page') }}">&lsaquo; People</a></p>
+  <h1 class="almanac__title">Almanac</h1>
+  <hr class="story__flourish almanac__flourish" aria-hidden="true">
+  {% if not month_groups %}
+  <p class="almanac__empty">
+    Add a birth, death, wedding, or PACS date to someone in the person
+    editor, and it'll take its place here — a family's dates, month by
+    month, the way a real record book keeps them.
+  </p>
+  {% else %}
+  {% for group in month_groups %}
+  <section class="almanac__month">
+    <h2 class="almanac__month-heading">{{ group.name }}</h2>
+    <ul class="almanac__list">
+      {% for entry in group.entries %}
+      <li class="almanac__item">
+        <span class="almanac__day">{{ entry.date.day }}</span>
+        {% if entry.type == "born" %}
+        <span class="almanac__desc">
+          <a href="{{ url_for('pages.person_page', slug=entry.person.slug) }}">{{ entry.person.name }}</a>
+          born, {{ entry.date.year }}
+        </span>
+        {% elif entry.type == "died" %}
+        <span class="almanac__desc">
+          <a href="{{ url_for('pages.person_page', slug=entry.person.slug) }}">{{ entry.person.name }}</a>
+          died, {{ entry.date.year }}
+        </span>
+        {% else %}
+        {% set kind_label = {"wedding": "wedding", "pacs": "PACS", "union": "union"}[entry.kind] %}
+        <span class="almanac__desc">
+          <a href="{{ url_for('pages.person_page', slug=entry.person.slug) }}">{{ entry.person.name }}</a>
+          &amp;
+          <a href="{{ url_for('pages.person_page', slug=entry.partner.slug) }}">{{ entry.partner.name }}</a>
+          &mdash; {{ kind_label }}, {{ entry.date.year }}{% if entry.until %}&ndash;{{ entry.until.year }}{% endif %}
+        </span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

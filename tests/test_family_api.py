@@ -1,6 +1,8 @@
 """Tests for FEATURES.md F18: the people API's parents/partners/friend_of/
 gender fields, partner symmetry, cycle rejection, and GET /api/tree."""
 
+from datetime import date
+
 from app import people
 
 
@@ -227,6 +229,152 @@ def test_hand_edited_single_sided_partner_link_reads_as_symmetric(stories_dir, a
     resp = auth_client.get("/api/tree")
     people_by_id = {p["id"]: p for p in resp.get_json()["people"]}
     assert "b" in people_by_id["a"]["rels"]["partners"]
+
+
+# --- Life dates: born/died/unions (FEATURES.md F27) ---------------------------
+
+
+def test_create_person_with_born_and_died(auth_client, stories_dir):
+    resp = auth_client.post(
+        "/api/people", json={"name": "Grandma", "born": "1940-05-03", "died": "2022-11-20"}
+    )
+    assert resp.status_code == 200
+    p = people.get_person(_people_dir(stories_dir), "grandma")
+    assert p.born == date(1940, 5, 3)
+    assert p.died == date(2022, 11, 20)
+
+
+def test_create_person_invalid_born_returns_400(auth_client):
+    resp = auth_client.post("/api/people", json={"name": "Grandma", "born": "not-a-date"})
+    assert resp.status_code == 400
+
+
+def test_create_person_died_before_born_returns_400(auth_client):
+    resp = auth_client.post(
+        "/api/people", json={"name": "Grandma", "born": "2000-01-01", "died": "1999-01-01"}
+    )
+    assert resp.status_code == 400
+
+
+def test_update_person_born_empty_string_clears(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone", born=date(1940, 5, 3))
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone", "born": ""})
+    assert resp.status_code == 200
+    assert people.get_person(people_dir, slug).born is None
+
+
+def test_update_person_born_died_omitted_leaves_unchanged(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    slug = people.create_person(people_dir, "Someone", born=date(1940, 5, 3))
+    resp = auth_client.put(f"/api/people/{slug}", json={"name": "Someone"})
+    assert resp.status_code == 200
+    assert people.get_person(people_dir, slug).born == date(1940, 5, 3)
+
+
+def test_create_person_with_union_writes_symmetric_record(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    resp = auth_client.post(
+        "/api/people",
+        json={
+            "name": "Papa", "partners": [claire],
+            "unions": [{"partner": claire, "kind": "wedding", "since": "2015-06-20"}],
+        },
+    )
+    assert resp.status_code == 200
+    papa_slug = resp.get_json()["id"]
+    papa = people.get_person(people_dir, papa_slug)
+    assert papa.unions == [
+        {"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}
+    ]
+    claire_after = people.get_person(people_dir, claire)
+    assert claire_after.unions == [
+        {"partner": papa_slug, "kind": "wedding", "since": date(2015, 6, 20), "until": None}
+    ]
+
+
+def test_union_referencing_non_partner_is_dropped(auth_client, stories_dir):
+    """A union entry whose partner isn't in this person's own `partners`
+    list is silently dropped (FEATURES.md F27), same tolerant treatment as
+    tags/sources — not a 400, since it isn't a security boundary."""
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    resp = auth_client.post(
+        "/api/people",
+        json={
+            "name": "Papa",
+            "unions": [{"partner": claire, "kind": "wedding", "since": "2015-06-20"}],
+        },
+    )
+    assert resp.status_code == 200
+    papa = people.get_person(people_dir, resp.get_json()["id"])
+    assert papa.unions == []
+
+
+def test_union_unknown_kind_is_dropped(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    resp = auth_client.post(
+        "/api/people",
+        json={
+            "name": "Papa", "partners": [claire],
+            "unions": [{"partner": claire, "kind": "elopement", "since": "2015-06-20"}],
+        },
+    )
+    assert resp.status_code == 200
+    papa = people.get_person(people_dir, resp.get_json()["id"])
+    assert papa.unions == []
+
+
+def test_union_until_before_since_is_dropped(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    resp = auth_client.post(
+        "/api/people",
+        json={
+            "name": "Papa", "partners": [claire],
+            "unions": [{
+                "partner": claire, "kind": "wedding",
+                "since": "2015-06-20", "until": "2010-01-01",
+            }],
+        },
+    )
+    assert resp.status_code == 200
+    papa = people.get_person(people_dir, resp.get_json()["id"])
+    assert papa.unions == []
+
+
+def test_update_person_removing_partner_drops_union_and_reverse_link(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    papa = people.create_person(
+        people_dir, "Papa", partners=[claire],
+        unions=[{"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}],
+    )
+    people.update_person(
+        people_dir, claire, "Claire", partners=[papa],
+        unions=[{"partner": papa, "kind": "wedding", "since": date(2015, 6, 20), "until": None}],
+    )
+
+    resp = auth_client.put(f"/api/people/{papa}", json={"name": "Papa", "partners": []})
+    assert resp.status_code == 200
+    assert people.get_person(people_dir, papa).unions == []
+    assert people.get_person(people_dir, claire).unions == []
+
+
+def test_update_person_unions_omitted_leaves_unchanged(auth_client, stories_dir):
+    people_dir = _people_dir(stories_dir)
+    claire = people.create_person(people_dir, "Claire")
+    papa = people.create_person(
+        people_dir, "Papa", partners=[claire],
+        unions=[{"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}],
+    )
+    resp = auth_client.put(f"/api/people/{papa}", json={"name": "Papa"})
+    assert resp.status_code == 200
+    assert people.get_person(people_dir, papa).unions == [
+        {"partner": claire, "kind": "wedding", "since": date(2015, 6, 20), "until": None}
+    ]
 
 
 # --- GET /api/tree ------------------------------------------------------------

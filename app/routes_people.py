@@ -1,12 +1,16 @@
 """People/genealogy page routes: the cast-of-the-book pages (FEATURES.md
-F14) and the family tree (F18). Registers onto the same `pages` blueprint
-`routes_pages.py` defines — see that module's docstring/bottom-of-file
-import for why these live in a separate file without a separate blueprint.
+F14), the family tree (F18), and the life-dates almanac (F27). Registers
+onto the same `pages` blueprint `routes_pages.py` defines — see that
+module's docstring/bottom-of-file import for why these live in a separate
+file without a separate blueprint.
 """
+
+import calendar
+from datetime import date
 
 from flask import abort, current_app, render_template
 
-from . import kinship, people, storage
+from . import kinship, life_events, people, storage
 from .auth import login_required
 from .rendering import render_markdown
 from .routes_pages import (
@@ -33,14 +37,37 @@ def _has_family_links(graph):
     return any(graph.parents.get(slug) or graph.partners.get(slug) for slug in graph.nodes)
 
 
+def _has_life_dates(all_people):
+    """True when at least one person has a born/died date or a recorded
+    union — the condition for showing the "Almanac" link on /people
+    (FEATURES.md F27)."""
+    return any(p.born or p.died or p.unions for p in all_people)
+
+
 @bp.route("/people")
 @login_required
 def people_page():
     all_people = people.list_people(_people_dir())
     graph = kinship.build_graph(all_people)
     return render_template(
-        "people.html", people=all_people, show_tree_link=_has_family_links(graph)
+        "people.html", people=all_people, show_tree_link=_has_family_links(graph),
+        show_almanac_link=_has_life_dates(all_people),
     )
+
+
+@bp.route("/almanac")
+@login_required
+def almanac():
+    all_people = people.list_people(_people_dir())
+    entries = life_events.almanac_entries(all_people)
+    months = {}
+    for entry in entries:
+        months.setdefault(entry["date"].month, []).append(entry)
+    month_groups = [
+        {"name": calendar.month_name[month], "entries": month_entries}
+        for month, month_entries in sorted(months.items())
+    ]
+    return render_template("almanac.html", month_groups=month_groups)
 
 
 @bp.route("/people/<slug>")
@@ -70,13 +97,21 @@ def person_page(slug):
     }
     family = {key: [ref for ref in refs if ref] for key, refs in family.items()}
 
+    unions = []
+    for u in p.unions:
+        partner_ref = _person_ref(people_by_slug, u["partner"])
+        if partner_ref:
+            unions.append({
+                "partner": partner_ref, "kind": u["kind"], "since": u["since"], "until": u["until"],
+            })
+
     stories_dir = current_app.config["STORIES_DIR"]
     appears_in = storage.readable_stories(storage.stories_featuring(stories_dir, slug))
 
     return render_template(
         "person.html", person=p, body_html=body_html,
         kinship_line=kinship_line, friend_of_line=friend_of_line, family=family,
-        appears_in=appears_in,
+        appears_in=appears_in, unions=unions, today=date.today(),
     )
 
 

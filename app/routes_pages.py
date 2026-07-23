@@ -30,7 +30,7 @@ from flask import (
     url_for,
 )
 
-from . import epub, people, prompts, storage
+from . import epub, life_events, people, prompts, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -125,7 +125,8 @@ def timeline():
     for story in stories:
         years.setdefault(story.date.year, []).append(story)
     authors, author_colors = _authors_and_colors()
-    people_by_slug = {p.slug: p for p in people.list_people(_people_dir())}
+    all_people = people.list_people(_people_dir())
+    people_by_slug = {p.slug: p for p in all_people}
     return render_template(
         "timeline.html",
         years=sorted(years.items()),
@@ -137,6 +138,8 @@ def timeline():
         today=today,
         birthdate=current_app.config.get("BIRTHDATE"),
         on_this_day=storage.on_this_day(all_stories, today),
+        birthdays_today=life_events.birthdays_today(all_people, today),
+        union_anniversaries_today=life_events.union_anniversaries_today(all_people, today),
         people_by_slug=people_by_slug,
     )
 
