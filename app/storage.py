@@ -295,6 +295,34 @@ def stories_with_milestones(stories: list[Story]) -> list[Story]:
     return [s for s in readable_stories(stories) if s.milestone]
 
 
+def growth_photos(stories: list[Story], birthdate: date_cls,
+                   today: Optional[date_cls] = None) -> list[dict]:
+    """For every birthday from birth to today (FEATURES.md F29), the
+    readable story with a cover photo whose date lands closest to that
+    birthday — "watch them grow" in one glance. Empty if no readable story
+    has a cover yet. Each entry is `{"age", "birthday", "story"}`."""
+    if today is None:
+        today = date_cls.today()
+    candidates = [s for s in readable_stories(stories, today) if s.cover]
+    if not candidates:
+        return []
+
+    result = []
+    age = 0
+    while True:
+        try:
+            birthday = birthdate.replace(year=birthdate.year + age)
+        except ValueError:
+            # Feb 29 birthdate, non-leap year -> Mar 1, same makeup rule on_this_day uses.
+            birthday = date_cls(birthdate.year + age, 3, 1)
+        if birthday > today:
+            break
+        nearest = min(candidates, key=lambda s: abs((s.date - birthday).days))
+        result.append({"age": age, "birthday": birthday, "story": nearest})
+        age += 1
+    return result
+
+
 def is_sealed(story: Story, today: Optional[date_cls] = None) -> bool:
     """True while a story's unlock date is still in the future."""
     if today is None:

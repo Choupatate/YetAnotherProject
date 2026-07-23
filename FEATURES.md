@@ -3316,3 +3316,53 @@ milestone from the real editor, confirmed the pill on both the story
 page and the timeline, and confirmed it appeared correctly on `/firsts`.
 
 `pytest` (754: 736 existing + 18 new) and `ruff check .` green.
+
+## F29. Growing up — the photo nearest each birthday
+
+Third of the batch, following F27 (life dates) and F28 (firsts): "watch
+them grow in one glance" — one photo per year of the child's life, the
+one closest to their actual birthday, so flipping through the page reads
+like a growth chart.
+
+### Design
+
+Pure derived view — no new data, nothing to write. It reuses whichever
+story cover photos already exist and the same `STORYBOOK_BIRTHDATE`
+config F3's "age at each memory" already depends on (not the newer
+per-`Person` `born` field from F27 — `BIRTHDATE` is specifically the
+book's subject, already wired everywhere age is shown, so this piggybacks
+on that rather than introducing a second "whose birthday is this" source
+of truth).
+
+- New pure `storage.growth_photos(stories, birthdate, today=None)`: for
+  every birthday from birth through today, picks the `readable_stories`
+  cover photo whose date is closest to that birthday (globally nearest,
+  not "the best in that year" — with a small/early photo collection,
+  the same photo can legitimately be the nearest match for more than one
+  birthday, and that's shown as-is rather than hidden). Reuses F5's Feb
+  29 -> Mar 1 makeup rule for a leap-day birthdate. Empty list (not an
+  error) when no readable story has a cover yet.
+- `/growth` (`routes_pages.py`, `growth.html`): a responsive photo grid,
+  oldest first, each card labeled "Newborn" (age 0) or "Turning {N}",
+  captioned with the photo's actual date and story title, linking to the
+  story. Three states: no `STORYBOOK_BIRTHDATE` configured (a short
+  explanation of the env var, not a dead page), configured but no cover
+  photos yet (a gentle nudge), and the populated grid.
+- Linked from the timeline's footer row as "Growing up" — same
+  conditional-link pattern as Firsts/Almanac, shown only once there's
+  both a configured birthdate *and* at least one candidate photo.
+
+### Tests
+
+`tests/test_storage.py` (empty-when-no-covers, one entry per birthday,
+nearest-overall selection, stops before future birthdays, Feb 29 makeup,
+excludes covers-less/draft/sealed stories) and new `tests/test_growth.py`
+(auth required, both empty states, a real listing with real uploaded
+covers via the `dated_app`/`dated_auth_client` fixtures test_age.py
+already established for `BIRTHDATE`-dependent pages, the conditional
+timeline link, draft exclusion). Verified live with Playwright: created
+two stories with real uploaded cover photos a birthday apart, confirmed
+the "Growing up" link appeared only once a photo existed, and confirmed
+the grid rendered both "Newborn" and "Turning 1" cards correctly.
+
+`pytest` (767: 754 existing + 13 new) and `ruff check .` green.

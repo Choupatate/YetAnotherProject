@@ -190,6 +190,14 @@ place on `/firsts`: every milestone, oldest first, each linking back to
 its story. There's no separate thing to write — it's the same story you
 already wrote, just labeled.
 
+### Growing up — a photo per birthday
+
+When `STORYBOOK_BIRTHDATE` is set, `/growth` (linked from the timeline as
+"Growing up", once at least one story has a cover photo) shows one photo
+per year of the child's life — whichever story cover lands closest to
+that birthday — in a simple grid, oldest first. Nothing new to write:
+it's built entirely from cover photos you've already added.
+
 ### People — the cast of the book
 
 "People" in the nav (always visible, whether or not you've added anyone

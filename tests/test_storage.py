@@ -222,6 +222,75 @@ def test_stories_with_milestones_sorted_chronologically(stories_dir):
     assert [s.title for s in result] == ["First first", "Second first"]
 
 
+# --- growth_photos: the birthday photo wall (FEATURES.md F29) ----------------
+
+
+def _story_with_cover(id_, story_date, cover="photo-001.jpg"):
+    return storage.Story(
+        id=id_, title=id_, date=story_date, created=None, updated=None, cover=cover
+    )
+
+
+def test_growth_photos_empty_when_no_covers():
+    result = storage.growth_photos([], date(2020, 6, 18), today=date(2023, 1, 1))
+    assert result == []
+
+
+def test_growth_photos_one_entry_per_birthday():
+    birthdate = date(2020, 6, 18)
+    stories = [
+        _story_with_cover("newborn", date(2020, 6, 20)),
+        _story_with_cover("age1", date(2021, 6, 15)),
+    ]
+    result = storage.growth_photos(stories, birthdate, today=date(2022, 1, 1))
+    assert [e["age"] for e in result] == [0, 1]
+    assert result[0]["story"].id == "newborn"
+    assert result[1]["story"].id == "age1"
+
+
+def test_growth_photos_picks_nearest_photo_overall():
+    birthdate = date(2020, 6, 18)
+    stories = [
+        _story_with_cover("far", date(2020, 1, 1)),
+        _story_with_cover("near", date(2020, 6, 19)),
+    ]
+    result = storage.growth_photos(stories, birthdate, today=date(2020, 12, 1))
+    assert result[0]["story"].id == "near"
+
+
+def test_growth_photos_stops_before_future_birthdays():
+    birthdate = date(2020, 6, 18)
+    stories = [_story_with_cover("only", date(2020, 6, 20))]
+    result = storage.growth_photos(stories, birthdate, today=date(2022, 1, 1))
+    assert [e["age"] for e in result] == [0, 1]
+
+
+def test_growth_photos_feb29_birthdate_uses_mar1_makeup():
+    birthdate = date(2020, 2, 29)
+    stories = [_story_with_cover("only", date(2021, 3, 1))]
+    result = storage.growth_photos(stories, birthdate, today=date(2021, 3, 1))
+    assert [e["birthday"] for e in result] == [date(2020, 2, 29), date(2021, 3, 1)]
+
+
+def test_growth_photos_excludes_stories_without_covers():
+    birthdate = date(2020, 6, 18)
+    stories = [
+        storage.Story(id="no-cover", title="x", date=date(2020, 6, 18), created=None, updated=None),
+    ]
+    result = storage.growth_photos(stories, birthdate, today=date(2020, 7, 1))
+    assert result == []
+
+
+def test_growth_photos_excludes_drafts_and_sealed():
+    birthdate = date(2020, 6, 18)
+    draft = storage.Story(
+        id="draft", title="x", date=date(2020, 6, 18), created=None, updated=None,
+        cover="c.jpg", draft=True,
+    )
+    result = storage.growth_photos([draft], birthdate, today=date(2020, 7, 1))
+    assert result == []
+
+
 def test_path_safety_story_id_regex():
     assert storage.is_valid_story_id("2026-07-14-first-bike-ride")
     assert not storage.is_valid_story_id("../etc/passwd")
