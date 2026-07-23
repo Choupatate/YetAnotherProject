@@ -3402,3 +3402,49 @@ timestamp and confirmed the exact quiet italic banner text and link
 rendered on the real timeline.
 
 `pytest` (774: 767 existing + 7 new) and `ruff check .` green.
+
+## F31. Year chapters in the book view
+
+The fifth and last of the proposed batch (F27-F31), independent of the
+other four: `/book` reads as one long scroll today; a printed/PDF copy
+should feel like a real book instead, with a chapter divider — the year,
+and the child's age — each time the calendar turns, not just a
+continuous run of stories.
+
+### Design
+
+- `routes_pages.py`'s `book()` now tracks the previous entry's year while
+  building the entries list and marks the first entry of each new year
+  with `chapter_year` (and `chapter_age`, `dates.age_label(birthdate,
+  story.date)` when `STORYBOOK_BIRTHDATE` is configured — reusing F3's
+  existing age computation rather than inventing a second one). No new
+  storage or data model — purely a grouping computed at render time from
+  data that already exists.
+- `book.html`: a centered `.book__year-chapter` divider (year, age
+  subtitle, the same flourish rule used on every other page header)
+  inserted before an entry whenever `chapter_year` is set. Screen-only:
+  reads as a section break scrolling down the page.
+- Print/PDF (the reason this exists): `.book__year-chapter` forces a page
+  break before it (`break-before: page`), same mechanism the existing
+  per-story `.book__story { break-before: page; }` rule already uses.
+  The adjacent-sibling rule `.book__year-chapter + .book__story {
+  break-before: avoid; }` cancels that first story's own break so it
+  joins the chapter-title page instead of leaving a second, nearly blank
+  page — the chapter divider *is* that page's opening, not a page unto
+  itself. An instant right after a chapter divider needs no such override
+  since instants never force their own break to begin with (F13:
+  "interludes, not chapters").
+
+### Tests
+
+`tests/test_book.py`: one chapter per year (not per story), a
+single-year book still gets its one chapter, an empty book shows no
+chapter markup, the age subtitle appears only when `STORYBOOK_BIRTHDATE`
+is configured. Verified live with Playwright across four stories
+spanning three years: confirmed three chapter dividers in the right
+order on screen, and — switching to print media emulation and reading
+each element's computed `break-before` — confirmed every chapter forces
+a page break while the story immediately after it does not, exactly the
+intended pagination.
+
+`pytest` (779: 774 existing + 5 new) and `ruff check .` green.

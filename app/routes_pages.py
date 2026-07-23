@@ -30,7 +30,7 @@ from flask import (
     url_for,
 )
 
-from . import epub, life_events, people, prompts, storage
+from . import dates, epub, life_events, people, prompts, storage
 from .auth import login_required
 from .rendering import render_markdown
 
@@ -217,22 +217,32 @@ def manifest():
 @bp.route("/book")
 @login_required
 def book():
-    """The whole book on one page, for reading and printing (FEATURES.md F10)."""
+    """The whole book on one page, for reading and printing (FEATURES.md F10).
+    A year-chapter title page (FEATURES.md F31) precedes the first entry of
+    each calendar year, one per year rather than one per story."""
     stories_dir = current_app.config["STORIES_DIR"]
     readable = storage.readable_stories(storage.list_stories(stories_dir))
     authors, author_colors = _authors_and_colors()
+    birthdate = current_app.config.get("BIRTHDATE")
     entries = []
+    prev_year = None
     for s in readable:
         full = storage.get_story(stories_dir, s.id)
         body_html = render_markdown(full.body, f"/story/{full.id}/media")
         author_color = _author_color(authors, author_colors, full.author)
-        entries.append({"story": full, "body_html": body_html, "author_color": author_color})
+        year = full.date.year
+        entries.append({
+            "story": full, "body_html": body_html, "author_color": author_color,
+            "chapter_year": year if year != prev_year else None,
+            "chapter_age": dates.age_label(birthdate, full.date) if birthdate else None,
+        })
+        prev_year = year
     people_by_slug = {p.slug: p for p in people.list_people(_people_dir())}
     return render_template(
         "book.html",
         entries=entries,
         authors=authors,
-        birthdate=current_app.config.get("BIRTHDATE"),
+        birthdate=birthdate,
         min_year=readable[0].date.year if readable else None,
         max_year=readable[-1].date.year if readable else None,
         people_by_slug=people_by_slug,
