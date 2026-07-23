@@ -2936,3 +2936,47 @@ every icon renders with a clean edge, no white halo, in both themes;
 `pytest` (687) and `ruff check .` still green — no test asserted on a
 button's exact inner HTML, only on attributes of the opening tag, so
 none needed updating.
+
+## F23. Hover/press feedback across the interface
+
+Audited the whole interface for interaction feedback and found the gap
+was total: `.btn` (the single most-reused class in the app) had no
+`:hover` or `:active` state at all, nor did the timeline row links, the
+family/person-picker links, or the shared "‹ Back" links used on a dozen
+pages. Every click landed with zero visual acknowledgment.
+
+- `.btn` (and everything built on it — `.btn--primary`, toggle chips, the
+  people-picker rows, since they all carry the `.btn` class): hover shifts
+  the border to the accent color; `.btn--primary` additionally brightens
+  slightly. Press (`:active`) does a quick `scale(0.96)` — a tactile
+  "pressing a real button" feel rather than a card-lift/shadow effect,
+  kept in the "boring, minimal" spirit rather than borrowing a modern
+  SaaS elevation pattern. Gated behind `@media (prefers-reduced-motion:
+  no-preference)` — only the transform is gated; the border-color fade
+  is not real "motion" and stays for everyone.
+- `.people-picker__row` (F21) additionally gets a background tint on
+  hover — a border-color change alone is too subtle on a full-width list
+  row — and opts out of the press-scale (`transform: none`), since
+  scaling a row edge-to-edge inside a bordered list looks like a glitch,
+  not a button press.
+- `.book__print-btn` isn't built on `.btn` (it's a `position: fixed`
+  pill), so it got the same border-color hover / press-scale treatment
+  directly.
+- `.person-family__link` (F18's family-section links) gets the same
+  border-color hover.
+- `.timeline__link`: the whole row has no spare horizontal padding (an
+  absolutely-positioned dot/envelope/thumb share the space), so a
+  background-tint hover risked clipping oddly against them untested;
+  underlining the title on hover instead is layout-safe and still reads
+  clearly as "this is a link."
+- Every "‹ Back" link across the app shares a single-class wrapper
+  convention (`.people__back`, `.import__back`, `.admin__back`, etc.) —
+  one shared selector (`[class$="__back"] a`, plus `.story__back` which
+  is applied directly to its `<a>`) gives all of them an underline-on-
+  hover without touching a single template.
+
+Verified with Playwright across the nav, editor (Save/Draft/Archive/
+people-picker), timeline, and `/book`'s print button, in both light and
+dark themes — clean visual feedback everywhere, no clipping or layout
+shift. `pytest` (687) and `ruff check .` green (CSS-only change, no
+template or Python edits).

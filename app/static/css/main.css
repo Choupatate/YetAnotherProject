@@ -195,6 +195,19 @@ a {
   color: var(--color-accent);
 }
 
+/* Every "‹ Back" link across the app shares this single-class wrapper
+   convention (e.g. .people__back, .import__back, .admin__back) — one rule
+   covers all of them without touching each template. */
+[class$="__back"] a,
+.story__back {
+  transition: opacity 0.15s ease;
+}
+
+[class$="__back"] a:hover,
+.story__back:hover {
+  text-decoration: underline;
+}
+
 mark {
   background: var(--color-highlight-bg);
   color: var(--color-text);
@@ -287,6 +300,25 @@ mark {
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
+  transition: border-color 0.15s ease;
+}
+
+.btn:hover {
+  border-color: var(--color-accent);
+}
+
+.btn--primary:hover {
+  filter: brightness(1.08);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn {
+    transition: border-color 0.15s ease, transform 0.08s ease;
+  }
+
+  .btn:active {
+    transform: scale(0.96);
+  }
 }
 
 .btn-icon {
@@ -640,6 +672,11 @@ mark {
   padding: 0.6rem 0;
   text-decoration: none;
   color: inherit;
+}
+
+.timeline__link:hover .timeline__title,
+.timeline__link:hover .timeline__instant-line {
+  text-decoration: underline;
 }
 
 .timeline__dot {
@@ -1473,6 +1510,11 @@ img.people__portrait {
   color: var(--color-text);
   text-decoration: none;
   background: var(--color-bg-raised);
+  transition: border-color 0.15s ease;
+}
+
+.person-family__link:hover {
+  border-color: var(--color-accent);
 }
 
 .person-family__thumb {
@@ -1784,6 +1826,21 @@ img.person-family__thumb {
   font-size: 0.875rem;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s ease;
+}
+
+.book__print-btn:hover {
+  border-color: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .book__print-btn {
+    transition: border-color 0.15s ease, transform 0.08s ease;
+  }
+
+  .book__print-btn:active {
+    transform: scale(0.96);
+  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -2242,6 +2299,15 @@ img.person-family__thumb {
 
 .people-picker__row[aria-pressed="true"] {
   color: var(--color-accent);
+}
+
+.people-picker__row:hover {
+  background: var(--color-border);
+  border-color: var(--color-border);
+}
+
+.people-picker__row:active {
+  transform: none;
 }
 
 .people-picker__name {
