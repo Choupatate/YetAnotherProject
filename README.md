@@ -431,6 +431,15 @@ the shipped one, drop a `prompts.txt` file in the stories folder, one
 prompt per line (blank lines and `#`-prefixed comments are ignored); it
 replaces the default list entirely rather than adding to it.
 
+### A gentle nudge after a quiet spell
+
+If it's been a while (3+ months) since a story was last written, the
+timeline shows one quiet italic line — "Nothing new in 4 months — a
+little story?" — linking straight to a new story. Not a notification,
+not a streak to keep: it only ever appears on the timeline itself, and
+it's based on when you actually wrote, not the date the story is about,
+so backdating a memory never triggers it.
+
 ### Finding a story
 
 A search box above the timeline filters entries by title (and author) as

@@ -323,6 +323,28 @@ def growth_photos(stories: list[Story], birthdate: date_cls,
     return result
 
 
+QUIET_SPELL_MONTHS = 3
+
+
+def months_since_last_story(stories: list[Story], today: Optional[date_cls] = None) -> Optional[int]:
+    """Whole months since the most recently *written* story, by `created`
+    rather than the story's own `date` (FEATURES.md F30) — writing about
+    an old memory today shouldn't itself count as "nothing new since
+    then." None when there are no stories yet at all — a brand-new book
+    isn't nagged before it's even begun. Includes drafts/instants: any of
+    them is genuine writing activity worth recognizing."""
+    if today is None:
+        today = date_cls.today()
+    created_dates = [s.created for s in stories if s.created]
+    if not created_dates:
+        return None
+    latest = max(created_dates).date()
+    months = (today.year - latest.year) * 12 + (today.month - latest.month)
+    if today.day < latest.day:
+        months -= 1
+    return max(months, 0)
+
+
 def is_sealed(story: Story, today: Optional[date_cls] = None) -> bool:
     """True while a story's unlock date is still in the future."""
     if today is None:
