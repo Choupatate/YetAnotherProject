@@ -466,6 +466,12 @@ library, or shelling out to a headless browser), which this project
 deliberately avoids; the browser's own print-to-PDF is free, reliable, and
 already produces the same clean layout.
 
+Whenever the calendar year changes, a year chapter divider appears first —
+the year, and (with `STORYBOOK_BIRTHDATE` set) the child's age at that
+point — so a printed copy reads like a real book's chapters rather than one
+long run of stories. It's purely a rendering grouping; nothing new is
+stored.
+
 ### Downloading as an EPUB
 
 "Download as EPUB" (next to "Read as a book" on the timeline) streams the

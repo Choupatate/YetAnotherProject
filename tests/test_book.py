@@ -101,6 +101,52 @@ def test_timeline_links_to_book(auth_client, stories_dir):
     assert "Read as a book" in html
 
 
+# --- Year chapters (FEATURES.md F31) ------------------------------------
+
+
+def test_book_shows_one_year_chapter_per_year(auth_client, stories_dir):
+    storage.create_story(stories_dir, "First 2024", date(2024, 1, 1), "")
+    storage.create_story(stories_dir, "Second 2024", date(2024, 6, 1), "")
+    storage.create_story(stories_dir, "First 2025", date(2025, 1, 1), "")
+
+    resp = auth_client.get("/book")
+    html = resp.data.decode()
+    assert html.count("book__year-chapter-title") == 2
+    assert html.index('>2024<') < html.index("First 2024") < html.index("Second 2024")
+    assert html.index("Second 2024") < html.index('>2025<') < html.index("First 2025")
+
+
+def test_book_single_year_shows_one_chapter(auth_client, stories_dir):
+    storage.create_story(stories_dir, "Only", date(2024, 5, 1), "")
+    resp = auth_client.get("/book")
+    html = resp.data.decode()
+    assert html.count("book__year-chapter-title") == 1
+    assert ">2024<" in html
+
+
+def test_book_empty_shows_no_chapter(auth_client):
+    resp = auth_client.get("/book")
+    html = resp.data.decode()
+    assert "book__year-chapter" not in html
+
+
+def test_book_year_chapter_shows_age_when_birthdate_configured(auth_client, stories_dir, app):
+    app.config["BIRTHDATE"] = date(2020, 6, 18)
+    storage.create_story(stories_dir, "Story", date(2024, 6, 20), "")
+
+    resp = auth_client.get("/book")
+    html = resp.data.decode()
+    assert "book__year-chapter-age" in html
+    assert "4 years old" in html
+
+
+def test_book_year_chapter_hides_age_when_no_birthdate(auth_client, stories_dir):
+    storage.create_story(stories_dir, "Story", date(2024, 6, 20), "")
+    resp = auth_client.get("/book")
+    html = resp.data.decode()
+    assert "book__year-chapter-age" not in html
+
+
 def test_story_page_rendering_unaffected_by_shared_partial(auth_client, stories_dir):
     story_id = storage.create_story(
         stories_dir, "A test story", date(2024, 3, 5),

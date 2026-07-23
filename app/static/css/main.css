@@ -1907,6 +1907,29 @@ img.person-family__thumb {
   margin: 0.5rem auto;
 }
 
+.book__year-chapter {
+  text-align: center;
+  padding: 3rem 0 1.5rem;
+}
+
+.book__year-chapter-title {
+  font-family: var(--font-serif);
+  font-size: 2.5rem;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.book__year-chapter-age {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  color: var(--color-text-dim);
+  margin: 0.35rem 0 0;
+}
+
+.book__year-chapter-flourish {
+  margin: 1.25rem auto 0;
+}
+
 .book__instant {
   max-width: 42rem;
   margin: 1.5rem auto;
@@ -3637,6 +3660,19 @@ img.family-chip__thumb {
 
   .book-cover {
     break-after: page;
+  }
+
+  .book__year-chapter {
+    break-before: page;
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  /* A story right after its year's chapter title joins that same page
+     (the chapter break above already turned the page) rather than
+     forcing a second, near-blank page of its own. */
+  .book__year-chapter + .book__story {
+    break-before: avoid;
   }
 
   .story__body {

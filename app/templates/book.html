@@ -28,6 +28,15 @@
 {% for entry in entries %}
 {% set story = entry.story %}
 {% set body_html = entry.body_html %}
+{% if entry.chapter_year %}
+<section class="book__year-chapter">
+  <h2 class="book__year-chapter-title">{{ entry.chapter_year }}</h2>
+  {% if entry.chapter_age %}
+  <p class="book__year-chapter-age">{{ entry.chapter_age }}</p>
+  {% endif %}
+  <hr class="story__flourish book__year-chapter-flourish" aria-hidden="true">
+</section>
+{% endif %}
 {% if story.kind == 'instant' %}
 <figure class="book__instant"{% if entry.author_color %} style="--author-color: {{ entry.author_color }}"{% endif %}>
   {% if story.cover %}
