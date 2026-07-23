@@ -208,6 +208,17 @@ def _validate_tags(data):
     return cleaned, None
 
 
+def _validate_milestone(data):
+    """Resolve and validate the optional 'milestone' field (FEATURES.md
+    F28): a short free-text label like "First steps". None means absent
+    ('leave unchanged' on update); '' clears it. No format constraint —
+    just trimmed and capped, same tolerant treatment as tags."""
+    if "milestone" not in data:
+        return None, None
+    value = (data.get("milestone") or "").strip()
+    return value[: storage.MAX_MILESTONE_LENGTH], None
+
+
 def _validate_sources(data):
     """Resolve and validate the optional 'sources' field: a list of
     {"url": ..., "note": ...} citation links, pasted in manually and never
@@ -288,11 +299,14 @@ def create_story():
     sources, error = _validate_sources(data)
     if error:
         return error
+    milestone, error = _validate_milestone(data)
+    if error:
+        return error
 
     story_id = storage.create_story(
         current_app.config["STORIES_DIR"], title, story_date, markdown, author=author,
         draft=draft, unlock=unlock, archived=archived, kind=kind,
-        people=story_people, tags=tags, sources=sources,
+        people=story_people, tags=tags, sources=sources, milestone=milestone,
     )
     return jsonify({"id": story_id, "title": title})
 
@@ -329,12 +343,15 @@ def update_story(story_id):
     sources, error = _validate_sources(data)
     if error:
         return error
+    milestone, error = _validate_milestone(data)
+    if error:
+        return error
 
     try:
         storage.save_story(
             current_app.config["STORIES_DIR"], story_id, title, story_date, markdown,
             cover=cover, author=author, draft=draft, unlock=unlock, archived=archived,
-            people=story_people, tags=tags, sources=sources,
+            people=story_people, tags=tags, sources=sources, milestone=milestone,
         )
     except FileNotFoundError:
         return _error("Story not found.", 404)

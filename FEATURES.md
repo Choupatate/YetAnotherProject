@@ -3238,3 +3238,81 @@ appeared on the partner's own page, confirmed the almanac listed both,
 and confirmed a real 70th-birthday banner rendered on the timeline.
 
 `pytest` (736: 694 existing + 42 new) and `ruff check .` green.
+
+## F28. Firsts — a chronological register of milestones
+
+The second of a batch of proposed features, following F27's life dates. A
+parent wanted somewhere to see every "first" — first steps, first word,
+first day of school — at a glance, in the order they actually happened,
+each linking back to the story written about it (if any).
+
+### Design
+
+Not a new kind of record: a single optional field, `milestone` (a short
+free-text label, capped at 80 characters), on the existing `Story`.
+Whichever story you wrote about a first — a full story or a quick
+instant — just gets that label, the same way it already gets tags or a
+cover photo. This keeps the register a *view* over ordinary stories
+rather than a parallel thing to maintain, and it means a first you
+already wrote about doesn't need re-entering anywhere.
+
+Deliberately not added to `instant.html`'s quick-capture form — F13's
+whole point is "fifteen seconds on a phone," and a milestone label isn't
+always known in the fifteen seconds it takes to snap a photo. An instant
+is still editable afterward through the same shared `editor.html` used
+for full stories (kind is preserved, everything else becomes editable),
+so marking an already-captured instant as a first later is one field
+away, without slowing down the capture itself.
+
+### Storage (`storage.py`)
+
+- `Story.milestone: Optional[str]`, tolerantly parsed (`_parse_milestone`
+  — non-string or blank drops to `None`, same "files outlive edits"
+  philosophy as everywhere else) and threaded through
+  `create_story`/`save_story`/`_write_index`/`restore_version` with the
+  established "`None` means leave unchanged, `""` clears" convention
+  `cover`/`author` already use.
+- New `stories_with_milestones(stories)`: `readable_stories` (so a draft
+  or sealed first doesn't leak) filtered to `milestone` set — the
+  register's data source, date-ascending like everything else that reads
+  chronologically.
+
+### API (`routes_api.py`)
+
+- `_validate_milestone`: trim and cap at `MAX_MILESTONE_LENGTH` (80), no
+  format constraint — free text, same tolerant-cap treatment as tags,
+  not a validated field like a source URL.
+
+### Editor UI
+
+One more plain text input on `editor.html`, right under Tags:
+placeholder "A first? (e.g. First steps)", `maxlength="80"`. No new
+widget — same understated placeholder-only style tags already uses.
+
+### Display
+
+- Story page (`_story_article.html`): the milestone renders as a small
+  accent-bordered pill under the title, unmissable but not shouting.
+- Timeline: the same pill appears inline in each entry's row, next to the
+  date/age — a first is worth noticing right there in the normal
+  chronological flow, not just on a separate page.
+- New `/firsts` page (`routes_pages.py`, `firsts.html`): every readable
+  story with a milestone, oldest first, each row showing the milestone
+  label, the date, and the story's title, linking straight to it. Linked
+  from the timeline's footer-links row, but — same pattern as the
+  Almanac link on `/people` — only when at least one milestone actually
+  exists, so there's no dead link on a fresh install.
+
+### Tests
+
+`tests/test_storage.py` (round-trip, None/""/truncation semantics,
+`stories_with_milestones` filtering and ordering),
+`tests/test_api.py` (validation, empty-string clears, omitted leaves
+unchanged, truncation via the API), and `tests/test_pages.py` (the
+timeline pill, the story-page pill, `/firsts` listing/ordering/empty
+state/draft-and-sealed exclusion, the conditional footer link, and an
+auth check). Verified live with Playwright: created a story with a
+milestone from the real editor, confirmed the pill on both the story
+page and the timeline, and confirmed it appeared correctly on `/firsts`.
+
+`pytest` (754: 736 existing + 18 new) and `ruff check .` green.

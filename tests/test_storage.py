@@ -160,6 +160,68 @@ def test_stories_featuring_returns_only_matching_stories(stories_dir):
     assert [s.id for s in featured] == [id1]
 
 
+# --- milestone / register of firsts (FEATURES.md F28) ------------------------
+
+
+def test_create_story_with_milestone(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "First steps", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    story = storage.get_story(stories_dir, story_id)
+    assert story.milestone == "First steps"
+
+
+def test_new_story_defaults_milestone_to_none(stories_dir):
+    story_id = storage.create_story(stories_dir, "Plain story", date(2026, 1, 1), "body")
+    assert storage.get_story(stories_dir, story_id).milestone is None
+
+
+def test_save_story_milestone_none_leaves_unchanged(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    storage.save_story(stories_dir, story_id, "Story", date(2026, 1, 1), "new body")
+    assert storage.get_story(stories_dir, story_id).milestone == "First steps"
+
+
+def test_save_story_milestone_empty_string_clears(stories_dir):
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    storage.save_story(
+        stories_dir, story_id, "Story", date(2026, 1, 1), "new body", milestone=""
+    )
+    assert storage.get_story(stories_dir, story_id).milestone is None
+
+
+def test_milestone_truncated_to_max_length(stories_dir):
+    long_milestone = "x" * 200
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body", milestone=long_milestone
+    )
+    story = storage.get_story(stories_dir, story_id)
+    assert len(story.milestone) == storage.MAX_MILESTONE_LENGTH
+
+
+def test_stories_with_milestones_returns_only_matching_readable_stories(stories_dir):
+    storage.create_story(stories_dir, "First steps", date(2026, 3, 1), "", milestone="First steps")
+    storage.create_story(stories_dir, "No milestone", date(2026, 1, 1), "")
+    storage.create_story(
+        stories_dir, "Draft first", date(2026, 2, 1), "", milestone="Draft", draft=True
+    )
+    all_stories = storage.list_stories(stories_dir)
+    result = storage.stories_with_milestones(all_stories)
+    assert [s.title for s in result] == ["First steps"]
+
+
+def test_stories_with_milestones_sorted_chronologically(stories_dir):
+    storage.create_story(stories_dir, "Second first", date(2026, 6, 1), "", milestone="Second")
+    storage.create_story(stories_dir, "First first", date(2026, 1, 1), "", milestone="First")
+    all_stories = storage.list_stories(stories_dir)
+    result = storage.stories_with_milestones(all_stories)
+    assert [s.title for s in result] == ["First first", "Second first"]
+
+
 def test_path_safety_story_id_regex():
     assert storage.is_valid_story_id("2026-07-14-first-bike-ride")
     assert not storage.is_valid_story_id("../etc/passwd")

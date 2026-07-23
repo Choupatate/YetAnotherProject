@@ -21,6 +21,9 @@ control. #}
     {% endif %}
   </p>
   <h1 class="story__title">{{ story.title }}</h1>
+  {% if story.milestone %}
+  <p class="story__milestone"><span class="story__milestone-pill">{{ story.milestone }}</span></p>
+  {% endif %}
   {% if story.people %}
   <p class="story__people">
     {% for slug in story.people %}

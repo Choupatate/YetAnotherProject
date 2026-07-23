@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Firsts — {{ app_title }}{% endblock %}
+{% block body_class %}page-firsts{% endblock %}
+{% block content %}
+<div class="firsts">
+  <p class="firsts__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <h1 class="firsts__title">Firsts</h1>
+  <hr class="story__flourish firsts__flourish" aria-hidden="true">
+  {% if not firsts %}
+  <p class="firsts__empty">
+    Give any story a milestone label in the editor — "First steps",
+    "First word" — and it'll appear here, in the order it happened.
+  </p>
+  {% else %}
+  <ul class="firsts__list">
+    {% for story in firsts %}
+    <li class="firsts__item">
+      <a class="firsts__link" href="{{ url_for('pages.story', story_id=story.id) }}">
+        <span class="firsts__milestone">{{ story.milestone }}</span>
+        <span class="firsts__date">{{ story.date.strftime('%B %-d, %Y') }}</span>
+        <span class="firsts__story-title">{{ story.title }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

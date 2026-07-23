@@ -173,6 +173,8 @@
   var storyPeoplePicker = initPeoplePicker(storyPeopleRoot);
   var tagsInput = document.getElementById("story-tags");
   if (tagsInput) tagsInput.addEventListener("input", markDirty);
+  var milestoneInput = document.getElementById("story-milestone");
+  if (milestoneInput) milestoneInput.addEventListener("input", markDirty);
 
   function parseTags(raw) {
     var seen = {};
@@ -771,6 +773,7 @@
     addFamilyFields(payload);
     if (storyPeopleRoot) payload.people = storyPeoplePicker.getSelected();
     if (tagsInput) payload.tags = parseTags(tagsInput.value);
+    if (milestoneInput) payload.milestone = milestoneInput.value.trim();
     if (sourcesListEl) payload.sources = getSources();
     if (unionsListEl) payload.unions = getUnions();
     return payload;

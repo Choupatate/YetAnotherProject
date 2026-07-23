@@ -29,6 +29,9 @@
   <input class="editor__tags" id="story-tags" name="tags" type="text"
          placeholder="Tags, comma separated"
          value="{{ story.tags | join(', ') if story else '' }}">
+  <input class="editor__milestone" id="story-milestone" name="milestone" type="text"
+         placeholder="A first? (e.g. First steps)" maxlength="80"
+         value="{{ story.milestone if story and story.milestone else '' }}">
   {% if all_people %}
   <fieldset class="editor__family" id="editor-people">
     <legend class="editor__family-legend">People</legend>

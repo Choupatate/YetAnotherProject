@@ -152,6 +152,96 @@ def test_story_page_renders_tags_people_and_sources(auth_client, stories_dir):
     assert 'href="https://example.com/photo"' in html
 
 
+def test_story_page_renders_milestone(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    story_id = storage.create_story(
+        stories_dir, "First steps", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    resp = auth_client.get(f"/story/{story_id}")
+    html = resp.data.decode()
+    assert "story__milestone-pill" in html
+    assert "First steps" in html
+
+
+def test_timeline_shows_milestone_pill(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    storage.create_story(
+        stories_dir, "First steps", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    resp = auth_client.get("/")
+    html = resp.data.decode()
+    assert "timeline__milestone-pill" in html
+    assert "First steps" in html
+
+
+def test_firsts_page_lists_milestones_chronologically(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    storage.create_story(stories_dir, "Second one", date(2026, 6, 1), "", milestone="Second thing")
+    storage.create_story(stories_dir, "First one", date(2026, 1, 1), "", milestone="First thing")
+    storage.create_story(stories_dir, "No milestone", date(2026, 3, 1), "")
+
+    resp = auth_client.get("/firsts")
+    html = resp.data.decode()
+    assert html.index("First thing") < html.index("Second thing")
+    assert "First one" in html
+    assert "Second one" in html
+    assert "No milestone" not in html
+
+
+def test_firsts_page_empty_state(auth_client):
+    resp = auth_client.get("/firsts")
+    html = resp.data.decode()
+    assert "milestone label" in html
+
+
+def test_firsts_page_excludes_drafts_and_sealed(auth_client, stories_dir):
+    from datetime import date, timedelta
+
+    from app import storage
+
+    storage.create_story(
+        stories_dir, "Draft first", date(2026, 1, 1), "", milestone="Draft", draft=True
+    )
+    storage.create_story(
+        stories_dir, "Sealed first", date(2026, 1, 1), "", milestone="Sealed",
+        unlock=date.today() + timedelta(days=365),
+    )
+    resp = auth_client.get("/firsts")
+    html = resp.data.decode()
+    assert "Draft" not in html
+    assert "Sealed" not in html
+
+
+def test_firsts_requires_auth(client):
+    resp = client.get("/firsts")
+    assert resp.status_code == 302
+
+
+def test_timeline_shows_firsts_link_only_when_milestones_exist(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    storage.create_story(stories_dir, "Plain", date(2026, 1, 1), "")
+    resp = auth_client.get("/")
+    assert b'>Firsts<' not in resp.data
+
+    storage.create_story(
+        stories_dir, "First steps", date(2026, 1, 2), "", milestone="First steps"
+    )
+    resp = auth_client.get("/")
+    assert b'>Firsts<' in resp.data
+
+
 def test_404_page_renders_custom_template(auth_client):
     resp = auth_client.get("/this-route-does-not-exist")
     assert resp.status_code == 404
