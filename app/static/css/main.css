@@ -2060,12 +2060,20 @@ img.person-family__thumb {
   gap: 0.5rem;
 }
 
+.editor__unlock-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+}
+
 .editor__unlock-label {
   display: inline-flex;
   align-items: center;
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   color: var(--color-text-dim);
+  white-space: nowrap;
 }
 
 .editor__toolrow {
