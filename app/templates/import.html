@@ -16,7 +16,9 @@
       <input type="file" id="import-file" name="file" class="import__file" accept=".zip,application/zip" required>
     </label>
     <div class="import__submit-row">
-      <button type="submit" class="btn btn--primary">Import</button>
+      <button type="submit" class="btn btn--primary">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-import.png') }}" alt="" width="20" height="20">Import
+      </button>
       <img class="lasso-spinner" id="import-spinner" src="{{ url_for('static', filename='img/lasso-ring.png') }}"
            alt="" width="40" height="40" hidden>
     </div>

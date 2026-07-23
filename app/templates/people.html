@@ -8,9 +8,13 @@
     <h1 class="people__title">People</h1>
     <div class="people__header-actions">
       {% if show_tree_link %}
-      <a class="btn" href="{{ url_for('pages.tree_page') }}">Family tree</a>
+      <a class="btn" href="{{ url_for('pages.tree_page') }}">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-tree.png') }}" alt="" width="20" height="20">Family tree
+      </a>
       {% endif %}
-      <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">+ New person</a>
+      <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-new-person.png') }}" alt="" width="20" height="20">+ New person
+      </a>
     </div>
   </div>
   {% if not people %}
