@@ -3016,3 +3016,44 @@ remembering that a class existing in main.css doesn't mean anything
 renders it.
 
 `pytest` (687) and `ruff check .` green throughout (CSS-only).
+
+## F25. Splitting routes_pages.py / routes_api.py by resource (no URL changes)
+
+`routes_pages.py` (969 lines) and `routes_api.py` (718 lines) had each
+accumulated every resource's routes — stories, people/genealogy,
+accounts/admin, delegated write-links — in one file. Split each by
+resource without renaming a single endpoint or touching a template:
+
+- `routes_pages.py` keeps the `pages` Blueprint and the core
+  story-reading/writing routes (timeline, story pages, the editor,
+  drafts/archived, `/book`, backup export/import) plus the helpers more
+  than one group needs (`_people_dir`, `_person_ref`,
+  `_other_people_refs`, `_serve_media`, `DEFAULT_AUTHOR_COLOR`).
+- `routes_people.py` (new) — people/genealogy pages (F14/F18): the people
+  list, person page, `/tree`, new/edit person.
+- `routes_accounts.py` (new) — family accounts (F19): the request/approve
+  flow, admin account management, self-service password change,
+  delegated write-links.
+- Same split for the API blueprint: `routes_api.py` keeps the core story
+  API (create/update/restore, image/memo uploads, backup import) plus
+  `_validate_slug_list`/`_people_dir` (needed by both story and person
+  validation); `routes_api_people.py` (new) holds person/family CRUD,
+  photo uploads, and `/api/tree`.
+
+**The trick that makes this a pure file reorganization, not a routing
+change:** the new files don't declare their own `Blueprint` — they `from
+.routes_pages import bp` (or `.routes_api import bp`) and add `@bp.route`
+in their own file. Every `url_for("pages.xxx")` / `url_for("api.xxx")`
+call, in Python and in every template, keeps resolving to the exact same
+endpoint name it always did, regardless of which file the route's code
+now physically lives in. The split files are imported at the very bottom
+of `routes_pages.py`/`routes_api.py` (after `bp` and every helper they
+need already exist) purely for that side effect — registering their
+routes onto the shared blueprint before `app.register_blueprint()` runs
+in `create_app()`. `app/__init__.py` needed zero changes.
+
+Verified: `app.url_map` has the identical 52 rules before and after: full
+`pytest` (687, unmodified) green; a live smoke test hit one route from
+each new file (`/people`, `/tree`, `/account` [404 as expected, accounts
+mode off], `POST /api/people`) to confirm real request handling, not just
+import-time registration.
