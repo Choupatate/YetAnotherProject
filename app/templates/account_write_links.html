@@ -17,6 +17,7 @@
   {% endif %}
 
   <form class="admin__form" method="post" action="{{ url_for('pages.account_write_links') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="login__label" for="link-label">Label (optional)</label>
     <input class="login__input" type="text" id="link-label" name="label" placeholder="e.g. for the recital story">
 
@@ -41,6 +42,7 @@
       {% if row.status == 'active' %}
       <form method="post"
             action="{{ url_for('pages.revoke_write_link', person_slug=row.link.person_slug, link_id=row.link.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn admin__row-action">Revoke</button>
       </form>
       {% endif %}

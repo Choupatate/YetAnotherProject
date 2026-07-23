@@ -10,7 +10,7 @@
       return;
     }
     var versionId = btn.dataset.versionId;
-    fetch("/api/stories/" + storyId + "/versions/" + versionId + "/restore", { method: "POST" })
+    fetch("/api/stories/" + storyId + "/versions/" + versionId + "/restore", window.CsrfFetch.withToken({ method: "POST" }))
       .then(function (response) {
         return response
           .json()

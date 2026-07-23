@@ -34,6 +34,7 @@
       <span class="admin__row-status admin__row-status--{{ row.account.status }}">{{ row.account.status }}</span>
       <form class="admin__row-role-form" method="post"
             action="{{ url_for('pages.admin_set_role', person_slug=row.account.person_slug) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <select class="login__input" name="role">
           {% for role in roles %}
           <option value="{{ role }}" {% if role == row.account.role %}selected{% endif %}>{{ role|capitalize }}</option>
@@ -44,6 +45,7 @@
       {% if unbound_people %}
       <form class="admin__row-role-form" method="post"
             action="{{ url_for('pages.admin_set_account_person', person_slug=row.account.person_slug) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <select class="login__input" name="target_person_slug">
           <option value="{{ row.account.person_slug }}" selected>
             {{ row.person.name if row.person else row.account.person_slug }} (current)

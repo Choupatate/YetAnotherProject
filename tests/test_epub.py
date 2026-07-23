@@ -131,6 +131,7 @@ def test_epub_filename_uses_configured_title(tmp_path, monkeypatch):
     monkeypatch.setenv("STORYBOOK_PASSWORD", "test-password")
     monkeypatch.setenv("STORYBOOK_SECRET_KEY", "test-secret")
     app = create_app()
+    app.config["WTF_CSRF_ENABLED"] = False
     client = app.test_client()
     client.post("/login", data={"password": "test-password"})
 

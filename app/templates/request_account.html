@@ -18,6 +18,7 @@
   {% else %}
   <p class="login__subtitle">Ask whoever set this up for the invite code.</p>
   <form class="login__form" method="post" action="{{ url_for('pages.request_account') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="login__label" for="display-name">Your name</label>
     <input class="login__input" type="text" id="display-name" name="display_name" autofocus required>
 

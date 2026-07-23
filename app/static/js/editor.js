@@ -590,10 +590,10 @@
           return ensureStoryId().then(function (id) {
             var formData = new FormData();
             formData.append("file", blob, "photo.jpg");
-            return fetch(fillUrlTemplate(photoUrlTemplate, id), {
+            return fetch(fillUrlTemplate(photoUrlTemplate, id), window.CsrfFetch.withToken({
               method: "POST",
               body: formData,
-            }).then(window.FetchJson.parse);
+            })).then(window.FetchJson.parse);
           });
         })
         .then(function (data) {
@@ -749,10 +749,10 @@
       return ensureStoryId().then(function (id) {
         var formData = new FormData();
         formData.append("file", blob, "memo." + recordExt);
-        return fetch("/api/stories/" + id + "/memos", {
+        return fetch("/api/stories/" + id + "/memos", window.CsrfFetch.withToken({
           method: "POST",
           body: formData,
-        }).then(window.FetchJson.parse);
+        })).then(window.FetchJson.parse);
       });
     }
 
@@ -846,9 +846,9 @@
       if (!btn) return;
       if (!window.confirm("Delete this recording?")) return;
       var filename = btn.dataset.filename;
-      fetch("/api/stories/" + storyId + "/memos/" + encodeURIComponent(filename), {
+      fetch("/api/stories/" + storyId + "/memos/" + encodeURIComponent(filename), window.CsrfFetch.withToken({
         method: "DELETE",
-      }).then(function (response) {
+      })).then(function (response) {
         if (response.ok) {
           btn.closest(".editor__voice-item").remove();
         } else {
@@ -870,11 +870,11 @@
   function ensureStoryId() {
     if (storyId) return Promise.resolve(storyId);
     var payload = buildStoryPayload(titleInput.value.trim() || "Untitled", "");
-    return fetch(createUrl, {
+    return fetch(createUrl, window.CsrfFetch.withToken({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    })
+    }))
       .then(window.FetchJson.parse)
       .then(function (data) {
         storyId = data.id;
@@ -888,10 +888,10 @@
     return ensureStoryId().then(function (id) {
       var formData = new FormData();
       formData.append("file", file);
-      return fetch(fillUrlTemplate(imageUrlTemplate, id), {
+      return fetch(fillUrlTemplate(imageUrlTemplate, id), window.CsrfFetch.withToken({
         method: "POST",
         body: formData,
-      })
+      }))
         .then(window.FetchJson.parse)
         .then(function (data) {
           return data.filename;
@@ -1182,16 +1182,16 @@
     // by an immediate PUT — avoids a redundant write (and, now that saves
     // are versioned, a spurious near-empty entry in that story's history).
     var request = storyId
-      ? fetch(fillUrlTemplate(updateUrlTemplate, storyId), {
+      ? fetch(fillUrlTemplate(updateUrlTemplate, storyId), window.CsrfFetch.withToken({
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        })
-      : fetch(createUrl, {
+        }))
+      : fetch(createUrl, window.CsrfFetch.withToken({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        });
+        }));
 
     request
       .then(window.FetchJson.parse)

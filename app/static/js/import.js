@@ -24,7 +24,7 @@
     result.classList.remove("import__result--error");
     if (spinner) spinner.hidden = false;
 
-    fetch("/api/import", { method: "POST", body: formData })
+    fetch("/api/import", window.CsrfFetch.withToken({ method: "POST", body: formData }))
       .then(function (response) {
         return response
           .json()

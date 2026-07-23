@@ -3057,3 +3057,88 @@ Verified: `app.url_map` has the identical 52 rules before and after: full
 each new file (`/people`, `/tree`, `/account` [404 as expected, accounts
 mode off], `POST /api/people`) to confirm real request handling, not just
 import-time registration.
+
+## F26. CSRF protection
+
+This app is session-cookie-authenticated (a single shared password, or
+per-person accounts in F19 mode) and lives publicly on GitHub as a
+self-hostable project — exactly the shape where a malicious page could
+submit a form or `fetch()` to a logged-in user's own Storybook instance
+and have the browser attach valid session cookies automatically. There
+was no CSRF protection anywhere; this closes that gap.
+
+Used Flask-WTF's `CSRFProtect` rather than hand-rolling token
+generation/comparison (`requirements.txt`: `flask-wtf==1.3.0`, pinned like
+every other dependency). Wired in `app/__init__.py` right after the
+blueprint imports: `CSRFProtect(app)`. No extra config needed —
+`SECRET_KEY` already exists whenever `STORYBOOK_PASSWORD` is set, and
+CSRF tokens key off it. `CSRFProtect` checks every unsafe-method request
+(POST/PUT/PATCH/DELETE) for a valid token and rejects with 400 otherwise;
+safe methods (GET/HEAD) are never checked. Nothing is exempted.
+
+Two attack surfaces, two delivery mechanisms for the same token:
+
+- **Native server-rendered forms** (login, admin actions, account
+  settings, delegated write-links, logout, ...): `csrf_token()` becomes
+  an automatic Jinja global once `CSRFProtect` is initialized. Added
+  `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` to
+  every native `<form method="post">` — one edit to `_macros.html`'s
+  `action_button_form` macro covers every button that reuses it (all of
+  `admin_accounts.html`'s reject/disable/enable/revoke buttons), plus
+  ~10 standalone forms (`login.html`, `account_password.html`,
+  `account_write_links.html`, `admin_accounts.html`'s inline role forms,
+  `admin_new_account.html`, `admin_reset_password.html`,
+  `admin_review_pending.html`, `delegate_write.html`,
+  `request_account.html`, `timeline.html`'s logout form). The editor,
+  instant-story, import, and person-editor forms are untouched here —
+  none of them has `method="post"`; their submit is already intercepted
+  by JS and turned into a `fetch()`, so they're covered by the mechanism
+  below instead.
+- **JSON API calls from JS** (`editor.js`, `instant.js`, `import.js`,
+  `history.js`): a header, not a form field. New
+  `app/static/js/csrf.js`, a small IIFE in the same style as `theme.js`
+  (loaded globally, exposes one thing on `window`, no Node test — there's
+  no meaningful DOM-free logic to extract from "read a meta tag"):
+  reads `<meta name="csrf-token" content="{{ csrf_token() }}">` (added to
+  `base.html`'s `<head>`) and returns a copy of a `fetch()` options object
+  with `X-CSRFToken` merged into its headers. Every mutating `fetch()`
+  call site wraps its options through `window.CsrfFetch.withToken(...)`:
+  7 in `editor.js` (photo/memo upload, memo delete, create/update story,
+  image upload), 3 in `instant.js` (create, image upload, update), 1 in
+  `history.js` (version restore), 1 in `import.js` (backup import).
+  Read-only `fetch()` calls (`tree.js`'s GET) are untouched.
+
+One subtlety surfaced while testing: `auth.py`'s login route calls
+`session.clear()` on successful password login (deliberate
+anti-session-fixation practice, predates this feature) before setting
+`session["authed"]`. That wipes the session's CSRF secret, so a token
+fetched from the pre-login `/login` page becomes invalid the instant
+login succeeds — a same-session client needs a *fresh* token (e.g. from
+the next page's `<meta>` tag) for its first post-login request. This
+doesn't affect real usage (every page's own render always embeds a
+current token for its own forms/fetches), but it's why
+`tests/test_csrf.py`'s post-login API test fetches a fresh token from an
+authenticated page rather than reusing the pre-login one.
+
+`tests/conftest.py`'s shared `BASE_TEST_CONFIG` gained
+`"WTF_CSRF_ENABLED": False` — one line disables CSRF for the ~687
+existing tests (none of them are about proving CSRF works, and none
+submit real tokens). Two tests that bypass `BASE_TEST_CONFIG` entirely to
+exercise real env-var config (`test_epub.py`,
+`test_manifest.py`) needed the same flag set directly on their
+bare `create_app()` instance. New `tests/test_csrf.py` uses the real
+default (CSRF *on*) to prove the whole thing actually works: a bare POST
+is rejected (400), GET is unaffected, the login page renders a real
+token, a POST with a valid token succeeds, a wrong token is rejected, and
+the `/api/*` JSON path is rejected without the header and succeeds with
+it.
+
+Verified live (not just unit-tested): started the dev server, logged in
+through the real `/login` form (native form + token), created an instant
+story end-to-end through `/new-instant` (3 chained CSRF-protected
+`fetch()` calls — create, image upload, update — all succeeding), and
+logged out through the native logout form — all with Playwright driving
+a real browser, confirming both delivery mechanisms work outside of unit
+test mocking.
+
+`pytest` (694: 687 existing + 7 new) and `ruff check .` green.
