@@ -2980,3 +2980,39 @@ people-picker), timeline, and `/book`'s print button, in both light and
 dark themes — clean visual feedback everywhere, no clipping or layout
 shift. `pytest` (687) and `ruff check .` green (CSS-only change, no
 template or Python edits).
+
+## F24. Hover feedback, round 2 — the rest of the interactive surface, and a dead-CSS catch on /tree
+
+Continued F23's audit to the remaining interactive elements: the theme
+toggle (every page, top-left nav — high traffic, previously totally
+inert), the import/instant photo drop-zones (dashed border → accent on
+hover), the lightbox close button, the photo-crop zoom buttons, the
+editor's markdown-fallback toolbar, the logout link, a transcript
+`<summary>`, and the timeline's right-edge year minimap ticks (carefully
+excluding `.is-active` from the hover rule — equal specificity to a
+plain `:hover`, so it needed an explicit `:not(.is-active)` guard or
+hovering the current year would've broken its highlight).
+
+**The family tree cards were the interesting one.** `.tree-graph__card`
+exists in main.css and looked like the obvious hover target — but
+testing it live (Playwright, walking the actual DOM) showed the tree
+page never renders that class at all. It renders through the vendored
+`family-chart` library's own markup (`.f3 div.card-inner`, styled by the
+`.page-tree .f3 ...` rules a few hundred lines down, per R5.1/R5.2's
+paper-card-and-gold-ring treatment). `.tree-graph__card` is dead CSS from
+an earlier implementation. Added the hover there instead of leaving
+inert rules behind — border darkens, shadow deepens — and, following the
+exact same specificity trap the existing R5.2 comment already documents
+(a plain rule and a same-specificity modifier rule tie, so the modifier
+must repeat itself or the plain rule's `:hover` silently wins): both
+`.card-inner--focus:hover` (re-rooted target) and `.card-main .card-inner:hover`
+(the configured anchor, gold ring + brand stamp) explicitly repeat their
+gold border rather than inheriting the plain card's darker hover color.
+Verified live: hovering the anchor keeps its ring and stamp intact,
+hovering any other card gets the plain darkened treatment.
+
+Would have shipped silently-inert CSS without the live-DOM check — worth
+remembering that a class existing in main.css doesn't mean anything
+renders it.
+
+`pytest` (687) and `ruff check .` green throughout (CSS-only).
