@@ -180,6 +180,16 @@ chapters — while a full story page (and the full editor, for touch-ups)
 still works normally at their direct URL. They're just a story with one
 extra frontmatter key (`kind: instant`); nothing new to back up.
 
+### Firsts — a register of milestones
+
+Any story (or instant) can carry an optional milestone label — "First
+steps", "First word", "First day of school" — a plain text field right
+under Tags in the editor. Give one a label and it shows up as a small
+pill on that story's page and on its timeline entry, and it takes its
+place on `/firsts`: every milestone, oldest first, each linking back to
+its story. There's no separate thing to write — it's the same story you
+already wrote, just labeled.
+
 ### People — the cast of the book
 
 "People" in the nav (always visible, whether or not you've added anyone

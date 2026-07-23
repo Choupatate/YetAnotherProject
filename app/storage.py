@@ -79,6 +79,7 @@ class Story:
     people: list = None
     tags: list = None
     sources: list = None
+    milestone: Optional[str] = None
 
     def __post_init__(self):
         if self.people is None:
@@ -168,11 +169,24 @@ def _parse_post(story_id: str, post: frontmatter.Post, include_body: bool) -> St
         people=_parse_string_list(metadata.get("people")),
         tags=_parse_string_list(metadata.get("tags"), max_items=MAX_TAGS, max_length=MAX_TAG_LENGTH),
         sources=_parse_sources(metadata.get("sources")),
+        milestone=_parse_milestone(metadata.get("milestone")),
     )
 
 
 MAX_TAGS = 20
 MAX_TAG_LENGTH = 40
+MAX_MILESTONE_LENGTH = 80
+
+
+def _parse_milestone(value) -> Optional[str]:
+    """Tolerant parsing of the optional `milestone` frontmatter field
+    (FEATURES.md F28) — a short free-text label like "First steps".
+    Anything that isn't a non-empty string is dropped rather than raised
+    (files outlive edits)."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()[:MAX_MILESTONE_LENGTH]
+    return value or None
 
 
 def _parse_string_list(value, max_items=None, max_length=None) -> list:
@@ -275,6 +289,12 @@ def stories_featuring(stories_dir, person_slug: str) -> list[Story]:
     return [s for s in list_stories(stories_dir) if person_slug in s.people]
 
 
+def stories_with_milestones(stories: list[Story]) -> list[Story]:
+    """Readable stories with a `milestone` set, date-ascending (FEATURES.md
+    F28) — the register of firsts, in the order they actually happened."""
+    return [s for s in readable_stories(stories) if s.milestone]
+
+
 def is_sealed(story: Story, today: Optional[date_cls] = None) -> bool:
     """True while a story's unlock date is still in the future."""
     if today is None:
@@ -346,7 +366,8 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
                   author: Optional[str] = None, draft: bool = False,
                   unlock: Optional[date_cls] = None, archived: bool = False,
                   kind: str = "story", people: Optional[list] = None,
-                  tags: Optional[list] = None, sources: Optional[list] = None) -> None:
+                  tags: Optional[list] = None, sources: Optional[list] = None,
+                  milestone: Optional[str] = None) -> None:
     post = frontmatter.Post(body)
     post["title"] = title
     post["date"] = story_date.isoformat()
@@ -370,6 +391,8 @@ def _write_index(stories_dir, story_id: str, title: str, story_date: date_cls,
         post["tags"] = tags
     if sources:
         post["sources"] = sources
+    if milestone:
+        post["milestone"] = milestone
     index_path = Path(stories_dir) / story_id / "index.md"
     tmp_path = index_path.with_suffix(".md.tmp")
     tmp_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
@@ -380,7 +403,8 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
                   author: Optional[str] = None, draft: bool = False,
                   unlock: Optional[date_cls] = None, archived: bool = False,
                   kind: str = "story", people: Optional[list] = None,
-                  tags: Optional[list] = None, sources: Optional[list] = None) -> str:
+                  tags: Optional[list] = None, sources: Optional[list] = None,
+                  milestone: Optional[str] = None) -> str:
     """Create a new story folder, returning its story_id (the folder name).
 
     On slug collision, append -2, -3, ... to the slug. `kind` is set once
@@ -400,7 +424,7 @@ def create_story(stories_dir, title: str, story_date: date_cls, body: str = "",
     now = datetime.now()
     _write_index(stories_dir, story_id, title, story_date, now, now, None, body, author=author,
                  draft=draft, unlock=unlock, archived=archived, kind=kind,
-                 people=people, tags=tags, sources=sources)
+                 people=people, tags=tags, sources=sources, milestone=milestone)
     return story_id
 
 
@@ -408,19 +432,20 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
                body: str, cover: Optional[str] = None, author: Optional[str] = None,
                draft: bool = False, unlock: Optional[date_cls] = None,
                archived: bool = False, people: Optional[list] = None,
-               tags: Optional[list] = None, sources: Optional[list] = None) -> None:
+               tags: Optional[list] = None, sources: Optional[list] = None,
+               milestone: Optional[str] = None) -> None:
     """Update an existing story's content in place. The story_id never changes.
 
-    `cover`/`author`/`people`/`tags`/`sources` of None means "leave
-    unchanged"; an empty value clears the field (frontmatter key is omitted
-    for falsy values). `draft`/`unlock`/`archived` are always set wholesale
-    from the given value (their editor controls are always present on the
-    form, so there is nothing to "leave unchanged"). `kind` is not a
-    parameter here at all — it is set once at creation and always carried
-    over from the existing story. The content about to be overwritten is
-    snapshotted into `.versions/` first (see `list_versions`/
-    `restore_version`), so an accidental bad edit or overwrite is never
-    unrecoverable.
+    `cover`/`author`/`people`/`tags`/`sources`/`milestone` of None means
+    "leave unchanged"; an empty value clears the field (frontmatter key is
+    omitted for falsy values). `draft`/`unlock`/`archived` are always set
+    wholesale from the given value (their editor controls are always
+    present on the form, so there is nothing to "leave unchanged"). `kind`
+    is not a parameter here at all — it is set once at creation and always
+    carried over from the existing story. The content about to be
+    overwritten is snapshotted into `.versions/` first (see
+    `list_versions`/`restore_version`), so an accidental bad edit or
+    overwrite is never unrecoverable.
     """
     if not is_valid_story_id(story_id):
         raise InvalidStoryId(story_id)
@@ -439,9 +464,12 @@ def save_story(stories_dir, story_id: str, title: str, story_date: date_cls,
         tags = existing.tags
     if sources is None:
         sources = existing.sources
+    if milestone is None:
+        milestone = existing.milestone
     _write_index(stories_dir, story_id, title, story_date, created, datetime.now(), cover, body,
                  author=author, draft=draft, unlock=unlock, archived=archived,
-                 kind=existing.kind, people=people, tags=tags, sources=sources)
+                 kind=existing.kind, people=people, tags=tags, sources=sources,
+                 milestone=milestone)
 
 
 def _versions_dir(stories_dir, story_id: str) -> Path:
@@ -513,6 +541,7 @@ def restore_version(stories_dir, story_id: str, version_id: str) -> None:
         cover=old.cover or "", author=old.author or "",
         draft=old.draft, unlock=old.unlock, archived=old.archived,
         people=old.people or [], tags=old.tags or [], sources=old.sources or [],
+        milestone=old.milestone or "",
     )
 
 

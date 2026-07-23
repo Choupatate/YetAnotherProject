@@ -141,7 +141,15 @@ def timeline():
         birthdays_today=life_events.birthdays_today(all_people, today),
         union_anniversaries_today=life_events.union_anniversaries_today(all_people, today),
         people_by_slug=people_by_slug,
+        has_firsts=bool(storage.stories_with_milestones(all_stories)),
     )
+
+
+@bp.route("/firsts")
+@login_required
+def firsts():
+    all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
+    return render_template("firsts.html", firsts=storage.stories_with_milestones(all_stories))
 
 
 @bp.route("/random")

@@ -130,6 +130,60 @@ def test_update_story_tags_and_sources_persist(auth_client, stories_dir):
     assert story.sources == [{"url": "https://example.com", "note": ""}]
 
 
+# --- milestone (FEATURES.md F28) ----------------------------------------------
+
+
+def test_create_story_with_milestone(auth_client, stories_dir):
+    resp = auth_client.post(
+        "/api/stories",
+        json={"title": "First steps", "date": "2026-01-05", "markdown": "", "milestone": "First steps"},
+    )
+    assert resp.status_code == 200
+    story = storage.get_story(stories_dir, resp.get_json()["id"])
+    assert story.milestone == "First steps"
+
+
+def test_update_story_milestone_empty_string_clears(auth_client, stories_dir):
+    from datetime import date
+
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    resp = auth_client.put(
+        f"/api/stories/{story_id}",
+        json={"title": "Story", "date": "2026-01-01", "markdown": "body", "milestone": ""},
+    )
+    assert resp.status_code == 200
+    assert storage.get_story(stories_dir, story_id).milestone is None
+
+
+def test_update_story_milestone_omitted_leaves_unchanged(auth_client, stories_dir):
+    from datetime import date
+
+    story_id = storage.create_story(
+        stories_dir, "Story", date(2026, 1, 1), "body", milestone="First steps"
+    )
+    resp = auth_client.put(
+        f"/api/stories/{story_id}",
+        json={"title": "Story", "date": "2026-01-01", "markdown": "body"},
+    )
+    assert resp.status_code == 200
+    assert storage.get_story(stories_dir, story_id).milestone == "First steps"
+
+
+def test_create_story_milestone_truncated_to_max_length(auth_client, stories_dir):
+    resp = auth_client.post(
+        "/api/stories",
+        json={
+            "title": "Story", "date": "2026-01-05", "markdown": "",
+            "milestone": "x" * 200,
+        },
+    )
+    assert resp.status_code == 200
+    story = storage.get_story(stories_dir, resp.get_json()["id"])
+    assert len(story.milestone) == storage.MAX_MILESTONE_LENGTH
+
+
 def test_update_story_requires_title(auth_client, stories_dir):
     from datetime import date
 
