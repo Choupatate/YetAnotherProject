@@ -18,11 +18,13 @@
   <div class="editor__date-row">
     <input class="editor__date" id="story-date" name="date" type="date"
            value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
-    <label class="editor__unlock-label" for="story-unlock">
-      <img class="btn-icon" src="{{ url_for('static', filename='img/icon-seal.png') }}" alt="" width="20" height="20">Seal until
-    </label>
-    <input class="editor__unlock" id="story-unlock" name="unlock" type="date"
-           value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
+    <div class="editor__unlock-group">
+      <label class="editor__unlock-label" for="story-unlock">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-seal.png') }}" alt="" width="20" height="20">Seal until
+      </label>
+      <input class="editor__unlock" id="story-unlock" name="unlock" type="date"
+             value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
+    </div>
   </div>
   <input class="editor__tags" id="story-tags" name="tags" type="text"
          placeholder="Tags, comma separated"
