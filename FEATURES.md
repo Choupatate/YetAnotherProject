@@ -2936,3 +2936,124 @@ every icon renders with a clean edge, no white halo, in both themes;
 `pytest` (687) and `ruff check .` still green — no test asserted on a
 button's exact inner HTML, only on attributes of the opening tag, so
 none needed updating.
+
+## F23. Hover/press feedback across the interface
+
+Audited the whole interface for interaction feedback and found the gap
+was total: `.btn` (the single most-reused class in the app) had no
+`:hover` or `:active` state at all, nor did the timeline row links, the
+family/person-picker links, or the shared "‹ Back" links used on a dozen
+pages. Every click landed with zero visual acknowledgment.
+
+- `.btn` (and everything built on it — `.btn--primary`, toggle chips, the
+  people-picker rows, since they all carry the `.btn` class): hover shifts
+  the border to the accent color; `.btn--primary` additionally brightens
+  slightly. Press (`:active`) does a quick `scale(0.96)` — a tactile
+  "pressing a real button" feel rather than a card-lift/shadow effect,
+  kept in the "boring, minimal" spirit rather than borrowing a modern
+  SaaS elevation pattern. Gated behind `@media (prefers-reduced-motion:
+  no-preference)` — only the transform is gated; the border-color fade
+  is not real "motion" and stays for everyone.
+- `.people-picker__row` (F21) additionally gets a background tint on
+  hover — a border-color change alone is too subtle on a full-width list
+  row — and opts out of the press-scale (`transform: none`), since
+  scaling a row edge-to-edge inside a bordered list looks like a glitch,
+  not a button press.
+- `.book__print-btn` isn't built on `.btn` (it's a `position: fixed`
+  pill), so it got the same border-color hover / press-scale treatment
+  directly.
+- `.person-family__link` (F18's family-section links) gets the same
+  border-color hover.
+- `.timeline__link`: the whole row has no spare horizontal padding (an
+  absolutely-positioned dot/envelope/thumb share the space), so a
+  background-tint hover risked clipping oddly against them untested;
+  underlining the title on hover instead is layout-safe and still reads
+  clearly as "this is a link."
+- Every "‹ Back" link across the app shares a single-class wrapper
+  convention (`.people__back`, `.import__back`, `.admin__back`, etc.) —
+  one shared selector (`[class$="__back"] a`, plus `.story__back` which
+  is applied directly to its `<a>`) gives all of them an underline-on-
+  hover without touching a single template.
+
+Verified with Playwright across the nav, editor (Save/Draft/Archive/
+people-picker), timeline, and `/book`'s print button, in both light and
+dark themes — clean visual feedback everywhere, no clipping or layout
+shift. `pytest` (687) and `ruff check .` green (CSS-only change, no
+template or Python edits).
+
+## F24. Hover feedback, round 2 — the rest of the interactive surface, and a dead-CSS catch on /tree
+
+Continued F23's audit to the remaining interactive elements: the theme
+toggle (every page, top-left nav — high traffic, previously totally
+inert), the import/instant photo drop-zones (dashed border → accent on
+hover), the lightbox close button, the photo-crop zoom buttons, the
+editor's markdown-fallback toolbar, the logout link, a transcript
+`<summary>`, and the timeline's right-edge year minimap ticks (carefully
+excluding `.is-active` from the hover rule — equal specificity to a
+plain `:hover`, so it needed an explicit `:not(.is-active)` guard or
+hovering the current year would've broken its highlight).
+
+**The family tree cards were the interesting one.** `.tree-graph__card`
+exists in main.css and looked like the obvious hover target — but
+testing it live (Playwright, walking the actual DOM) showed the tree
+page never renders that class at all. It renders through the vendored
+`family-chart` library's own markup (`.f3 div.card-inner`, styled by the
+`.page-tree .f3 ...` rules a few hundred lines down, per R5.1/R5.2's
+paper-card-and-gold-ring treatment). `.tree-graph__card` is dead CSS from
+an earlier implementation. Added the hover there instead of leaving
+inert rules behind — border darkens, shadow deepens — and, following the
+exact same specificity trap the existing R5.2 comment already documents
+(a plain rule and a same-specificity modifier rule tie, so the modifier
+must repeat itself or the plain rule's `:hover` silently wins): both
+`.card-inner--focus:hover` (re-rooted target) and `.card-main .card-inner:hover`
+(the configured anchor, gold ring + brand stamp) explicitly repeat their
+gold border rather than inheriting the plain card's darker hover color.
+Verified live: hovering the anchor keeps its ring and stamp intact,
+hovering any other card gets the plain darkened treatment.
+
+Would have shipped silently-inert CSS without the live-DOM check — worth
+remembering that a class existing in main.css doesn't mean anything
+renders it.
+
+`pytest` (687) and `ruff check .` green throughout (CSS-only).
+
+## F25. Splitting routes_pages.py / routes_api.py by resource (no URL changes)
+
+`routes_pages.py` (969 lines) and `routes_api.py` (718 lines) had each
+accumulated every resource's routes — stories, people/genealogy,
+accounts/admin, delegated write-links — in one file. Split each by
+resource without renaming a single endpoint or touching a template:
+
+- `routes_pages.py` keeps the `pages` Blueprint and the core
+  story-reading/writing routes (timeline, story pages, the editor,
+  drafts/archived, `/book`, backup export/import) plus the helpers more
+  than one group needs (`_people_dir`, `_person_ref`,
+  `_other_people_refs`, `_serve_media`, `DEFAULT_AUTHOR_COLOR`).
+- `routes_people.py` (new) — people/genealogy pages (F14/F18): the people
+  list, person page, `/tree`, new/edit person.
+- `routes_accounts.py` (new) — family accounts (F19): the request/approve
+  flow, admin account management, self-service password change,
+  delegated write-links.
+- Same split for the API blueprint: `routes_api.py` keeps the core story
+  API (create/update/restore, image/memo uploads, backup import) plus
+  `_validate_slug_list`/`_people_dir` (needed by both story and person
+  validation); `routes_api_people.py` (new) holds person/family CRUD,
+  photo uploads, and `/api/tree`.
+
+**The trick that makes this a pure file reorganization, not a routing
+change:** the new files don't declare their own `Blueprint` — they `from
+.routes_pages import bp` (or `.routes_api import bp`) and add `@bp.route`
+in their own file. Every `url_for("pages.xxx")` / `url_for("api.xxx")`
+call, in Python and in every template, keeps resolving to the exact same
+endpoint name it always did, regardless of which file the route's code
+now physically lives in. The split files are imported at the very bottom
+of `routes_pages.py`/`routes_api.py` (after `bp` and every helper they
+need already exist) purely for that side effect — registering their
+routes onto the shared blueprint before `app.register_blueprint()` runs
+in `create_app()`. `app/__init__.py` needed zero changes.
+
+Verified: `app.url_map` has the identical 52 rules before and after: full
+`pytest` (687, unmodified) green; a live smoke test hit one route from
+each new file (`/people`, `/tree`, `/account` [404 as expected, accounts
+mode off], `POST /api/people`) to confirm real request handling, not just
+import-time registration.
