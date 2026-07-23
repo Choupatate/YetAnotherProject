@@ -19,7 +19,9 @@
   {{ macros.author_chip_row(authors) }}
   {% endif %}
   <div class="instant__save-row">
-    <button type="submit" id="instant-save" class="btn btn--primary instant__save">Save</button>
+    <button type="submit" id="instant-save" class="btn btn--primary instant__save">
+      <img class="btn-icon" src="{{ url_for('static', filename='img/icon-save.png') }}" alt="" width="20" height="20">Save
+    </button>
     <img class="lasso-spinner" id="instant-spinner" src="{{ url_for('static', filename='img/lasso-ring.png') }}"
          alt="" width="40" height="40" hidden>
   </div>

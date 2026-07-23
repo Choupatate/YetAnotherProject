@@ -45,7 +45,9 @@
      alt="" loading="lazy" decoding="async" width="1000" height="144">
 {% endif %}
 {% endfor %}
-<button type="button" class="book__print-btn" id="book-print-btn">Print / save as PDF</button>
+<button type="button" class="book__print-btn" id="book-print-btn">
+  <img class="btn-icon" src="{{ url_for('static', filename='img/icon-print.png') }}" alt="" width="20" height="20">Print / save as PDF
+</button>
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/book.js') }}"></script>

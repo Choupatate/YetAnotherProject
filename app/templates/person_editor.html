@@ -100,7 +100,9 @@
   <div class="editor__sources" id="editor-sources">
     <p class="editor__family-label">Sources</p>
     <div class="editor__sources-list" id="editor-sources-list"></div>
-    <button type="button" class="btn" id="editor-sources-add">+ Add source</button>
+    <button type="button" class="btn" id="editor-sources-add">
+      <img class="btn-icon" src="{{ url_for('static', filename='img/icon-source.png') }}" alt="" width="20" height="20">+ Add source
+    </button>
   </div>
   <script type="application/json" id="editor-sources-data">{{ (person.sources if person else []) | tojson }}</script>
   <div id="editor-root" class="editor__root">

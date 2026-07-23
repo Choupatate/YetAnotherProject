@@ -18,7 +18,9 @@
   <div class="editor__date-row">
     <input class="editor__date" id="story-date" name="date" type="date"
            value="{{ story.date.isoformat() if story else today.isoformat() }}" required>
-    <label class="editor__unlock-label" for="story-unlock">Seal until</label>
+    <label class="editor__unlock-label" for="story-unlock">
+      <img class="btn-icon" src="{{ url_for('static', filename='img/icon-seal.png') }}" alt="" width="20" height="20">Seal until
+    </label>
     <input class="editor__unlock" id="story-unlock" name="unlock" type="date"
            value="{{ story.unlock.isoformat() if story and story.unlock else '' }}">
   </div>
@@ -37,9 +39,13 @@
     {% endif %}
     <div class="editor__toggles">
       <button type="button" id="draft-toggle" class="btn editor__toggle-chip"
-              aria-pressed="{{ 'true' if story and story.draft else 'false' }}">Draft</button>
+              aria-pressed="{{ 'true' if story and story.draft else 'false' }}">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-draft.png') }}" alt="" width="20" height="20">Draft
+      </button>
       <button type="button" id="archive-toggle" class="btn editor__toggle-chip"
-              aria-pressed="{{ 'true' if story and story.archived else 'false' }}">Archive</button>
+              aria-pressed="{{ 'true' if story and story.archived else 'false' }}">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-archive.png') }}" alt="" width="20" height="20">Archive
+      </button>
     </div>
   </div>
   {% if not story and prompts %}
@@ -53,7 +59,9 @@
   <div class="editor__sources" id="editor-sources">
     <p class="editor__family-label">Sources</p>
     <div class="editor__sources-list" id="editor-sources-list"></div>
-    <button type="button" class="btn" id="editor-sources-add">+ Add source</button>
+    <button type="button" class="btn" id="editor-sources-add">
+      <img class="btn-icon" src="{{ url_for('static', filename='img/icon-source.png') }}" alt="" width="20" height="20">+ Add source
+    </button>
   </div>
   <script type="application/json" id="editor-sources-data">{{ (story.sources if story else []) | tojson }}</script>
   <div id="editor-root" class="editor__root">
@@ -62,7 +70,9 @@
   <section class="editor__voice" id="editor-voice">
     <h2 class="editor__voice-heading">Voice</h2>
     <div class="editor__voice-recorder">
-      <button type="button" id="voice-record-btn" class="btn editor__voice-record">Record</button>
+      <button type="button" id="voice-record-btn" class="btn editor__voice-record">
+        <img class="btn-icon" src="{{ url_for('static', filename='img/icon-record.png') }}" alt="" width="20" height="20">Record
+      </button>
       <button type="button" id="voice-pause-btn" class="btn editor__voice-pause" hidden>Pause</button>
       <button type="button" id="voice-stop-btn" class="btn editor__voice-stop" hidden>Stop</button>
       <span class="editor__voice-timer" id="voice-timer" hidden>00:00</span>

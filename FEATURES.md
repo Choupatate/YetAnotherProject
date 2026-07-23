@@ -2881,3 +2881,58 @@ narrows the unselected rows, a ticked-then-searched-away row stays
 visible and pinned at top, `maxSelected=2` still blocks a third parent,
 and reopening the edit page reloads with both selections pinned at the
 top. `pytest` (687) and `ruff check .` green.
+
+## F22. Button icons — a small bold/flat companion set to F17
+
+F17's illustrations (fine etched linework, cross-hatching) are gorgeous at
+full size but don't survive being shrunk to icon size — tested directly:
+at 24px (the real size an icon renders next to a button label) the fine
+detail collapses into an illegible smudge, confirmed by rendering a test
+icon at 24/32/44px before committing to a style. A second, bolder style —
+flat 2-3 color fills, thick uniform outlines, no cross-hatching — reads
+clearly even at 24px, so that's what this set uses. It is a deliberate
+second, smaller-scale companion to F17's style, not a replacement for it.
+
+Every button already carries a clear text label (verified — no icon-only
+button exists anywhere in the app); these icons are a small accent next
+to the existing label, never a replacement for it.
+
+### Assets
+
+Generated externally (Gemini) from prompts describing the bold/flat
+style, then processed locally: each image's background is auto-keyed to
+transparent (sampling the image's own border pixels as the reference
+color, so it adapts to whatever near-white shade a given generation
+comes back as, rather than a hardcoded threshold), cropped to its content
+bounding box, repadded to a square with an 8% margin, and downscaled to
+160×160 (comfortably above the ~40px a 20px display size would need at
+2x). All 12 committed under `app/static/img/`:
+
+| file | used on |
+|---|---|
+| `icon-save.png` | Save button (story + person editor, instant) |
+| `icon-new-story.png` | "+ New story" (nav, timeline empty state) |
+| `icon-instant.png` | "+ Instant" (nav) |
+| `icon-new-person.png` | "+ New person" (people page) |
+| `icon-tree.png` | "Family tree" link (people page) |
+| `icon-draft.png` | Draft toggle (editor) |
+| `icon-archive.png` | Archive toggle (editor) |
+| `icon-seal.png` | "Seal until" label (editor) |
+| `icon-source.png` | "+ Add source" (story + person editor) |
+| `icon-record.png` | "Record" (voice memo) |
+| `icon-print.png` | "Print / save as PDF" (book view) |
+| `icon-import.png` | "Import" (backup restore) |
+
+New shared `.btn-icon` class (main.css): 20×20px, `flex: none`, small
+right margin — relies on the parent already being `display: flex/inline-
+flex` (true for every `.btn`); `.book__print-btn` and `.editor__unlock-
+label` weren't flex containers before this, so both gained `display:
+inline-flex; align-items: center` alongside the icon. No filter applied
+(these are flat-color illustrations, not photos — same treatment as
+`rope-divider.png`/`brand-star.png`, not the photo-filter path).
+
+Verified in both light and dark themes with Playwright (390px width):
+every icon renders with a clean edge, no white halo, in both themes;
+`pytest` (687) and `ruff check .` still green — no test asserted on a
+button's exact inner HTML, only on attributes of the opening tag, so
+none needed updating.

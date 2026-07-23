@@ -289,6 +289,13 @@ mark {
   white-space: nowrap;
 }
 
+.btn-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-right: 0.4rem;
+}
+
 .btn--new {
   border-color: var(--color-accent);
   color: var(--color-accent);
@@ -1762,6 +1769,8 @@ img.person-family__thumb {
 }
 
 .book__print-btn {
+  display: inline-flex;
+  align-items: center;
   position: fixed;
   right: 1.25rem;
   bottom: 1.25rem;
@@ -1949,6 +1958,8 @@ img.person-family__thumb {
 }
 
 .editor__unlock-label {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   color: var(--color-text-dim);
