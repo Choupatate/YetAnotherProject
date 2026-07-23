@@ -12,6 +12,7 @@ from . import kinship, people, storage
 from .auth import login_required
 from .routes_api import (
     _error,
+    _parse_date,
     _people_dir,
     _validate_media_filename,
     _validate_slug_list,
@@ -79,6 +80,77 @@ def _validate_author_color(data):
     return author_color, None
 
 
+def _validate_born(data):
+    """Resolve and validate the optional 'born' field (FEATURES.md F27).
+    None means absent (leave unchanged on update); "" clears it."""
+    if "born" not in data:
+        return None, None
+    value = data.get("born")
+    if not value:
+        return "", None
+    born = _parse_date(value)
+    if born is None:
+        return None, _error("Birth date must be an ISO date (YYYY-MM-DD).", 400)
+    return born, None
+
+
+def _validate_died(data):
+    """Resolve and validate the optional 'died' field (FEATURES.md F27).
+    None means absent (leave unchanged on update); "" clears it."""
+    if "died" not in data:
+        return None, None
+    value = data.get("died")
+    if not value:
+        return "", None
+    died = _parse_date(value)
+    if died is None:
+        return None, _error("Death date must be an ISO date (YYYY-MM-DD).", 400)
+    return died, None
+
+
+_UNION_MAX = 10
+_UNION_KINDS = ("wedding", "pacs", "union")
+
+
+def _validate_unions(data, valid_partner_slugs):
+    """Resolve and validate the optional 'unions' field (FEATURES.md F27):
+    a list of {partner, kind, since, until} dicts recording when a
+    partnership with an existing partner began (wedding/PACS/plain union)
+    and, optionally, ended. None means absent (leave unchanged on update).
+    Malformed entries (partner not currently linked via `partners`, unknown
+    kind, unparseable/out-of-order dates) are silently dropped rather than
+    erroring — a union record isn't a security boundary the way a source
+    URL scheme is (FEATURES.md F20), so it gets the tags/sources tolerant
+    treatment instead."""
+    if "unions" not in data:
+        return None, None
+    raw = data.get("unions")
+    if not isinstance(raw, list):
+        return [], None
+    cleaned = []
+    seen_partners = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        partner = item.get("partner")
+        if not isinstance(partner, str) or partner not in valid_partner_slugs:
+            continue
+        if partner in seen_partners:
+            continue
+        kind = item.get("kind")
+        if kind not in _UNION_KINDS:
+            continue
+        since = _parse_date(item.get("since"))
+        if since is None:
+            continue
+        until = _parse_date(item.get("until")) if item.get("until") else None
+        if until is not None and until < since:
+            continue
+        seen_partners.add(partner)
+        cleaned.append({"partner": partner, "kind": kind, "since": since, "until": until})
+    return cleaned[:_UNION_MAX], None
+
+
 def _validate_person_family(data, self_slug):
     """Resolve and validate parents/partners/friend_of/gender together
     (FEATURES.md F18). `self_slug` is None on create (a not-yet-existing
@@ -137,6 +209,32 @@ def _sync_partner_symmetry(people_dir, slug, old_partners, new_partners):
         )
 
 
+def _sync_union_symmetry(people_dir, slug, old_unions, new_unions):
+    """Union records are symmetric on disk, like the partner link itself
+    (FEATURES.md F27): a wedding date is one fact about two people, so
+    when `slug`'s unions change, mirror the same kind/since/until onto
+    the other partner's file too."""
+    if new_unions is None:
+        return
+    old_by_partner = {u["partner"]: u for u in old_unions}
+    new_by_partner = {u["partner"]: u for u in new_unions}
+    for other_slug in set(old_by_partner) | set(new_by_partner):
+        other = people.get_person(people_dir, other_slug)
+        if other is None:
+            continue
+        other_unions = [u for u in other.unions if u["partner"] != slug]
+        if other_slug in new_by_partner:
+            entry = new_by_partner[other_slug]
+            other_unions.append({
+                "partner": slug, "kind": entry["kind"],
+                "since": entry["since"], "until": entry["until"],
+            })
+        people.update_person(
+            people_dir, other_slug, other.name, relation=other.relation,
+            body=other.body or "", unions=other_unions,
+        )
+
+
 @bp.route("/people", methods=["POST"])
 @login_required
 def create_person():
@@ -156,6 +254,17 @@ def create_person():
     sources, error = _validate_sources(data)
     if error:
         return error
+    born, error = _validate_born(data)
+    if error:
+        return error
+    died, error = _validate_died(data)
+    if error:
+        return error
+    if born and died and died < born:
+        return _error("Death date can't be before birth date.", 400)
+    unions, error = _validate_unions(data, set(fields["partners"] or []))
+    if error:
+        return error
 
     people_dir = _people_dir()
     slug = people.create_person(
@@ -163,8 +272,10 @@ def create_person():
         parents=fields["parents"], partners=fields["partners"],
         friend_of=fields["friend_of"], gender=fields["gender"],
         author_color=author_color, sources=sources,
+        born=born or None, died=died or None, unions=unions,
     )
     _sync_partner_symmetry(people_dir, slug, [], fields["partners"] or [])
+    _sync_union_symmetry(people_dir, slug, [], unions or [])
     return jsonify({"id": slug, "title": name})
 
 
@@ -205,17 +316,40 @@ def update_person(slug):
     if existing is None:
         return _error("Person not found.", 404)
 
+    born, error = _validate_born(data)
+    if error:
+        return error
+    died, error = _validate_died(data)
+    if error:
+        return error
+    effective_born = existing.born if born is None else (born or None)
+    effective_died = existing.died if died is None else (died or None)
+    if effective_born and effective_died and effective_died < effective_born:
+        return _error("Death date can't be before birth date.", 400)
+    effective_partners = set(fields["partners"] if fields["partners"] is not None else existing.partners)
+    unions, error = _validate_unions(data, effective_partners)
+    if error:
+        return error
+    # A union's partner must still be a partner, whether or not `unions`
+    # itself was part of this request — dropping a partner (via `partners`
+    # alone, e.g. a hand-crafted API call that doesn't resend `unions`)
+    # must not leave a now-orphaned union record behind.
+    resolved_unions = unions if unions is not None else existing.unions
+    resolved_unions = [u for u in resolved_unions if u["partner"] in effective_partners]
+
     try:
         people.update_person(
             people_dir, slug, name, relation=relation, body=markdown, photo=photo,
             parents=fields["parents"], partners=fields["partners"],
             friend_of=fields["friend_of"], gender=fields["gender"],
             photo_sepia=photo_sepia, author_color=author_color, sources=sources,
+            born=born, died=died, unions=resolved_unions,
         )
     except FileNotFoundError:
         return _error("Person not found.", 404)
 
     _sync_partner_symmetry(people_dir, slug, existing.partners, fields["partners"])
+    _sync_union_symmetry(people_dir, slug, existing.unions, resolved_unions)
 
     return jsonify({"id": slug})
 

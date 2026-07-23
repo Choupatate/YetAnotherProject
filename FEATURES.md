@@ -3142,3 +3142,99 @@ a real browser, confirming both delivery mechanisms work outside of unit
 test mocking.
 
 `pytest` (694: 687 existing + 7 new) and `ruff check .` green.
+
+## F27. Life dates — birthdays, deaths, and unions
+
+Requested directly: a parent wanted to record grandparents' birthdays and
+deaths, plus wedding/PACS dates (and, when it happens, when a union
+ended). Rather than six separate features, this is one small addition to
+`Person`: two dates (`born`/`died`) and a list of unions, each an optional
+kind/since/until on an existing partner link.
+
+### Storage (`app/people.py`)
+
+- `Person` gains `born`/`died` (`Optional[date]`) and `unions` (a list of
+  `{"partner", "kind", "since", "until"}` dicts — `kind` is
+  `wedding`/`pacs`/`union`, `until` optional). All tolerantly parsed
+  (malformed entries dropped, not raised — files outlive edits, same
+  philosophy as `sources`/`tags`).
+- `create_person`/`update_person` follow the established "None means leave
+  unchanged" convention for all three (photo/sources/author_color already
+  work this way): `born`/`died` additionally treat `""` as "clear",
+  `unions` treats `[]` as "clear".
+- Deliberately **not** a new top-level dataclass or a redesign of
+  `partners` — a union is descriptive metadata layered on an *existing*
+  partner link, not a new kind of relationship. `partners` (and
+  everything built on it: `kinship.py`, the tree chart, `tree.js`) is
+  completely untouched.
+
+### API (`routes_api_people.py`)
+
+- `_validate_born`/`_validate_died`: ISO date or 400; a
+  `died < born` cross-check also 400s. `_validate_unions`: tolerant, not
+  strict — an entry with an unknown `kind`, an unparseable date, an
+  `until` before its `since`, or a `partner` not in that person's own
+  `partners` list is silently dropped rather than rejecting the whole
+  request (a union record isn't a security boundary the way F20's source
+  URL scheme is).
+- Union records are symmetric on disk, exactly like the partner link
+  itself: a wedding date is one fact about two people. `_sync_union_symmetry`
+  mirrors kind/since/until onto the other partner's file, mirroring
+  `_sync_partner_symmetry`'s existing shape. Dropping a partner (even via
+  a hand-crafted request that never resends `unions`) also drops any
+  union with them on both sides — the invariant "every union's partner is
+  a current partner" is enforced unconditionally at write time, not only
+  when the client happens to submit `unions` in the same request.
+
+### Editor UI (`person_editor.html`, `editor.js`)
+
+- Two plain date inputs, "Born"/"Died", always present on the person
+  editor (not gated behind any other field).
+- "Unions": a repeatable-row list under the existing Partner picker —
+  partner (a `<select>` populated from whoever's currently ticked in the
+  Partner picker), kind, since, until, and a remove button. Same
+  repeatable-row shape as F20's Sources UI. Clicking "+ Add union" with no
+  partner selected shows a quiet inline message instead of adding an
+  unusable row.
+
+### Display
+
+- Person page: `born`/`died` render as a small line under the name —
+  "Born {date} · {age}" when only `born` is set (reusing F3's
+  `age_label`), a `{born} – {died}` span when both are set. A `died`-only
+  person (a relative from before the book started) shows "Died {date}".
+  An "Unions" section lists each partner with kind + year range, styled
+  like the existing Parents/Partners/Children groups.
+- New `/almanac` page (`app/life_events.py`, `routes_people.py`): every
+  recorded birth, death, and union date, month by month, independent of
+  year — a real family record book's calendar page, not the timeline's
+  dated entries. A union's `until` is noted on its one entry rather than
+  becoming a second recurring date — this page is a record, not something
+  to mark as an anniversary. Linked from `/people` (only when at least
+  one person actually has a life date set).
+- Timeline: a living person's birthday and an ongoing union's anniversary
+  (both month/day matches, Feb 29 makeup rule reused from F5) surface as
+  quiet banners next to the existing "X years ago today", e.g. "Mamie
+  turns 70 today" / "Papa & Claire — 10-year wedding anniversary today".
+  **Deliberately excluded from the timeline:** death anniversaries and
+  ended unions. Both are recorded (person page, almanac) but never
+  surfaced as a banner — an unprompted "would have been 70 today" or an
+  anniversary of a separation is the wrong kind of surprise for a book a
+  child reads freely; the almanac is something you visit, a timeline
+  banner is something that visits you.
+
+### Tests
+
+`tests/test_people.py` (storage layer: parsing, tolerant malformed
+frontmatter, None/""/[] semantics), `tests/test_family_api.py` (validation,
+died-before-born, unknown kind/partner dropped, symmetric sync, partner
+removal cascades to unions on both sides), `tests/test_family_pages.py`
+(person page rendering), and new `tests/test_life_events.py` (the pure
+`birthdays_today`/`union_anniversaries_today`/`almanac_entries` functions,
+plus route-level timeline banner and `/almanac` rendering). Verified live
+with Playwright: created a person with born/died and a union with a
+second person on a 390px mobile viewport, confirmed the reverse union
+appeared on the partner's own page, confirmed the almanac listed both,
+and confirmed a real 70th-birthday banner rendered on the timeline.
+
+`pytest` (736: 694 existing + 42 new) and `ruff check .` green.

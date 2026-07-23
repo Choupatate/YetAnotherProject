@@ -35,6 +35,10 @@
   // supplies the /api/people... equivalents.
   var relationInput = document.getElementById("person-relation");
   var authorColorInput = document.getElementById("person-author-color");
+  var bornInput = document.getElementById("person-born");
+  var diedInput = document.getElementById("person-died");
+  if (bornInput) bornInput.addEventListener("input", markDirty);
+  if (diedInput) diedInput.addEventListener("input", markDirty);
   var createUrl = form.dataset.createUrl || "/api/stories";
   var updateUrlTemplate = form.dataset.updateUrlTemplate || "/api/stories/__ID__";
   var imageUrlTemplate = form.dataset.imageUrlTemplate || "/api/stories/__ID__/images";
@@ -251,6 +255,119 @@
       })
       .filter(function (s) {
         return s.url;
+      });
+  }
+
+  // --- Unions: wedding/PACS/union dates on a partner link (FEATURES.md F27) --
+  var unionsListEl = document.getElementById("editor-unions-list");
+  var unionsAddBtn = document.getElementById("editor-unions-add");
+  var unionsDataEl = document.getElementById("editor-unions-data");
+  var unionsMessageEl = document.getElementById("editor-unions-message");
+  var showUnionsMessage = makeMessageSetter(unionsMessageEl);
+  var UNION_KINDS = [["wedding", "Wedding"], ["pacs", "PACS"], ["union", "Union"]];
+
+  function partnerName(slug) {
+    var row = document.querySelector('#family-partners .people-picker__row[data-person-slug="' + slug + '"]');
+    return row ? row.querySelector(".people-picker__name").textContent : slug;
+  }
+
+  function makeUnionRow(partnerSlug, kind, since, until) {
+    var row = document.createElement("div");
+    row.className = "editor__union-row";
+
+    var partnerSelect = document.createElement("select");
+    partnerSelect.className = "editor__union-partner";
+    (partnersPicker.getSelected() || []).forEach(function (slug) {
+      var opt = document.createElement("option");
+      opt.value = slug;
+      opt.textContent = partnerName(slug);
+      if (slug === partnerSlug) opt.selected = true;
+      partnerSelect.appendChild(opt);
+    });
+    partnerSelect.addEventListener("change", markDirty);
+
+    var kindSelect = document.createElement("select");
+    kindSelect.className = "editor__union-kind";
+    UNION_KINDS.forEach(function (pair) {
+      var opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      if (pair[0] === kind) opt.selected = true;
+      kindSelect.appendChild(opt);
+    });
+    kindSelect.addEventListener("change", markDirty);
+
+    var sinceInput = document.createElement("input");
+    sinceInput.type = "date";
+    sinceInput.className = "editor__union-since";
+    sinceInput.title = "Since";
+    sinceInput.value = since || "";
+    sinceInput.addEventListener("input", markDirty);
+
+    var untilInput = document.createElement("input");
+    untilInput.type = "date";
+    untilInput.className = "editor__union-until";
+    untilInput.title = "Until (optional)";
+    untilInput.value = until || "";
+    untilInput.addEventListener("input", markDirty);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn editor__union-remove";
+    removeBtn.setAttribute("aria-label", "Remove union");
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", function () {
+      row.remove();
+      markDirty();
+    });
+
+    row.appendChild(partnerSelect);
+    row.appendChild(kindSelect);
+    row.appendChild(sinceInput);
+    row.appendChild(untilInput);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  if (unionsListEl && unionsDataEl) {
+    var initialUnions = [];
+    try {
+      initialUnions = JSON.parse(unionsDataEl.textContent) || [];
+    } catch (e) {
+      initialUnions = [];
+    }
+    initialUnions.forEach(function (u) {
+      unionsListEl.appendChild(makeUnionRow(u.partner, u.kind, u.since, u.until));
+    });
+  }
+
+  if (unionsAddBtn) {
+    unionsAddBtn.addEventListener("click", function () {
+      var available = partnersPicker.getSelected();
+      if (!available.length) {
+        showUnionsMessage("Add a partner above first.");
+        return;
+      }
+      showUnionsMessage("");
+      unionsListEl.appendChild(makeUnionRow(available[0], "wedding", "", ""));
+      markDirty();
+    });
+  }
+
+  function getUnions() {
+    if (!unionsListEl) return [];
+    return Array.prototype.slice
+      .call(unionsListEl.querySelectorAll(".editor__union-row"))
+      .map(function (row) {
+        return {
+          partner: row.querySelector(".editor__union-partner").value,
+          kind: row.querySelector(".editor__union-kind").value,
+          since: row.querySelector(".editor__union-since").value,
+          until: row.querySelector(".editor__union-until").value,
+        };
+      })
+      .filter(function (u) {
+        return u.partner && u.since;
       });
   }
 
@@ -649,10 +766,13 @@
     };
     if (relationInput) payload.relation = relationInput.value.trim();
     if (authorColorInput) payload.author_color = authorColorInput.value;
+    if (bornInput) payload.born = bornInput.value;
+    if (diedInput) payload.died = diedInput.value;
     addFamilyFields(payload);
     if (storyPeopleRoot) payload.people = storyPeoplePicker.getSelected();
     if (tagsInput) payload.tags = parseTags(tagsInput.value);
     if (sourcesListEl) payload.sources = getSources();
+    if (unionsListEl) payload.unions = getUnions();
     return payload;
   }
 

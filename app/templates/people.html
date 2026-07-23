@@ -12,6 +12,9 @@
         <img class="btn-icon" src="{{ url_for('static', filename='img/icon-tree.png') }}" alt="" width="20" height="20">Family tree
       </a>
       {% endif %}
+      {% if show_almanac_link %}
+      <a class="btn" href="{{ url_for('pages.almanac') }}">Almanac</a>
+      {% endif %}
       <a class="btn btn--new" href="{{ url_for('pages.new_person') }}">
         <img class="btn-icon" src="{{ url_for('static', filename='img/icon-new-person.png') }}" alt="" width="20" height="20">+ New person
       </a>

@@ -20,6 +20,19 @@
   <input class="editor__relation" id="person-relation" name="relation" type="text"
          placeholder="Relation (e.g. your grandmother)" value="{{ (person.relation or '') if person else '' }}">
 
+  <div class="editor__life-dates" id="editor-life-dates">
+    <div class="editor__family-group">
+      <label class="editor__family-label" for="person-born">Born</label>
+      <input class="editor__born" id="person-born" type="date"
+             value="{{ person.born.isoformat() if person and person.born else '' }}">
+    </div>
+    <div class="editor__family-group">
+      <label class="editor__family-label" for="person-died">Died</label>
+      <input class="editor__died" id="person-died" type="date"
+             value="{{ person.died.isoformat() if person and person.died else '' }}">
+    </div>
+  </div>
+
   {% if config.ACCOUNTS_ENABLED %}
   <div class="editor__author-color">
     <label class="editor__family-label" for="person-author-color">Byline color</label>
@@ -80,6 +93,21 @@
     <legend class="editor__family-legend">Family</legend>
     {{ macros.people_picker("family-parents", "Parents (up to two)", person.parents if person else [], other_people) }}
     {{ macros.people_picker("family-partners", "Partner", person.partners if person else [], other_people) }}
+    <div class="editor__unions" id="editor-unions">
+      <p class="editor__family-label">Unions</p>
+      <div class="editor__unions-list" id="editor-unions-list"></div>
+      <p class="editor__unions-message" id="editor-unions-message" hidden></p>
+      <button type="button" class="btn" id="editor-unions-add">+ Add union</button>
+    </div>
+    {# Built field-by-field rather than `{{ person.unions | tojson }}` — a
+       union's since/until are `date` objects, and Flask's default JSON
+       encoder renders those as RFC-1123 strings, not the ISO dates this
+       page's date inputs (and editor.js) expect. #}
+    <script type="application/json" id="editor-unions-data">[
+{%- for u in (person.unions if person else []) -%}
+{"partner": {{ u.partner | tojson }}, "kind": {{ u.kind | tojson }}, "since": {{ u.since.isoformat() | tojson }}, "until": {{ (u.until.isoformat() if u.until else none) | tojson }}}{% if not loop.last %},{% endif %}
+{%- endfor -%}
+]</script>
     {{ macros.people_picker("family-friend-of", "Friend of", person.friend_of if person else [], other_people) }}
     <div class="editor__family-group">
       <p class="editor__family-label">Gender</p>
