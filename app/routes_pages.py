@@ -128,6 +128,9 @@ def timeline():
     all_people = people.list_people(_people_dir())
     people_by_slug = {p.slug: p for p in all_people}
     birthdate = current_app.config.get("BIRTHDATE")
+    quiet_months = storage.months_since_last_story(all_stories, today)
+    if quiet_months is None or quiet_months < storage.QUIET_SPELL_MONTHS:
+        quiet_months = None
     return render_template(
         "timeline.html",
         years=sorted(years.items()),
@@ -144,6 +147,7 @@ def timeline():
         people_by_slug=people_by_slug,
         has_firsts=bool(storage.stories_with_milestones(all_stories)),
         has_growth=bool(birthdate and storage.growth_photos(all_stories, birthdate, today)),
+        quiet_months=quiet_months,
     )
 
 

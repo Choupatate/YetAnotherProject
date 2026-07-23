@@ -544,6 +544,21 @@ mark {
   color: var(--color-text);
 }
 
+.timeline__nudge {
+  max-width: 40rem;
+  margin: 1.25rem auto 0;
+  padding: 0 1.25rem;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 0.9375rem;
+  color: var(--color-text-dim);
+  text-align: center;
+}
+
+.timeline__nudge a {
+  color: var(--color-text-dim);
+}
+
 .timeline__legend {
   display: flex;
   flex-wrap: wrap;

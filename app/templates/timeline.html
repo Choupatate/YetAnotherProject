@@ -39,6 +39,12 @@
   {% endfor %}
 </div>
 {% endif %}
+{% if quiet_months %}
+<p class="timeline__nudge">
+  Nothing new in {{ quiet_months }} month{{ 's' if quiet_months != 1 else '' }} &mdash;
+  <a href="{{ url_for('pages.new_story') }}">a little story?</a>
+</p>
+{% endif %}
 {% if authors %}
 <div class="timeline__legend">
   {% for a in authors %}

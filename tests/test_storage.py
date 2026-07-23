@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -289,6 +289,47 @@ def test_growth_photos_excludes_drafts_and_sealed():
     )
     result = storage.growth_photos([draft], birthdate, today=date(2020, 7, 1))
     assert result == []
+
+
+# --- months_since_last_story: the gentle writing nudge (FEATURES.md F30) -----
+
+
+def _story_created_on(id_, created_date):
+    return storage.Story(
+        id=id_, title=id_, date=created_date, created=datetime.combine(created_date, datetime.min.time()),
+        updated=None,
+    )
+
+
+def test_months_since_last_story_none_when_no_stories():
+    assert storage.months_since_last_story([]) is None
+
+
+def test_months_since_last_story_zero_for_recent_activity():
+    stories = [_story_created_on("recent", date(2026, 6, 1))]
+    result = storage.months_since_last_story(stories, today=date(2026, 6, 15))
+    assert result == 0
+
+
+def test_months_since_last_story_counts_whole_months():
+    stories = [_story_created_on("old", date(2026, 1, 15))]
+    result = storage.months_since_last_story(stories, today=date(2026, 6, 20))
+    assert result == 5
+
+
+def test_months_since_last_story_boundary_day_not_yet_elapsed():
+    stories = [_story_created_on("old", date(2026, 1, 20))]
+    result = storage.months_since_last_story(stories, today=date(2026, 6, 15))
+    assert result == 4
+
+
+def test_months_since_last_story_uses_most_recent_of_several():
+    stories = [
+        _story_created_on("older", date(2025, 1, 1)),
+        _story_created_on("newer", date(2026, 5, 1)),
+    ]
+    result = storage.months_since_last_story(stories, today=date(2026, 6, 1))
+    assert result == 1
 
 
 def test_path_safety_story_id_regex():

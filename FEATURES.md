@@ -3366,3 +3366,39 @@ the "Growing up" link appeared only once a photo existed, and confirmed
 the grid rendered both "Newborn" and "Turning 1" cards correctly.
 
 `pytest` (767: 754 existing + 13 new) and `ruff check .` green.
+
+## F30. A gentle nudge after a quiet spell
+
+Last of the batch, after F27-F29. Not a notification, not a streak
+counter, not a guilt mechanic — one quiet italic line on the timeline
+when it's genuinely been a while: "Nothing new in 4 months — a little
+story?", the "a little story?" itself linking to `/new`.
+
+### Design
+
+- New pure `storage.months_since_last_story(stories, today=None)`: whole
+  months since the most recently *written* story, by `created` — not by
+  the story's own `date`. Writing today about something from three years
+  ago is real writing activity; it shouldn't itself read as "nothing new
+  since three years ago." Includes drafts and instants (any of them is
+  genuine engagement) and returns `None` when there are no stories at
+  all, so a brand-new install is never nagged before it's begun.
+- `QUIET_SPELL_MONTHS = 3`: the threshold below which nothing is shown —
+  a routine week or two of quiet isn't "a quiet spell."
+- Shown on the timeline only, styled like F16's writing-prompt line
+  (muted italic serif, no box, no icon) — deliberately quieter than the
+  boxed "X years ago today"/birthday/anniversary banners above it, since
+  this is a nudge, not a notable occasion.
+
+### Tests
+
+`tests/test_storage.py` (no stories -> `None`, recent activity -> 0,
+whole-month counting including the day-of-month boundary, most-recent-of-
+several). `tests/test_pages.py` (no nudge right after writing; a nudge
+after backdating a story's `created` field on disk — the same
+hand-edited-frontmatter technique other tests already use — well past the
+threshold). Verified live with Playwright: backdated a story's `created`
+timestamp and confirmed the exact quiet italic banner text and link
+rendered on the real timeline.
+
+`pytest` (774: 767 existing + 7 new) and `ruff check .` green.

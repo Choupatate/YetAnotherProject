@@ -242,6 +242,40 @@ def test_timeline_shows_firsts_link_only_when_milestones_exist(auth_client, stor
     assert b'>Firsts<' in resp.data
 
 
+def _backdate_created(stories_dir, story_id, created_dt):
+    import frontmatter
+
+    index_path = stories_dir / story_id / "index.md"
+    post = frontmatter.load(index_path)
+    post["created"] = created_dt.isoformat()
+    index_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+
+
+def test_timeline_no_nudge_for_recent_activity(auth_client, stories_dir):
+    from datetime import date
+
+    from app import storage
+
+    storage.create_story(stories_dir, "Just written", date(2026, 1, 1), "")
+    resp = auth_client.get("/")
+    assert b"timeline__nudge" not in resp.data
+
+
+def test_timeline_shows_nudge_after_a_quiet_spell(auth_client, stories_dir):
+    from datetime import date, datetime
+
+    from app import storage
+
+    story_id = storage.create_story(stories_dir, "Old one", date(2025, 1, 1), "")
+    _backdate_created(stories_dir, story_id, datetime(2025, 1, 1))
+
+    resp = auth_client.get("/")
+    html = resp.data.decode()
+    assert "timeline__nudge" in html
+    assert "Nothing new in" in html
+    assert "a little story?" in html
+
+
 def test_404_page_renders_custom_template(auth_client):
     resp = auth_client.get("/this-route-does-not-exist")
     assert resp.status_code == 404
