@@ -127,6 +127,7 @@ def timeline():
     authors, author_colors = _authors_and_colors()
     all_people = people.list_people(_people_dir())
     people_by_slug = {p.slug: p for p in all_people}
+    birthdate = current_app.config.get("BIRTHDATE")
     return render_template(
         "timeline.html",
         years=sorted(years.items()),
@@ -136,13 +137,23 @@ def timeline():
         draft_count=draft_count,
         archived_count=archived_count,
         today=today,
-        birthdate=current_app.config.get("BIRTHDATE"),
+        birthdate=birthdate,
         on_this_day=storage.on_this_day(all_stories, today),
         birthdays_today=life_events.birthdays_today(all_people, today),
         union_anniversaries_today=life_events.union_anniversaries_today(all_people, today),
         people_by_slug=people_by_slug,
         has_firsts=bool(storage.stories_with_milestones(all_stories)),
+        has_growth=bool(birthdate and storage.growth_photos(all_stories, birthdate, today)),
     )
+
+
+@bp.route("/growth")
+@login_required
+def growth():
+    all_stories = storage.list_stories(current_app.config["STORIES_DIR"])
+    birthdate = current_app.config.get("BIRTHDATE")
+    photos = storage.growth_photos(all_stories, birthdate) if birthdate else []
+    return render_template("growth.html", photos=photos, birthdate=birthdate)
 
 
 @bp.route("/firsts")

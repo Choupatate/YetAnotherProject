@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Growing up — {{ app_title }}{% endblock %}
+{% block body_class %}page-growth{% endblock %}
+{% block content %}
+<div class="growth">
+  <p class="growth__back"><a href="{{ url_for('pages.timeline') }}">&lsaquo; Timeline</a></p>
+  <h1 class="growth__title">Growing up</h1>
+  <hr class="story__flourish growth__flourish" aria-hidden="true">
+  {% if not birthdate %}
+  <p class="growth__empty">
+    Set <code>STORYBOOK_BIRTHDATE</code> in your configuration to turn
+    this on — the photo closest to each birthday, one per year.
+  </p>
+  {% elif not photos %}
+  <p class="growth__empty">
+    Add a cover photo to a story and it'll take its place here — the
+    photo nearest each birthday, one per year, watching them grow in one
+    glance.
+  </p>
+  {% else %}
+  <ul class="growth__grid">
+    {% for entry in photos %}
+    <li class="growth__card">
+      <a class="growth__card-link" href="{{ url_for('pages.story', story_id=entry.story.id) }}">
+        <img class="growth__photo" src="{{ url_for('pages.story_media', story_id=entry.story.id, filename=thumb_filename(entry.story.cover)) }}" alt="" loading="lazy">
+        <span class="growth__age">{{ "Newborn" if entry.age == 0 else "Turning " ~ entry.age }}</span>
+        <span class="growth__caption">{{ entry.story.date.strftime('%B %-d, %Y') }} &middot; {{ entry.story.title }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

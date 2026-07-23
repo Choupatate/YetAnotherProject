@@ -131,6 +131,10 @@
   <a href="{{ url_for('pages.firsts') }}">Firsts</a>
   &middot;
   {% endif %}
+  {% if has_growth %}
+  <a href="{{ url_for('pages.growth') }}">Growing up</a>
+  &middot;
+  {% endif %}
   <a href="{{ url_for('pages.random_page') }}">Open a page at random</a>
   &middot;
   <a href="{{ url_for('pages.book') }}">Read as a book</a>
