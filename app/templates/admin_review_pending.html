@@ -14,6 +14,7 @@
 
   <form class="admin__form" method="post"
         action="{{ url_for('pages.admin_review_pending', username=pending.username) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {{ macros.person_picker(unbound_people) }}
 
     <label class="login__label" for="admin-role">Role</label>
@@ -27,6 +28,7 @@
   </form>
   <form method="post"
         action="{{ url_for('pages.admin_reject_pending', username=pending.username) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn">Reject request</button>
   </form>
 </div>

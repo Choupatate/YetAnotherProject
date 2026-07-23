@@ -43,6 +43,7 @@
 
 {% macro action_button_form(action_url, label) %}
 <form method="post" action="{{ action_url }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn admin__row-action">{{ label }}</button>
 </form>
 {% endmacro %}

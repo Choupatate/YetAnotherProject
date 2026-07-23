@@ -9,6 +9,7 @@ BASE_TEST_CONFIG = {
     "TESTING": True,
     "PASSWORD": "test-password",
     "SECRET_KEY": "test-secret-key",
+    "WTF_CSRF_ENABLED": False,
 }
 
 

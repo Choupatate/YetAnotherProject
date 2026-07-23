@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
+from flask_wtf import CSRFProtect
 
 MAX_CONTENT_LENGTH = 128 * 1024 * 1024
 
@@ -93,6 +94,8 @@ def create_app(test_config=None):
     app.config["STORIES_DIR"].mkdir(parents=True, exist_ok=True)
 
     from . import auth, dates, routes_api, routes_pages, storage
+
+    CSRFProtect(app)
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(routes_pages.bp)

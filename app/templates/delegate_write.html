@@ -9,6 +9,7 @@
     else here, and this page won't show it back to you afterward.
   </p>
   <form class="login__form" method="post" action="{{ url_for('pages.delegate_write') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="login__label" for="delegate-title">Title</label>
     <input class="login__input" type="text" id="delegate-title" name="title" autofocus required>
 

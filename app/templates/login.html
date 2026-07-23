@@ -8,6 +8,7 @@
   <img class="illo login__illo" src="{{ url_for('static', filename='img/login-campfire.jpg') }}"
        alt="" loading="lazy" decoding="async" width="856" height="735">
   <form class="login__form" method="post" action="{{ url_for('auth.login') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% if accounts_enabled %}
     <label class="login__label" for="username">Username</label>
     <input class="login__input" type="text" id="username" name="username" autocomplete="username" autofocus required>

@@ -46,7 +46,7 @@
     saveButton.disabled = true;
     if (spinner) spinner.hidden = false;
 
-    fetch("/api/stories", {
+    fetch("/api/stories", window.CsrfFetch.withToken({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -56,18 +56,18 @@
         kind: "instant",
         author: author,
       }),
-    })
+    }))
       .then(window.FetchJson.parse)
       .then(function (created) {
         var formData = new FormData();
         formData.append("file", file);
-        return fetch("/api/stories/" + created.id + "/images", {
+        return fetch("/api/stories/" + created.id + "/images", window.CsrfFetch.withToken({
           method: "POST",
           body: formData,
-        })
+        }))
           .then(window.FetchJson.parse)
           .then(function (uploaded) {
-            return fetch("/api/stories/" + created.id, {
+            return fetch("/api/stories/" + created.id, window.CsrfFetch.withToken({
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -77,7 +77,7 @@
                 cover: uploaded.filename,
                 author: author,
               }),
-            }).then(window.FetchJson.parse);
+            })).then(window.FetchJson.parse);
           });
       })
       .then(function () {

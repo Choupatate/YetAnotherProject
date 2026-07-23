@@ -45,6 +45,7 @@ def test_nav_brand_and_title_use_configured_app_title(tmp_path, monkeypatch):
     monkeypatch.setenv("STORYBOOK_PASSWORD", "test-password")
     monkeypatch.setenv("STORYBOOK_SECRET_KEY", "test-secret")
     app = create_app()
+    app.config["WTF_CSRF_ENABLED"] = False
     client = app.test_client()
     client.post("/login", data={"password": "test-password"})
 

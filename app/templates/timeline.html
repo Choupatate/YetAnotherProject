@@ -122,6 +122,7 @@
   <a href="{{ url_for('pages.import_page') }}">Import a backup</a>
   &middot;
   <form class="timeline__logout-form" method="post" action="{{ url_for('auth.logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="timeline__logout-button">Log out</button>
   </form>
 </div>
