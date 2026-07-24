@@ -3448,3 +3448,107 @@ a page break while the story immediately after it does not, exactly the
 intended pagination.
 
 `pytest` (779: 774 existing + 5 new) and `ruff check .` green.
+
+## F32. MCP server — an AI-assisted authoring surface
+
+Requested directly, after a round of "what else could we add" brainstorming
+landed on documentation: rather than (or in addition to) prose docs "for AI
+tools," expose Storybook itself over
+[MCP](https://modelcontextprotocol.io) so an assistant like Claude can read
+and write stories/people as a genuine second way to author the book,
+alongside the web editor.
+
+### Scope decision
+
+The request was explicitly for a **read-write** server (the same write
+paths as the web editor, just invoked by an AI instead of a form) rather
+than a read-only context server. Given this app's data is a private
+journal with a child's photos, that's a real trust decision, made
+knowingly: the mitigating factor is that this server only ever runs
+locally over stdio, launched directly by an MCP client on the same
+machine — it is not part of the Flask app, has no network listener, and
+carries no login of its own. The trust boundary is identical to running
+the app locally in the first place (whoever can launch the process already
+has filesystem access to `stories/`), so it adds no new remote attack
+surface. It must never be pointed at a network-reachable transport.
+
+### Dependency tradeoff
+
+New pinned dependency `mcp==1.28.1` (`requirements.txt`) — the official
+Python SDK, used rather than hand-rolling JSON-RPC framing/handshake
+compliance (the same "don't roll your own protocol" reasoning F26 applied
+to CSRF tokens). Worth being explicit about the cost: this pulls in ~25
+transitive packages (`starlette`, `uvicorn`, `pydantic`, `httpx`,
+`cryptography`, `jsonschema`, ...) for HTTP/SSE transport support this app
+never uses, a real departure from the "boring, minimal dependencies"
+philosophy. It's an optional add-on (`mcp_server.py` is a separate
+entrypoint from `run.py`; the Flask app never imports it), so a deployment
+that doesn't want the extra dependency weight can simply not install/run
+it — nothing in the web app depends on `mcp` being present.
+
+### Design
+
+- `app/mcp_server.py`: a `FastMCP` instance with 11 tools, wired to the
+  exact same `storage.py`/`people.py` functions the web editor's routes
+  call — atomic `index.md` writes, `.versions/` snapshots on every save,
+  Pillow re-encoding for photos, symmetric partner/union syncing (F18/F27).
+  This module never touches a story/person file directly itself; it only
+  adds MCP-shaped argument validation (raising `ValueError` on bad input,
+  which FastMCP turns into a proper tool-error result rather than a server
+  crash) and tool wiring on top.
+  - Read: `list_stories` (filterable by tag/person/milestone/date range),
+    `get_story`, `list_people`, `get_person`, and `get_journal_context` — a
+    single snapshot tool (total/draft/readable story counts, the most
+    recent story, `months_since_last_story`/quiet-spell status from F30,
+    today's birthdays/union anniversaries from F27, the firsts count from
+    F28, the child's age today from F3 if `STORYBOOK_BIRTHDATE` is set,
+    and a random writing prompt from F16) meant to be the first call an
+    assistant makes, so it has context before creating anything.
+  - Write: `create_story`/`update_story`, `add_story_photo`,
+    `create_person`/`update_person`, `set_person_photo`.
+- Config is read from the same `STORYBOOK_STORIES_DIR`/`STORYBOOK_AUTHORS`/
+  `STORYBOOK_BIRTHDATE`/`STORYBOOK_TITLE` environment variables
+  `app/__init__.py`'s `create_app()` uses, re-parsed locally rather than
+  imported from `app/__init__.py` — same "don't import back into
+  `app/__init__.py`'s internals" convention `people.py` already follows for
+  `_AUTHOR_COLOR_RE`. This module is never imported by `app/__init__.py`
+  and doesn't require the Flask app to exist at all.
+- `update_story`/`update_person` follow the rest of the app's "None means
+  leave unchanged, empty clears" convention for optional fields, with one
+  deliberate deviation from the web route's behavior: `draft`/`archived`
+  default to *leaving the current value unchanged* when omitted, rather
+  than the HTTP form's "always resend the checkbox, so an absent field
+  means false" rule. A web form's checkboxes are always visibly present;
+  an AI-driven partial update is not, so defaulting an omitted `draft` to
+  `False` could silently un-draft a story the assistant never meant to
+  touch. `title`/`date`/`body` (`name`/`body` for people) stay always-
+  required/always-overwritten, matching the web routes exactly.
+- Photo uploads (`add_story_photo`, `set_person_photo`) take
+  base64-encoded image bytes (a `data:image/...;base64,` prefix is
+  stripped if present) instead of a multipart file, decoded into a tiny
+  adapter object exposing the `.stream` attribute `storage.save_image_to`
+  expects from a Werkzeug `FileStorage` — every other guarantee (Pillow
+  re-encoding, thumbnailing, EXIF transpose) is identical to a web upload.
+  Voice memos and zip import/export are deliberately not exposed as tools
+  in this first version.
+- `mcp_server.py` at the repo root is a two-line launcher (`from
+  app.mcp_server import mcp; mcp.run(transport="stdio")`), mirroring
+  `run.py`'s relationship to `create_app()`.
+
+### Tests
+
+New `tests/test_mcp_server.py` (41 tests) calls the tool functions
+directly — the `@mcp.tool()` decorator returns the original function
+unchanged (confirmed against the installed SDK's source), so no MCP
+transport is needed to test the create/read/update logic, validation
+errors, photo uploads, partner/union symmetry (including the F27
+orphaned-union-on-partner-removal case), author validation against
+`STORYBOOK_AUTHORS`, and `get_journal_context`'s fields. Also verified
+once, live, over the real protocol: spun up the server with the SDK's
+in-memory client transport, called `list_tools` (confirmed all 11 appear
+with schemas derived from the type hints/docstrings), `create_story`
+end-to-end, and a deliberately-invalid `get_story` call (confirmed it
+comes back as a tool error result, not a crash) — proving the plain-Python
+tests reflect what a real MCP client actually sees.
+
+`pytest` (820: 779 existing + 41 new) and `ruff check .` green.

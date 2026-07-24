@@ -53,27 +53,67 @@ undocumented.
 
 ## Architecture
 
+Data layer — pure functions, no Flask, each taking its directory explicitly
+(no hidden global state), so they're easy to test against a tmp directory:
+
+- `app/storage.py` — **all filesystem read/write for stories lives here**:
+  `Story` dataclass, `list_stories`/`get_story`/`create_story`/`save_story`,
+  image/memo upload and re-encoding, `.versions/` snapshot+restore, backup
+  zip import. Also home to several small pure date-math helpers used by the
+  timeline (`on_this_day`, `growth_photos` F29, `months_since_last_story`
+  F30). This is the module to read before touching how stories/people/
+  images are persisted.
+- `app/people.py` — the "cast of the book" (F14): `Person` dataclass
+  (including F27's `born`/`died`/`unions`), `list_people`/`get_person`/
+  `create_person`/`update_person`. Mirrors `storage.py`'s shape.
+- `app/kinship.py` — the family-tree graph + kinship-label computation
+  (F18) built from `people.py`'s `parents`/`partners`/`friend_of` edges.
+  Kinship words ("uncle", "cousin") are always derived here, never stored.
+- `app/life_events.py` — pure date-math for F27: `birthdays_today`,
+  `union_anniversaries_today`, `almanac_entries`.
+- `app/accounts.py` / `app/write_links.py` — per-person login credentials
+  and delegated one-off write links (F19), each layered on top of a
+  `people.py` Person the same way `life_events.py` is, storing their own
+  JSON sidecar files (`account.json`/`write_links.json`) next to a
+  person's `index.md`.
+- `app/dates.py`, `app/prompts.py`, `app/rendering.py`, `app/epub.py` — age-
+  label computation, the writing-prompts list, markdown-to-HTML rendering,
+  and EPUB export, respectively.
+
+Web layer — Flask, split by resource; each `routes_api_*`/`routes_*`
+sub-file registers its routes onto a blueprint object (`bp`) defined in
+its non-suffixed counterpart rather than declaring its own blueprint, and
+is imported at the bottom of that file purely for the route-registration
+side effect (so `url_for(...)` references never care which file a route's
+code actually lives in — see each file's module docstring for specifics):
+
 - `app/__init__.py` — `create_app()` factory; all config comes from
   `STORYBOOK_*` env vars (see `.env.example`), nothing is hardcoded.
-- `app/auth.py` — single shared password, no accounts/roles. `login_required`
-  decorator gates every page and API route except `/manifest.webmanifest`
-  (must stay public for home-screen install) and `/login` itself.
-- `app/storage.py` — **all filesystem read/write for stories lives here**.
-  Pure functions that take `stories_dir` explicitly (no hidden global
-  state), which is what makes them easy to test against a tmp directory.
-  This is the module to read before touching how stories/people/images are
-  persisted.
-- `app/people.py` / `app/kinship.py` — the "cast of the book" (F14) and the
-  family tree graph + kinship-label computation (F18) that sits on top of
-  `people.py`'s data.
-- `app/routes_pages.py` — HTML page routes (Blueprint `pages`).
-- `app/routes_api.py` — JSON API routes (Blueprint `api`, under `/api`),
-  consumed by the editor and tree JS. Every mutating endpoint validates its
-  inputs explicitly (see the `_validate_*` helpers) rather than trusting the
-  client — follow that pattern for any new endpoint.
-- `app/epub.py`, `app/rendering.py`, `app/dates.py`, `app/prompts.py` — book
-  export, markdown-to-HTML rendering, age-label computation, and story
-  prompts, respectively.
+- `app/auth.py` — login (single shared password, or F19 per-person
+  accounts when `STORYBOOK_ACCOUNTS=1`). `login_required` decorator gates
+  every page and API route except `/manifest.webmanifest` (must stay
+  public for home-screen install) and `/login` itself.
+- `app/routes_pages.py` (+ `routes_accounts.py`, `routes_people.py`) — HTML
+  page routes (Blueprint `pages`): timeline/story/book/firsts/growth/
+  almanac pages, account management, the family tree and person pages.
+- `app/routes_api.py` (+ `routes_api_people.py`) — JSON API routes
+  (Blueprint `api`, under `/api`), consumed by the editor and tree JS.
+  Every mutating endpoint validates its inputs explicitly (see the
+  `_validate_*` helpers) rather than trusting the client — follow that
+  pattern for any new endpoint.
+
+AI-tool layer:
+
+- `app/mcp_server.py` (+ `mcp_server.py` launcher at the repo root) — an
+  optional [MCP](https://modelcontextprotocol.io) server (F32) exposing
+  story/person read-write tools to an AI assistant, built on the same
+  `storage.py`/`people.py` functions the web routes use. A separate
+  entrypoint from `run.py`/`create_app()` — the Flask app never imports
+  it. Local stdio transport only; see README.md's "MCP server" section
+  before changing its trust model.
+
+Frontend:
+
 - `app/static/js/tree-logic.js` — pure, dependency-free tree math (BFS
   ancestor walks, chain validation), unit-tested directly under Node via
   `tests/js/tree_logic_test.mjs`. Keep new pure tree logic here rather than

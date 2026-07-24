@@ -481,6 +481,44 @@ page, a chapter per story, embedded photos, and a table of contents, openable
 in Apple Books, Kindle (after conversion), calibre, or any other e-reader
 app. Unlike `/book`, this needs no browser and no print step.
 
+### MCP server — letting an AI help write
+
+`app/mcp_server.py` (launched via `mcp_server.py` at the repo root) exposes
+stories and people as tools an AI assistant (Claude Desktop, Claude Code,
+or any other [MCP](https://modelcontextprotocol.io) client) can call
+directly: `list_stories`, `get_story`, `create_story`, `update_story`,
+`add_story_photo`, `list_people`, `get_person`, `create_person`,
+`update_person`, `set_person_photo`, and `get_journal_context` (a snapshot
+of what's recorded so far, today's birthdays/anniversaries, and whether
+it's been a quiet spell since the last entry). It's an optional add-on,
+not something the web app depends on.
+
+Point an MCP client at it with a config entry like:
+
+```json
+{
+  "mcpServers": {
+    "storybook": {
+      "command": "/path/to/storybook/.venv/bin/python",
+      "args": ["/path/to/storybook/mcp_server.py"],
+      "env": { "STORYBOOK_STORIES_DIR": "/path/to/storybook/stories" }
+    }
+  }
+}
+```
+
+It reads the same `STORYBOOK_STORIES_DIR`/`STORYBOOK_AUTHORS`/
+`STORYBOOK_BIRTHDATE`/`STORYBOOK_TITLE` variables the web app does, and
+every write goes through the exact same `storage.py`/`people.py` functions
+the editor uses — atomic writes, `.versions/` snapshots, Pillow
+re-encoding for photos, symmetric partner/union syncing. **It has no login
+of its own and only ever runs locally over stdio** (never a network
+port): whoever can launch the process already has filesystem access to
+`stories/`, same as running the app itself, so it's meant to run on the
+same machine as your MCP client, not exposed remotely. Photo uploads take
+base64-encoded image bytes as a tool argument instead of a multipart file;
+voice memos and zip import/export aren't wired up as tools.
+
 ## Backing up
 
 **Back up the `stories/` folder. That is everything.** There is no database, no
@@ -510,6 +548,37 @@ pytest
 
 CI also runs `ruff check .` (a linter, config in `pyproject.toml`) — run it locally
 before pushing if you want to catch the same issues early.
+
+## Dependencies
+
+Every runtime dependency, and why it's there. Kept short deliberately — see
+"Philosophy" below for why the list stays this short.
+
+Python (`requirements.txt`, versions pinned exactly):
+
+| Package | Purpose |
+|---|---|
+| `flask` | The web framework. |
+| `flask-wtf` | CSRF protection (`CSRFProtect`) — every unsafe-method request needs a valid token. |
+| `python-frontmatter` | Reads/writes each story's/person's `index.md` as YAML frontmatter + markdown body. |
+| `markdown` + `pymdown-extensions` | Renders a story's markdown body to HTML — `pymdownx.mark`/`caret`/`tilde` add `==highlight==`/`^ins^`/`~del~`, plus `smarty`, `tables`, `sane_lists`. |
+| `pillow` | Re-encodes every uploaded photo (resize, thumbnail, EXIF-transpose) — an upload's bytes are never saved verbatim. |
+| `pillow-heif` | Teaches Pillow to open HEIC/HEIF photos (iPhone originals) so they go through the same re-encoding path as any other format. |
+| `waitress` | The production-style WSGI server for `python -m waitress-serve ...` (see "Locally (production-style, waitress)" above). |
+| `mcp` | Optional: the MCP server (`mcp_server.py`, see below) that lets an AI assistant read/write stories and people. Not imported by the Flask app at all — only needed if you actually run `mcp_server.py`. |
+
+Dev-only (`requirements.txt`'s `# dev` section): `pytest` (test runner),
+`ruff` (linter, also run in CI).
+
+No JavaScript build step and no `package.json` — the browser code is plain
+`<script>` tags plus three vendored, pinned third-party bundles under
+`app/static/vendor/` (each with a banner comment or `VENDORED.md`
+documenting its version/provenance/no-network audit): the
+[Toast UI Editor](https://github.com/nhn/tui.editor) (3.2.2, the WYSIWYG
+markdown editor), and [family-chart](https://www.npmjs.com/package/family-chart)
+0.9.0 + [D3](https://d3js.org) 7.9.0 (the family tree renderer, F18). The
+two JS test files (`tests/js/*.mjs`) run directly via `node`, no test
+framework or `node_modules` needed.
 
 ## Philosophy
 
