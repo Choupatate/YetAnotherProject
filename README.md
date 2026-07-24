@@ -493,7 +493,10 @@ of what's recorded so far, today's birthdays/anniversaries, and whether
 it's been a quiet spell since the last entry). It's an optional add-on,
 not something the web app depends on.
 
-Point an MCP client at it with a config entry like:
+#### Quick start
+
+**If your MCP client runs on the same machine as `stories/`** (e.g. you run
+Storybook on your own laptop), point it at the server directly:
 
 ```json
 {
@@ -506,6 +509,43 @@ Point an MCP client at it with a config entry like:
   }
 }
 ```
+
+Claude Code instead of Claude Desktop: `claude mcp add storybook
+/path/to/storybook/.venv/bin/python /path/to/storybook/mcp_server.py --env
+STORYBOOK_STORIES_DIR=/path/to/storybook/stories`.
+
+**If Storybook runs on a home server/NAS and your client is on a laptop**,
+the server itself doesn't need to change — since stdio just needs *some*
+process's stdin/stdout, point the client's command at `ssh` instead of at
+`python` directly, so the connection tunnels over an SSH session you
+already control (key-based, non-interactive auth — the client can't
+answer a password prompt):
+
+```json
+{
+  "mcpServers": {
+    "storybook": {
+      "command": "ssh",
+      "args": [
+        "user@your-server",
+        "STORYBOOK_STORIES_DIR=/path/to/storybook/stories /path/to/storybook/.venv/bin/python /path/to/storybook/mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+**A cloud-hosted client with no network path to your server at all**
+(e.g. a remote coding session) genuinely can't reach it this way — stdio
+requires the client to launch the process, locally or over SSH, not talk
+to it over the open internet. Making that work would mean giving the
+server an actual network listener instead of stdio, which is a deliberate
+trust-boundary change (a network-reachable read-write endpoint into a
+private journal) worth deciding on its own, not a quick-start item.
+
+Once connected, just describe what you want in plain language — e.g. "add
+my grandmother Jeanne as a person, born March 3rd 1950" or "does anyone
+have a birthday today?" — the client figures out which tool(s) to call.
 
 It reads the same `STORYBOOK_STORIES_DIR`/`STORYBOOK_AUTHORS`/
 `STORYBOOK_BIRTHDATE`/`STORYBOOK_TITLE` variables the web app does, and
